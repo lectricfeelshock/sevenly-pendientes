@@ -26,7 +26,7 @@ const URGENCIES = [
   { label: "Baja", color: C.gray, rank: 0 }, { label: "Media", color: C.signal, rank: 1 },
   { label: "Alta", color: C.amber, rank: 2 }, { label: "Urgente", color: C.urgent, rank: 3 },
 ];
-const DEFAULT_CATEGORIES = ["General", "Diseño", "Cliente", "Administrativo"];
+const DEFAULT_CATEGORIES = ["Video", "Diseño", "Guiones", "Briefs"];
 const DONE_STATUSES = ["Entregado", "Finalizado"];
 
 function fmtDate(d) {
@@ -221,13 +221,12 @@ export default function Dashboard() {
     return true;
   });
 
-  const byCategory = {};
-  filtered.forEach((t) => { (byCategory[t.category] = byCategory[t.category] || []).push(t); });
-  Object.values(byCategory).forEach((arr) => arr.sort((a, b) => {
+  const byUrgency = {};
+  filtered.forEach((t) => { (byUrgency[t.urgency] = byUrgency[t.urgency] || []).push(t); });
+  const urgencyOrder = ["Urgente", "Alta", "Media", "Baja"];
+  Object.values(byUrgency).forEach((arr) => arr.sort((a, b) => {
     const aDone = DONE_STATUSES.includes(a.status) ? 1 : 0, bDone = DONE_STATUSES.includes(b.status) ? 1 : 0;
     if (aDone !== bDone) return aDone - bDone;
-    const ur = urgencyRank(b.urgency) - urgencyRank(a.urgency);
-    if (ur !== 0) return ur;
     const ad = a.deadline ? new Date(a.deadline).getTime() : Infinity, bd = b.deadline ? new Date(b.deadline).getTime() : Infinity;
     return ad - bd;
   }));
@@ -276,18 +275,22 @@ export default function Dashboard() {
       </div>
 
       <div className="max-w-3xl mx-auto pb-16">
-        {Object.keys(byCategory).length === 0 && <div className="text-center py-16" style={{ color: C.inkSoft }}><p className="text-sm">No hay pendientes que coincidan con el filtro.</p></div>}
-        {Object.entries(byCategory).map(([cat, items]) => (
-          <div key={cat} className="mt-6">
-            <div style={{ borderColor: C.hairline }} className="flex items-center gap-2 px-5 pb-1.5 border-b-2">
-              <span style={{ color: C.ink, fontFamily: "Georgia, serif" }} className="text-base">{cat}</span>
-              <span className="font-mono text-[11px]" style={{ color: C.inkSoft }}>{items.length}</span>
+        {Object.keys(byUrgency).length === 0 && <div className="text-center py-16" style={{ color: C.inkSoft }}><p className="text-sm">No hay pendientes que coincidan con el filtro.</p></div>}
+        {urgencyOrder.filter((u) => byUrgency[u]?.length).map((u) => {
+          const uInfo = URGENCIES.find((x) => x.label === u);
+          return (
+            <div key={u} className="mt-6">
+              <div style={{ borderColor: uInfo.color }} className="flex items-center gap-2 px-5 pb-1.5 border-b-2">
+                <Flag size={14} fill={uInfo.color} strokeWidth={0} style={{ color: uInfo.color }} />
+                <span style={{ color: uInfo.color, fontFamily: "Georgia, serif" }} className="text-base uppercase tracking-wide">{u}</span>
+                <span className="font-mono text-[11px]" style={{ color: C.inkSoft }}>{byUrgency[u].length}</span>
+              </div>
+              <div style={{ borderColor: C.hairline }} className="border-x">
+                {byUrgency[u].map((t) => <TaskRow key={t.id} task={t} onOpen={() => setSelected(t)} />)}
+              </div>
             </div>
-            <div style={{ borderColor: C.hairline }} className="border-x">
-              {items.map((t) => <TaskRow key={t.id} task={t} onOpen={() => setSelected(t)} />)}
-            </div>
-          </div>
-        ))}
+          );
+        })}
       </div>
 
       {showNew && <NewTaskForm onClose={() => setShowNew(false)} onCreate={createTask} profiles={profiles} profile={profile} />}
@@ -302,18 +305,17 @@ export default function Dashboard() {
 function TaskRow({ task, onOpen }) {
   const Icon = STATUS_ICON[task.status];
   const isDone = DONE_STATUSES.includes(task.status);
-  const legend = dueLegend(task.deadline, task.status);
   const urgent = task.urgency === "Urgente" && !isDone;
   return (
     <button onClick={onOpen} style={{ borderColor: C.hairline, background: urgent ? C.urgentSoft : C.panel }} className="w-full text-left border-b px-4 py-3 flex items-center gap-3">
       <Icon size={16} style={{ color: isDone ? C.signal : C.inkSoft, flexShrink: 0 }} />
       <div className="flex-1 min-w-0">
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-wrap">
+          <span className="font-mono text-[9px] uppercase tracking-wider px-1.5 py-0.5" style={{ background: C.paper, color: C.inkSoft, border: `1px solid ${C.hairline}` }}>{task.category}</span>
           <span style={{ color: C.ink, textDecoration: isDone ? "line-through" : "none", opacity: isDone ? 0.6 : 1 }} className="text-sm font-medium truncate">{task.title}</span>
           {Array.from({ length: task.remind_assignee_count || 0 }).map((_, i) => <Bell key={i} size={11} style={{ color: C.amber, flexShrink: 0 }} />)}
         </div>
-        <div className="flex items-center gap-3 mt-0.5 flex-wrap">
-          <UrgencyFlag urgency={task.urgency} />
+        <div className="flex items-center gap-3 mt-1 flex-wrap">
           <span className="font-mono text-[11px]" style={{ color: C.inkSoft }}>solicita {task.requested_by}</span>
           <span className="font-mono text-[11px]" style={{ color: C.inkSoft }}>→ {task.assigned_to_name}</span>
         </div>
@@ -443,6 +445,7 @@ function TaskDetail({ task, onClose, onUpdate, onDelete, onFinalize, onDeliver, 
     await notify(task.requested_by_id, task.id, `"${task.title}" fue entregado`);
   };
   const bumpRemindAssignee = async () => {
+    if (!isRequester) return;
     const today = todayISO();
     if ((task.remind_assignee_count || 0) >= 3 || task.remind_assignee_last_date === today) return;
     await onUpdate(task, { remind_assignee_count: (task.remind_assignee_count || 0) + 1, remind_assignee_last_date: today }, `${profile.name} resaltó el pendiente para ${task.assigned_to_name}`);
@@ -555,10 +558,12 @@ function TaskDetail({ task, onClose, onUpdate, onDelete, onFinalize, onDeliver, 
                 <input type="checkbox" checked={!!task.remind_me_by} disabled={!!task.remind_me_by || isFinalized} onChange={toggleRemindMe} />
                 Avisarme cuando se acerque el deadline (una sola vez, a mi campanita)
               </label>
-              <div className="flex items-center justify-between">
-                <span className="text-xs" style={{ color: C.inkSoft }}>Resaltar para {task.assigned_to_name} ({task.remind_assignee_count || 0}/3 hoy máx. 1)</span>
-                <button disabled={isFinalized || (task.remind_assignee_count || 0) >= 3 || task.remind_assignee_last_date === todayISO()} onClick={bumpRemindAssignee} style={{ borderColor: C.hairline, color: C.ink }} className="border px-2 py-1 text-xs disabled:opacity-40">Resaltar</button>
-              </div>
+              {isRequester && (
+                <div className="flex items-center justify-between">
+                  <span className="text-xs" style={{ color: C.inkSoft }}>Resaltar para {task.assigned_to_name} ({task.remind_assignee_count || 0}/3 hoy máx. 1)</span>
+                  <button disabled={isFinalized || (task.remind_assignee_count || 0) >= 3 || task.remind_assignee_last_date === todayISO()} onClick={bumpRemindAssignee} style={{ borderColor: C.hairline, color: C.ink }} className="border px-2 py-1 text-xs disabled:opacity-40">Resaltar</button>
+                </div>
+              )}
             </div>
             <div className="flex flex-col gap-2">
               <button onClick={sendReminderEmail} style={{ borderColor: C.hairline, color: C.ink }} className="border px-3 py-2 text-sm flex items-center gap-2 w-full justify-center"><Mail size={14} /> Enviar recordatorio por correo</button>
@@ -591,7 +596,7 @@ function TaskDetail({ task, onClose, onUpdate, onDelete, onFinalize, onDeliver, 
             <button onClick={() => setShowHistory((v) => !v)} className="flex items-center gap-1.5 text-sm" style={{ color: C.ink }}>
               <History size={14} /> Historial <ChevronDown size={13} style={{ color: C.inkSoft, transform: showHistory ? "rotate(180deg)" : "none" }} />
             </button>
-            <button onClick={downloadHistory} className="flex items-center gap-1.5 text-sm" style={{ color: C.ink }}><Download size={14} /> Descargar</button>
+            <button onClick={downloadHistory} disabled={!isFinalized} title={isFinalized ? "" : "Se habilita cuando el solicitante finaliza el pendiente"} style={{ color: isFinalized ? C.ink : C.gray }} className="flex items-center gap-1.5 text-sm disabled:cursor-not-allowed"><Download size={14} /> Descargar</button>
           </div>
           {showHistory && (
             <div className="flex flex-col gap-1.5 border-l-2 pl-3 -mt-3" style={{ borderColor: C.hairline }}>
