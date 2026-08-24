@@ -6,7 +6,7 @@ import {
   Plus, Bell, MessageSquare, ArrowRightLeft, X, Search, Flag,
   ChevronRight, ChevronDown, Trash2, CheckCircle2, Circle,
   PauseCircle, PlayCircle, Send, LogOut, History, Mail, Users,
-  User, TrendingUp, BookOpen, Download, Lock, CheckCheck,
+  User, TrendingUp, BookOpen, Download, Lock, CheckCheck, BellRing,
 } from "lucide-react";
 
 const C = {
@@ -78,6 +78,13 @@ function DeadlineBadge({ deadline, status }) {
   );
 }
 
+function urlBase64ToUint8Array(base64String) {
+  const padding = "=".repeat((4 - (base64String.length % 4)) % 4);
+  const base64 = (base64String + padding).replace(/-/g, "+").replace(/_/g, "/");
+  const rawData = atob(base64);
+  return Uint8Array.from([...rawData].map((c) => c.charCodeAt(0)));
+}
+
 export default function Dashboard() {
   const router = useRouter();
   const [ready, setReady] = useState(false);
@@ -93,6 +100,8 @@ export default function Dashboard() {
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("Todos");
   const [primaryTab, setPrimaryTab] = useState("mine"); // requests | mine | all
+  const [pushEnabled, setPushEnabled] = useState(false);
+  const [pushSupported, setPushSupported] = useState(false);
 
   const loadAll = useCallback(async () => {
     const { data: t } = await supabase.from("tasks").select("*").order("created_at", { ascending: false });
@@ -149,9 +158,44 @@ export default function Dashboard() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [ready, tasks]);
 
+  useEffect(() => {
+    if (!ready || !profile) return;
+    if (!("serviceWorker" in navigator) || !("PushManager" in window)) { setPushSupported(false); return; }
+    setPushSupported(true);
+    (async () => {
+      try {
+        const reg = await navigator.serviceWorker.register("/sw.js");
+        const sub = await reg.pushManager.getSubscription();
+        setPushEnabled(!!sub);
+      } catch (e) { /* silencioso */ }
+    })();
+  }, [ready, profile]);
+
+  const enablePush = async () => {
+    try {
+      const permission = await Notification.requestPermission();
+      if (permission !== "granted") { alert("No diste permiso de notificaciones — puedes activarlo luego desde la configuración del navegador."); return; }
+      const reg = await navigator.serviceWorker.ready;
+      const sub = await reg.pushManager.subscribe({
+        userVisibleOnly: true,
+        applicationServerKey: urlBase64ToUint8Array(process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY),
+      });
+      const json = sub.toJSON();
+      await supabase.from("push_subscriptions").upsert({
+        user_id: profile.id, endpoint: json.endpoint, p256dh: json.keys.p256dh, auth: json.keys.auth,
+      }, { onConflict: "endpoint" });
+      setPushEnabled(true);
+    } catch (e) {
+      alert("No se pudo activar. Si estás en iPhone, primero agrega la app a tu pantalla de inicio y ábrela desde ahí.");
+    }
+  };
+
   const logout = async () => { await supabase.auth.signOut(); router.replace("/login"); };
   const addHistory = async (taskId, text) => { await supabase.from("task_history").insert({ task_id: taskId, text }); };
-  const notify = async (userId, taskId, message) => { await supabase.from("notifications").insert({ user_id: userId, task_id: taskId, message }); };
+  const notify = async (userId, taskId, message) => {
+    await supabase.from("notifications").insert({ user_id: userId, task_id: taskId, message });
+    fetch("/api/send-push", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ userId, title: "Sevenly", body: message, url: "/dashboard" }) }).catch(() => {});
+  };
 
   const createTask = async (form) => {
     const assignee = profiles.find((p) => p.id === form.assignedToId);
@@ -249,6 +293,9 @@ export default function Dashboard() {
           <button onClick={() => router.push("/biblioteca")} className="flex items-center gap-1.5 text-sm" style={{ color: C.ink }}><BookOpen size={15} style={{ color: C.inkSoft }} /> Biblioteca</button>
           <button onClick={() => setShowTeam(true)} className="flex items-center gap-1.5 text-sm" style={{ color: C.ink }}><Users size={15} style={{ color: C.inkSoft }} /> Equipo</button>
           <button onClick={() => setShowActivity(true)} className="flex items-center gap-1.5 text-sm" style={{ color: C.ink }}><User size={14} style={{ color: C.inkSoft }} /> {profile.name}</button>
+          {pushSupported && !pushEnabled && (
+            <button onClick={enablePush} style={{ borderColor: C.signal, color: C.signal }} className="border px-2.5 py-1.5 text-xs flex items-center gap-1.5"><BellRing size={13} /> Activar notificaciones</button>
+          )}
           <button onClick={() => { setShowNotifs(true); markNotifsRead(); }} className="relative">
             <Bell size={17} style={{ color: C.inkSoft }} />
             {bellLabel && <span style={{ background: C.urgent, color: "#fff" }} className="absolute -top-1.5 -right-2 text-[9px] font-mono px-1 py-0.5 leading-none rounded-full">{bellLabel}</span>}
