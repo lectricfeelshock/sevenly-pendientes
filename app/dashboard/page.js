@@ -456,13 +456,15 @@ function TaskDetail({ task, onClose, onUpdate, onDelete, onFinalize, onDeliver, 
     if (!assignee) return;
     const subject = encodeURIComponent(`Recordatorio: ${task.title}`);
     const body = encodeURIComponent(`Hola ${assignee.name},\n\nRecordatorio del pendiente "${task.title}" (${task.category}).\nDeadline: ${fmtDate(task.deadline)}\nEstado: ${task.status}\n\nDe parte de ${profile.name}, panel Sevenly.`);
-    window.open(`mailto:${assignee.email || ""}?subject=${subject}&body=${body}`, "_blank");
+    const to = encodeURIComponent(assignee.email || "");
+    window.open(`https://outlook.office.com/mail/deeplink/compose?to=${to}&subject=${subject}&body=${body}`, "_blank");
     await onUpdate(task, {}, `${profile.name} envió recordatorio por correo a ${assignee.name}`);
   };
   const sendReminderWhatsapp = async () => {
     if (!assignee || !assignee.phone) return;
+    const cleanPhone = assignee.phone.replace(/\D/g, "");
     const text = encodeURIComponent(`Hola ${assignee.name}, recordatorio: "${task.title}" (${task.category}). Deadline: ${fmtDate(task.deadline)}. Estado: ${task.status}. — ${profile.name}, Sevenly`);
-    window.open(`https://wa.me/${assignee.phone}?text=${text}`, "_blank");
+    window.open(`https://wa.me/${cleanPhone}?text=${text}`, "_blank");
     await onUpdate(task, {}, `${profile.name} envió recordatorio por WhatsApp a ${assignee.name}`);
   };
 
@@ -565,11 +567,13 @@ function TaskDetail({ task, onClose, onUpdate, onDelete, onFinalize, onDeliver, 
                 </div>
               )}
             </div>
-            <div className="flex flex-col gap-2">
-              <button onClick={sendReminderEmail} style={{ borderColor: C.hairline, color: C.ink }} className="border px-3 py-2 text-sm flex items-center gap-2 w-full justify-center"><Mail size={14} /> Enviar recordatorio por correo</button>
-              <button onClick={sendReminderWhatsapp} disabled={!assignee?.phone} style={{ borderColor: C.signal, color: assignee?.phone ? C.signal : C.gray }} className="border px-3 py-2 text-sm flex items-center gap-2 w-full justify-center disabled:cursor-not-allowed"><Send size={14} /> {assignee?.phone ? "Recordar por WhatsApp" : "Sin celular registrado"}</button>
-            </div>
-            <p className="text-[11px] mt-1.5" style={{ color: C.inkSoft }}>Correo y WhatsApp se abren para que tú le des enviar — no salen solos.</p>
+            {isRequester && (
+              <div className="flex flex-col gap-2">
+                <button onClick={sendReminderEmail} style={{ borderColor: C.hairline, color: C.ink }} className="border px-3 py-2 text-sm flex items-center gap-2 w-full justify-center"><Mail size={14} /> Enviar recordatorio por correo</button>
+                <button onClick={sendReminderWhatsapp} disabled={!assignee?.phone} style={{ borderColor: C.signal, color: assignee?.phone ? C.signal : C.gray }} className="border px-3 py-2 text-sm flex items-center gap-2 w-full justify-center disabled:cursor-not-allowed"><Send size={14} /> {assignee?.phone ? "Recordar por WhatsApp" : "Sin celular registrado"}</button>
+              </div>
+            )}
+            <p className="text-[11px] mt-1.5" style={{ color: C.inkSoft }}>Correo abre Outlook Web ya redactado (solo dale enviar); WhatsApp abre con el mensaje listo. Ninguno sale automático.</p>
           </div>
 
           <div style={{ borderColor: C.hairline }} className="border-t pt-4">
