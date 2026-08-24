@@ -6,7 +6,7 @@ import {
   Plus, Bell, MessageSquare, ArrowRightLeft, X, Search, Flag,
   ChevronRight, ChevronDown, Trash2, CheckCircle2, Circle,
   PauseCircle, PlayCircle, Send, LogOut, History, Mail, Users,
-  User, TrendingUp,
+  User, TrendingUp, BookOpen,
 } from "lucide-react";
 
 const C = {
@@ -157,6 +157,7 @@ export default function Dashboard() {
         </div>
         <div className="flex items-center gap-3">
           <button onClick={() => setShowNew(true)} style={{ background: C.spine, color: C.paper }} className="px-3.5 py-2 text-sm flex items-center gap-1.5"><Plus size={15} /> Nuevo</button>
+          <button onClick={() => router.push("/biblioteca")} className="flex items-center gap-1.5 text-sm" style={{ color: C.ink }}><BookOpen size={15} style={{ color: C.inkSoft }} /> Biblioteca</button>
           <button onClick={() => setShowTeam(true)} className="flex items-center gap-1.5 text-sm" style={{ color: C.ink }}><Users size={15} style={{ color: C.inkSoft }} /> Equipo</button>
           <button onClick={() => setShowActivity(true)} className="flex items-center gap-1.5 text-sm" style={{ color: C.ink }}><User size={14} style={{ color: C.inkSoft }} /> {profile.name}</button>
           <button onClick={logout} title="Cerrar sesión"><LogOut size={15} style={{ color: C.inkSoft }} /></button>
