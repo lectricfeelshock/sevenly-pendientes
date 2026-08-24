@@ -2,6 +2,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabaseClient";
+import { Eye, EyeOff } from "lucide-react";
 
 const C = { paper: "#F6F4EE", panel: "#FFFFFF", ink: "#1C1F26", inkSoft: "#5B5F6B", hairline: "#DCD6C8", urgent: "#B3402B", spine: "#14181F" };
 
@@ -12,6 +13,7 @@ export default function LoginPage() {
   const [phone, setPhone] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState("");
   const [info, setInfo] = useState("");
   const [loading, setLoading] = useState(false);
@@ -63,7 +65,26 @@ export default function LoginPage() {
             </>
           )}
           <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="Correo" style={{ borderColor: C.hairline, background: C.panel }} className="border px-3 py-2 text-sm outline-none" />
-          <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} onKeyDown={(e) => e.key === "Enter" && submit()} placeholder="Contraseña" style={{ borderColor: C.hairline, background: C.panel }} className="border px-3 py-2 text-sm outline-none" />
+          <div className="relative">
+            <input
+              type={showPassword ? "text" : "password"}
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              onKeyDown={(e) => e.key === "Enter" && submit()}
+              placeholder="Contraseña"
+              style={{ borderColor: C.hairline, background: C.panel }}
+              className="w-full border px-3 py-2 pr-9 text-sm outline-none"
+            />
+            <button
+              type="button"
+              onClick={() => setShowPassword((v) => !v)}
+              style={{ color: C.inkSoft }}
+              className="absolute right-2.5 top-1/2 -translate-y-1/2"
+              tabIndex={-1}
+            >
+              {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+            </button>
+          </div>
         </div>
 
         {error && <div className="text-xs mb-3" style={{ color: C.urgent }}>{error}</div>}
