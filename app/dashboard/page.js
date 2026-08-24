@@ -123,7 +123,10 @@ export default function Dashboard() {
     }
     await supabase.from("tasks").update(payload).eq("id", task.id);
     if (historyNote) await addHistory(task.id, historyNote);
-    loadAll();
+    const { data: t } = await supabase.from("tasks").select("*").order("created_at", { ascending: false });
+    setTasks(t || []);
+    const fresh = (t || []).find((x) => x.id === task.id);
+    if (fresh) setSelected(fresh);
   };
 
   const deleteTask = async (id) => { await supabase.from("tasks").delete().eq("id", id); setSelected(null); loadAll(); };
