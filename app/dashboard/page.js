@@ -165,6 +165,9 @@ export default function Dashboard() {
     }).select().single();
     if (!error && data) {
       await addHistory(data.id, `Creado por ${profile.name}`);
+      if (data.request_date && data.deadline && data.request_date === data.deadline) {
+        await addHistory(data.id, `⚠️ Pendiente "de hoy para hoy" — se solicitó y se necesita entregar el mismo día`);
+      }
       if (assignee && assignee.id !== profile.id) await notify(assignee.id, data.id, `Te asignaron "${data.title}"`);
     }
     setShowNew(false);
@@ -306,6 +309,7 @@ function TaskRow({ task, onOpen }) {
   const Icon = STATUS_ICON[task.status];
   const isDone = DONE_STATUSES.includes(task.status);
   const urgent = task.urgency === "Urgente" && !isDone;
+  const sameDay = task.request_date && task.deadline && task.request_date === task.deadline;
   return (
     <button onClick={onOpen} style={{ borderColor: C.hairline, background: urgent ? C.urgentSoft : C.panel }} className="w-full text-left border-b px-4 py-3 flex items-center gap-3">
       <Icon size={16} style={{ color: isDone ? C.signal : C.inkSoft, flexShrink: 0 }} />
@@ -313,6 +317,7 @@ function TaskRow({ task, onOpen }) {
         <div className="flex items-center gap-2 flex-wrap">
           <span className="font-mono text-[9px] uppercase tracking-wider px-1.5 py-0.5" style={{ background: C.paper, color: C.inkSoft, border: `1px solid ${C.hairline}` }}>{task.category}</span>
           <span style={{ color: C.ink, textDecoration: isDone ? "line-through" : "none", opacity: isDone ? 0.6 : 1 }} className="text-sm font-medium truncate">{task.title}</span>
+          {sameDay && <span className="font-mono text-[9px] uppercase tracking-wider px-1.5 py-0.5 flex items-center gap-1" style={{ background: C.urgentSoft, color: C.urgent, border: `1px solid ${C.urgent}` }}>De hoy para hoy 💀</span>}
           {Array.from({ length: task.remind_assignee_count || 0 }).map((_, i) => <Bell key={i} size={11} style={{ color: C.amber, flexShrink: 0 }} />)}
         </div>
         <div className="flex items-center gap-3 mt-1 flex-wrap">
@@ -489,7 +494,10 @@ function TaskDetail({ task, onClose, onUpdate, onDelete, onFinalize, onDeliver, 
       <div style={{ background: C.paper }} className="w-full max-w-md h-full overflow-y-auto shadow-2xl" onClick={(e) => e.stopPropagation()}>
         <div style={{ borderColor: C.hairline, background: C.paper }} className="border-b px-5 py-4 sticky top-0 flex items-start justify-between gap-3">
           <div><div className="font-mono text-[10px] uppercase tracking-widest mb-1 flex items-center gap-1.5" style={{ color: C.inkSoft }}>{task.category}{isFinalized && <><Lock size={10} /> Finalizado — solo lectura</>}</div>
-            <h2 style={{ color: C.ink, fontFamily: "Georgia, serif" }} className="text-lg leading-tight">{task.title}</h2></div>
+            <h2 style={{ color: C.ink, fontFamily: "Georgia, serif" }} className="text-lg leading-tight">{task.title}</h2>
+            {task.request_date && task.deadline && task.request_date === task.deadline && (
+              <div className="font-mono text-[10px] uppercase tracking-wider mt-1" style={{ color: C.urgent }}>De hoy para hoy 💀</div>
+            )}</div>
           <button onClick={onClose}><X size={18} style={{ color: C.inkSoft }} /></button>
         </div>
         <div className="p-5 flex flex-col gap-5">
@@ -497,6 +505,8 @@ function TaskDetail({ task, onClose, onUpdate, onDelete, onFinalize, onDeliver, 
           <div className="grid grid-cols-2 gap-3 text-sm">
             <div><div className="font-mono text-[10px] uppercase tracking-widest mb-0.5" style={{ color: C.inkSoft }}>Solicita</div><div style={{ color: C.ink }}>{task.requested_by}</div></div>
             <div><div className="font-mono text-[10px] uppercase tracking-widest mb-0.5" style={{ color: C.inkSoft }}>Asignado a</div><div style={{ color: C.ink }}>{task.assigned_to_name}</div></div>
+            <div><div className="font-mono text-[10px] uppercase tracking-widest mb-0.5" style={{ color: C.inkSoft }}>Fecha de solicitud</div><div style={{ color: C.ink }}>{fmtDate(task.request_date)}</div></div>
+            <div></div>
             <div>
               <div className="font-mono text-[10px] uppercase tracking-widest mb-0.5" style={{ color: C.inkSoft }}>Deadline</div>
               {isRequester && !isFinalized ? (
@@ -613,18 +623,16 @@ function TaskDetail({ task, onClose, onUpdate, onDelete, onFinalize, onDeliver, 
             </div>
           )}
 
-          {!isFinalized && (
-            !confirmDelete ? (
-              <button onClick={() => setConfirmDelete(true)} className="text-xs flex items-center gap-1.5 mt-1 self-start" style={{ color: C.urgent }}><Trash2 size={13} /> Eliminar pendiente</button>
-            ) : (
-              <div style={{ borderColor: C.urgent, background: C.urgentSoft }} className="border px-3 py-2.5 flex items-center justify-between gap-2 mt-1">
-                <span className="text-xs" style={{ color: C.urgent }}>¿Eliminar? No se puede deshacer.</span>
-                <div className="flex gap-2 flex-shrink-0">
-                  <button onClick={() => setConfirmDelete(false)} style={{ color: C.inkSoft }} className="text-xs">Cancelar</button>
-                  <button onClick={() => onDelete(task.id)} style={{ background: C.urgent, color: "#fff" }} className="text-xs px-2.5 py-1">Sí, eliminar</button>
-                </div>
+          {!confirmDelete ? (
+            <button onClick={() => setConfirmDelete(true)} className="text-xs flex items-center gap-1.5 mt-1 self-start" style={{ color: C.urgent }}><Trash2 size={13} /> Eliminar pendiente</button>
+          ) : (
+            <div style={{ borderColor: C.urgent, background: C.urgentSoft }} className="border px-3 py-2.5 flex items-center justify-between gap-2 mt-1">
+              <span className="text-xs" style={{ color: C.urgent }}>¿Eliminar? {isFinalized ? "Su registro de finalizado seguirá contando en el perfil de quien lo hizo. " : ""}No se puede deshacer.</span>
+              <div className="flex gap-2 flex-shrink-0">
+                <button onClick={() => setConfirmDelete(false)} style={{ color: C.inkSoft }} className="text-xs">Cancelar</button>
+                <button onClick={() => onDelete(task.id)} style={{ background: C.urgent, color: "#fff" }} className="text-xs px-2.5 py-1">Sí, eliminar</button>
               </div>
-            )
+            </div>
           )}
         </div>
       </div>
@@ -704,6 +712,19 @@ function ActivityPanel({ onClose, profile }) {
     return { iso, label: dt.toLocaleDateString("es-MX", { weekday: "short", day: "2-digit" }), count };
   });
   const todayCount = days[0].count;
+
+  const downloadLog = () => {
+    const lines = [
+      `Pendientes finalizados por ${profile.name}`, `Total histórico: ${log.length}`, "",
+      ...log.map((l) => `[${new Date(l.finalized_at).toLocaleString("es-MX")}] ${l.task_title}`),
+    ];
+    const blob = new Blob([lines.join("\n")], { type: "text/plain" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url; a.download = `finalizados_${profile.name.replace(/[^a-z0-9]/gi, "_")}.txt`;
+    a.click(); URL.revokeObjectURL(url);
+  };
+
   return (
     <div className="fixed inset-0 z-50 flex items-start justify-end p-4" style={{ background: "rgba(20,24,31,0.35)" }} onClick={onClose}>
       <div style={{ background: C.paper, borderColor: C.hairline }} className="border w-full max-w-xs mt-14 p-4" onClick={(e) => e.stopPropagation()}>
@@ -715,6 +736,7 @@ function ActivityPanel({ onClose, profile }) {
         <div className="flex flex-col gap-1 mb-3">
           {days.map((d) => <div key={d.iso} className="flex items-center justify-between text-xs"><span style={{ color: C.inkSoft }} className="capitalize">{d.label}</span><span style={{ color: C.ink }} className="font-mono">{d.count}</span></div>)}
         </div>
+        <button onClick={downloadLog} disabled={log.length === 0} style={{ borderColor: C.hairline, color: C.ink }} className="border px-3 py-2 text-xs flex items-center justify-center gap-2 w-full mb-2 disabled:opacity-40"><Download size={13} /> Descargar mi lista de finalizados</button>
         <p className="text-[10px]" style={{ color: C.inkSoft }}>Este registro se queda aunque el pendiente se borre después de finalizado.</p>
       </div>
     </div>
