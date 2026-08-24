@@ -2,7 +2,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabaseClient";
-import { ArrowLeft, Plus, ExternalLink, X, Trash2, Pencil, BookOpen } from "lucide-react";
+import { ArrowLeft, Plus, ExternalLink, X, Trash2, Pencil, BookOpen, Tag } from "lucide-react";
 
 const C = {
   paper: "#F6F4EE", panel: "#FFFFFF", ink: "#1C1F26", inkSoft: "#5B5F6B",
@@ -17,6 +17,7 @@ export default function BibliotecaPage() {
   const [showForm, setShowForm] = useState(false);
   const [editing, setEditing] = useState(null);
   const [selected, setSelected] = useState(null);
+  const [activeTags, setActiveTags] = useState([]);
 
   const load = useCallback(async () => {
     const { data } = await supabase.from("resources").select("*").order("created_at", { ascending: false });
@@ -42,12 +43,14 @@ export default function BibliotecaPage() {
   }, [load]);
 
   const isAdmin = profile?.role === "admin";
+  const allTags = Array.from(new Set(resources.flatMap((r) => r.tags || []))).sort();
+  const filteredResources = activeTags.length === 0 ? resources : resources.filter((r) => (r.tags || []).some((t) => activeTags.includes(t)));
 
   const saveResource = async (form) => {
     if (editing) {
-      await supabase.from("resources").update({ title: form.title, description: form.description, url: form.url }).eq("id", editing.id);
+      await supabase.from("resources").update({ title: form.title, description: form.description, url: form.url, tags: form.tags }).eq("id", editing.id);
     } else {
-      await supabase.from("resources").insert({ title: form.title, description: form.description, url: form.url, created_by: profile.id });
+      await supabase.from("resources").insert({ title: form.title, description: form.description, url: form.url, tags: form.tags, created_by: profile.id });
     }
     setShowForm(false); setEditing(null); load();
   };
@@ -74,14 +77,50 @@ export default function BibliotecaPage() {
 
       <div className="max-w-3xl mx-auto p-5">
         <p className="text-sm mb-5" style={{ color: C.inkSoft }}>
-          Links a material que usamos para diseño y video — todo vive en nuestro SharePoint/OneDrive, aquí solo están los accesos directos.
+          Todo lo que necesitas para crear, en un solo lugar.
         </p>
+
+        {allTags.length > 0 && (
+          <div className="flex flex-wrap gap-1.5 mb-5">
+            <button
+              onClick={() => setActiveTags([])}
+              style={{ borderColor: activeTags.length === 0 ? C.spine : C.hairline, background: activeTags.length === 0 ? C.spine : "transparent", color: activeTags.length === 0 ? C.paper : C.inkSoft }}
+              className="border px-2.5 py-1.5 text-xs whitespace-nowrap"
+            >
+              Todas
+            </button>
+            {allTags.map((tag) => {
+              const active = activeTags.includes(tag);
+              return (
+                <button
+                  key={tag}
+                  onClick={() => setActiveTags((prev) => active ? prev.filter((t) => t !== tag) : [...prev, tag])}
+                  style={{ borderColor: active ? C.spine : C.hairline, background: active ? C.spine : "transparent", color: active ? C.paper : C.inkSoft }}
+                  className="border px-2.5 py-1.5 text-xs whitespace-nowrap"
+                >
+                  {tag}
+                </button>
+              );
+            })}
+          </div>
+        )}
+
         {resources.length === 0 && <p className="text-sm" style={{ color: C.inkSoft }}>Todavía no hay recursos agregados{isAdmin ? " — dale a \"Agregar recurso\" para el primero." : "."}</p>}
+        {resources.length > 0 && filteredResources.length === 0 && <p className="text-sm" style={{ color: C.inkSoft }}>Nada con esas etiquetas todavía.</p>}
         <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-          {resources.map((r) => (
+          {filteredResources.map((r) => (
             <button key={r.id} onClick={() => setSelected(r)} style={{ borderColor: C.hairline, background: C.panel }} className="border p-4 text-left flex flex-col gap-2 aspect-square justify-between hover:brightness-[0.98]">
               <BookOpen size={20} style={{ color: C.signal }} />
-              <span style={{ color: C.ink, fontFamily: "Georgia, serif" }} className="text-base leading-tight">{r.title}</span>
+              <div>
+                <span style={{ color: C.ink, fontFamily: "Georgia, serif" }} className="text-base leading-tight block mb-1.5">{r.title}</span>
+                {r.tags && r.tags.length > 0 && (
+                  <div className="flex flex-wrap gap-1">
+                    {r.tags.slice(0, 3).map((tag) => (
+                      <span key={tag} className="font-mono text-[9px] uppercase tracking-wider px-1.5 py-0.5" style={{ background: C.paper, color: C.inkSoft, border: `1px solid ${C.hairline}` }}>{tag}</span>
+                    ))}
+                  </div>
+                )}
+              </div>
             </button>
           ))}
         </div>
@@ -94,7 +133,14 @@ export default function BibliotecaPage() {
               <h2 style={{ color: C.ink, fontFamily: "Georgia, serif" }} className="text-lg">{selected.title}</h2>
               <button onClick={() => setSelected(null)}><X size={18} style={{ color: C.inkSoft }} /></button>
             </div>
-            <p className="text-sm mb-5" style={{ color: C.ink }}>{selected.description}</p>
+            <p className="text-sm mb-3" style={{ color: C.ink }}>{selected.description}</p>
+            {selected.tags && selected.tags.length > 0 && (
+              <div className="flex flex-wrap gap-1 mb-4">
+                {selected.tags.map((tag) => (
+                  <span key={tag} className="font-mono text-[9px] uppercase tracking-wider px-1.5 py-0.5" style={{ background: C.paper, color: C.inkSoft, border: `1px solid ${C.hairline}` }}>{tag}</span>
+                ))}
+              </div>
+            )}
             <a href={selected.url} target="_blank" rel="noopener noreferrer" style={{ background: C.spine, color: C.paper }} className="px-4 py-2 text-sm flex items-center justify-center gap-2 mb-3">
               <ExternalLink size={14} /> Abrir link
             </a>
@@ -117,10 +163,20 @@ function ResourceForm({ initial, onClose, onSave }) {
   const [title, setTitle] = useState(initial?.title || "");
   const [description, setDescription] = useState(initial?.description || "");
   const [url, setUrl] = useState(initial?.url || "");
+  const [tags, setTags] = useState(initial?.tags || []);
+  const [tagInput, setTagInput] = useState("");
+
+  const addTag = () => {
+    const clean = tagInput.trim();
+    if (!clean) return;
+    if (!tags.includes(clean)) setTags([...tags, clean]);
+    setTagInput("");
+  };
+  const removeTag = (t) => setTags(tags.filter((x) => x !== t));
 
   const submit = () => {
     if (!title.trim() || !url.trim()) return;
-    onSave({ title: title.trim(), description: description.trim(), url: url.trim() });
+    onSave({ title: title.trim(), description: description.trim(), url: url.trim(), tags });
   };
 
   return (
@@ -142,6 +198,30 @@ function ResourceForm({ initial, onClose, onSave }) {
           <div>
             <label className="font-mono text-[10px] uppercase tracking-widest" style={{ color: C.inkSoft }}>Link (SharePoint/OneDrive)</label>
             <input value={url} onChange={(e) => setUrl(e.target.value)} placeholder="https://..." style={{ borderColor: C.hairline, background: C.panel }} className="w-full border px-3 py-2 text-sm mt-1 outline-none" />
+          </div>
+          <div>
+            <label className="font-mono text-[10px] uppercase tracking-widest" style={{ color: C.inkSoft }}>Etiquetas</label>
+            <div className="flex gap-2 mt-1">
+              <input
+                value={tagInput}
+                onChange={(e) => setTagInput(e.target.value)}
+                onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); addTag(); } }}
+                placeholder="Ej. video, fotos, plantillas..."
+                style={{ borderColor: C.hairline, background: C.panel }}
+                className="flex-1 border px-3 py-2 text-sm outline-none"
+              />
+              <button type="button" onClick={addTag} style={{ borderColor: C.hairline, color: C.ink }} className="border px-3 py-2 text-sm">Agregar</button>
+            </div>
+            {tags.length > 0 && (
+              <div className="flex flex-wrap gap-1.5 mt-2">
+                {tags.map((t) => (
+                  <span key={t} style={{ background: C.paper, borderColor: C.hairline, color: C.ink }} className="border px-2 py-1 text-xs flex items-center gap-1">
+                    {t}
+                    <button type="button" onClick={() => removeTag(t)}><X size={11} style={{ color: C.inkSoft }} /></button>
+                  </span>
+                ))}
+              </div>
+            )}
           </div>
         </div>
         <div className="flex justify-end gap-2">
