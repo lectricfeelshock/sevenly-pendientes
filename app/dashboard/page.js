@@ -7,6 +7,7 @@ import {
   ChevronRight, ChevronDown, Trash2, CheckCircle2, Circle,
   PauseCircle, PlayCircle, Send, LogOut, History, Mail, Users,
   User, TrendingUp, BookOpen, Download, Lock, CheckCheck, BellRing,
+  Image as ImageIcon, Megaphone,
 } from "lucide-react";
 
 const C = {
@@ -102,6 +103,7 @@ export default function Dashboard() {
   const [primaryTab, setPrimaryTab] = useState("mine"); // requests | mine | all
   const [pushEnabled, setPushEnabled] = useState(false);
   const [pushSupported, setPushSupported] = useState(false);
+  const [popupQueue, setPopupQueue] = useState([]);
 
   const loadAll = useCallback(async () => {
     const { data: t } = await supabase.from("tasks").select("*").order("created_at", { ascending: false });
@@ -171,6 +173,25 @@ export default function Dashboard() {
     })();
   }, [ready, profile]);
 
+  useEffect(() => {
+    if (!ready || !profile) return;
+    (async () => {
+      const today = todayISO();
+      const { data: pops } = await supabase.from("popups").select("*").eq("scheduled_date", today).order("created_at", { ascending: true });
+      if (!pops || pops.length === 0) { setPopupQueue([]); return; }
+      const { data: dismissed } = await supabase.from("popup_dismissed").select("popup_id").eq("user_id", profile.id);
+      const dismissedIds = new Set((dismissed || []).map((d) => d.popup_id));
+      setPopupQueue(pops.filter((p) => !dismissedIds.has(p.id)));
+    })();
+  }, [ready, profile]);
+
+  const dismissPopup = async () => {
+    const current = popupQueue[0];
+    if (!current || !profile) return;
+    setPopupQueue((q) => q.slice(1));
+    await supabase.from("popup_dismissed").insert({ user_id: profile.id, popup_id: current.id });
+  };
+
   const enablePush = async () => {
     try {
       const permission = await Notification.requestPermission();
@@ -218,6 +239,24 @@ export default function Dashboard() {
     loadAll();
   };
 
+  const createPopup = async (form) => {
+    let imageUrl = null;
+    if (form.imageFile) {
+      const ext = (form.imageFile.name.split(".").pop() || "jpg").toLowerCase();
+      const path = `${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`;
+      const { error: upErr } = await supabase.storage.from("popups").upload(path, form.imageFile, { cacheControl: "3600", upsert: false });
+      if (!upErr) {
+        const { data: pub } = supabase.storage.from("popups").getPublicUrl(path);
+        imageUrl = pub.publicUrl;
+      }
+    }
+    await supabase.from("popups").insert({
+      title: form.title, description: form.description, image_url: imageUrl,
+      scheduled_date: form.scheduledDate, created_by: profile.id,
+    });
+    setShowNew(false);
+  };
+
   const refreshSelected = async (id) => {
     const { data: t } = await supabase.from("tasks").select("*").order("created_at", { ascending: false });
     setTasks(t || []);
@@ -255,6 +294,7 @@ export default function Dashboard() {
 
   if (!ready) return <div style={{ background: C.spine, minHeight: "100vh" }} className="w-full" />;
 
+  const isAdmin = profile?.role === "admin";
   let base = tasks;
   if (primaryTab === "requests") base = tasks.filter((t) => t.requested_by_id === profile.id);
   else if (primaryTab === "mine") base = tasks.filter((t) => t.assigned_to_id === profile.id);
@@ -340,7 +380,8 @@ export default function Dashboard() {
         })}
       </div>
 
-      {showNew && <NewTaskForm onClose={() => setShowNew(false)} onCreate={createTask} profiles={profiles} profile={profile} />}
+      {showNew && <NewTaskForm onClose={() => setShowNew(false)} onCreate={createTask} onCreatePopup={createPopup} profiles={profiles} profile={profile} isAdmin={isAdmin} />}
+      {popupQueue[0] && <PopupModal popup={popupQueue[0]} onClose={dismissPopup} />}
       {selected && <TaskDetail task={selected} onClose={() => setSelected(null)} onUpdate={updateTask} onDelete={deleteTask} onFinalize={finalizeTask} onDeliver={deliverTask} profiles={profiles} profile={profile} notify={notify} />}
       {showTeam && <TeamPanel onClose={() => setShowTeam(false)} profiles={profiles} tasks={tasks} />}
       {showActivity && <ActivityPanel onClose={() => setShowActivity(false)} profile={profile} />}
@@ -375,59 +416,142 @@ function TaskRow({ task, onOpen }) {
   );
 }
 
-function NewTaskForm({ onClose, onCreate, profiles, profile }) {
+function NewTaskForm({ onClose, onCreate, onCreatePopup, profiles, profile, isAdmin }) {
+  const [mode, setMode] = useState("pendiente"); // "pendiente" | "popup" (solo admins ven el selector)
   const [title, setTitle] = useState(""), [description, setDescription] = useState("");
   const [category, setCategory] = useState(DEFAULT_CATEGORIES[0]), [newCategory, setNewCategory] = useState("");
   const [requestedById, setRequestedById] = useState(profile.id), [deadline, setDeadline] = useState("");
   const [urgency, setUrgency] = useState("Media"), [assignedToId, setAssignedToId] = useState(profile.id);
+
+  // Campos del Pop Up
+  const [popupTitle, setPopupTitle] = useState(""), [popupDesc, setPopupDesc] = useState("");
+  const [popupDate, setPopupDate] = useState(todayISO()), [popupImage, setPopupImage] = useState(null);
+  const [popupImageError, setPopupImageError] = useState(""), [popupSaving, setPopupSaving] = useState(false);
 
   const submit = () => {
     if (!title.trim() || !assignedToId || !requestedById) return;
     onCreate({ title, description, category: newCategory.trim() || category, requestedById, deadline, urgency, assignedToId });
   };
 
+  const handlePopupImage = (e) => {
+    const file = e.target.files?.[0] || null;
+    setPopupImageError("");
+    if (file && file.size > 2 * 1024 * 1024) {
+      setPopupImageError("La imagen pesa más de 2 MB — comprímela antes de subirla (recomendado: menos de 400 KB).");
+      setPopupImage(null);
+      e.target.value = "";
+      return;
+    }
+    setPopupImage(file);
+  };
+
+  const submitPopup = async () => {
+    if (!popupTitle.trim() || !popupDate || popupSaving) return;
+    setPopupSaving(true);
+    await onCreatePopup({ title: popupTitle, description: popupDesc, scheduledDate: popupDate, imageFile: popupImage });
+    setPopupSaving(false);
+  };
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: "rgba(20,24,31,0.55)" }}>
       <div style={{ background: C.paper, borderColor: C.hairline }} className="w-full max-w-lg border max-h-[90vh] overflow-y-auto">
         <div style={{ borderColor: C.hairline }} className="border-b px-5 py-4 flex items-center justify-between">
-          <h2 style={{ color: C.ink, fontFamily: "Georgia, serif" }} className="text-lg">Nuevo pendiente</h2>
+          {isAdmin ? (
+            <div className="flex items-center gap-1.5">
+              {[["pendiente", "Pendiente"], ["popup", "Pop Up"]].map(([key, label]) => (
+                <button key={key} onClick={() => setMode(key)}
+                  style={{ borderColor: mode === key ? C.signal : C.hairline, background: mode === key ? C.signal : "transparent", color: mode === key ? "#fff" : C.ink }}
+                  className="border-2 px-3 py-1.5 text-sm font-medium">{label}</button>
+              ))}
+            </div>
+          ) : (
+            <h2 style={{ color: C.ink, fontFamily: "Georgia, serif" }} className="text-lg">Nuevo pendiente</h2>
+          )}
           <button onClick={onClose}><X size={18} style={{ color: C.inkSoft }} /></button>
         </div>
-        <div className="p-5 flex flex-col gap-4">
-          <div><label className="font-mono text-[10px] uppercase tracking-widest" style={{ color: C.inkSoft }}>Título</label>
-            <input value={title} onChange={(e) => setTitle(e.target.value)} style={{ borderColor: C.hairline, background: C.panel }} className="w-full border px-3 py-2 text-sm mt-1 outline-none" /></div>
-          <div><label className="font-mono text-[10px] uppercase tracking-widest" style={{ color: C.inkSoft }}>Descripción</label>
-            <textarea value={description} onChange={(e) => setDescription(e.target.value)} rows={3} style={{ borderColor: C.hairline, background: C.panel }} className="w-full border px-3 py-2 text-sm mt-1 outline-none" /></div>
-          <div className="grid grid-cols-2 gap-3">
-            <div><label className="font-mono text-[10px] uppercase tracking-widest" style={{ color: C.inkSoft }}>Categoría</label>
-              <select value={category} onChange={(e) => setCategory(e.target.value)} style={{ borderColor: C.hairline, background: C.panel }} className="w-full border px-3 py-2 text-sm mt-1 outline-none">
-                {DEFAULT_CATEGORIES.map((c) => <option key={c} value={c}>{c}</option>)}
-              </select></div>
-            <div><label className="font-mono text-[10px] uppercase tracking-widest" style={{ color: C.inkSoft }}>...o nueva</label>
-              <input value={newCategory} onChange={(e) => setNewCategory(e.target.value)} style={{ borderColor: C.hairline, background: C.panel }} className="w-full border px-3 py-2 text-sm mt-1 outline-none" /></div>
+
+        {mode === "popup" && isAdmin ? (
+          <div className="p-5 flex flex-col gap-4">
+            <div><label className="font-mono text-[10px] uppercase tracking-widest" style={{ color: C.inkSoft }}>Título</label>
+              <input value={popupTitle} onChange={(e) => setPopupTitle(e.target.value)} style={{ borderColor: C.hairline, background: C.panel }} className="w-full border px-3 py-2 text-sm mt-1 outline-none" /></div>
+            <div><label className="font-mono text-[10px] uppercase tracking-widest" style={{ color: C.inkSoft }}>Descripción</label>
+              <textarea value={popupDesc} onChange={(e) => setPopupDesc(e.target.value)} rows={4} style={{ borderColor: C.hairline, background: C.panel }} className="w-full border px-3 py-2 text-sm mt-1 outline-none" /></div>
+            <div>
+              <label className="font-mono text-[10px] uppercase tracking-widest flex items-center gap-1.5" style={{ color: C.inkSoft }}><ImageIcon size={12} /> Imagen (opcional)</label>
+              <input type="file" accept="image/*" onChange={handlePopupImage} className="text-sm mt-1.5 block" />
+              <p className="text-[11px] mt-1" style={{ color: C.inkSoft }}>Recomendado: 800×450px (horizontal, 16:9), formato JPG o WebP, menos de 400 KB — así carga rápido en celular.</p>
+              {popupImageError && <p className="text-[11px] mt-1" style={{ color: C.urgent }}>{popupImageError}</p>}
+              {popupImage && !popupImageError && <p className="text-[11px] mt-1" style={{ color: C.signal }}>Lista: {popupImage.name}</p>}
+            </div>
+            <div><label className="font-mono text-[10px] uppercase tracking-widest" style={{ color: C.inkSoft }}>Día programado</label>
+              <input type="date" value={popupDate} onChange={(e) => setPopupDate(e.target.value)} style={{ borderColor: C.hairline, background: C.panel }} className="w-full border px-3 py-2 text-sm mt-1 outline-none" /></div>
           </div>
-          <div className="grid grid-cols-2 gap-3">
-            <div><label className="font-mono text-[10px] uppercase tracking-widest" style={{ color: C.inkSoft }}>Solicita</label>
-              <select value={requestedById} onChange={(e) => setRequestedById(e.target.value)} style={{ borderColor: C.hairline, background: C.panel }} className="w-full border px-3 py-2 text-sm mt-1 outline-none">
-                {profiles.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
-              </select></div>
-            <div><label className="font-mono text-[10px] uppercase tracking-widest" style={{ color: C.inkSoft }}>Asignar a</label>
-              <select value={assignedToId} onChange={(e) => setAssignedToId(e.target.value)} style={{ borderColor: C.hairline, background: C.panel }} className="w-full border px-3 py-2 text-sm mt-1 outline-none">
-                {profiles.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
-              </select></div>
+        ) : (
+          <div className="p-5 flex flex-col gap-4">
+            <div><label className="font-mono text-[10px] uppercase tracking-widest" style={{ color: C.inkSoft }}>Título</label>
+              <input value={title} onChange={(e) => setTitle(e.target.value)} style={{ borderColor: C.hairline, background: C.panel }} className="w-full border px-3 py-2 text-sm mt-1 outline-none" /></div>
+            <div><label className="font-mono text-[10px] uppercase tracking-widest" style={{ color: C.inkSoft }}>Descripción</label>
+              <textarea value={description} onChange={(e) => setDescription(e.target.value)} rows={3} style={{ borderColor: C.hairline, background: C.panel }} className="w-full border px-3 py-2 text-sm mt-1 outline-none" /></div>
+            <div className="grid grid-cols-2 gap-3">
+              <div><label className="font-mono text-[10px] uppercase tracking-widest" style={{ color: C.inkSoft }}>Categoría</label>
+                <select value={category} onChange={(e) => setCategory(e.target.value)} style={{ borderColor: C.hairline, background: C.panel }} className="w-full border px-3 py-2 text-sm mt-1 outline-none">
+                  {DEFAULT_CATEGORIES.map((c) => <option key={c} value={c}>{c}</option>)}
+                </select></div>
+              <div><label className="font-mono text-[10px] uppercase tracking-widest" style={{ color: C.inkSoft }}>...o nueva</label>
+                <input value={newCategory} onChange={(e) => setNewCategory(e.target.value)} style={{ borderColor: C.hairline, background: C.panel }} className="w-full border px-3 py-2 text-sm mt-1 outline-none" /></div>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div><label className="font-mono text-[10px] uppercase tracking-widest" style={{ color: C.inkSoft }}>Solicita</label>
+                <select value={requestedById} onChange={(e) => setRequestedById(e.target.value)} style={{ borderColor: C.hairline, background: C.panel }} className="w-full border px-3 py-2 text-sm mt-1 outline-none">
+                  {profiles.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
+                </select></div>
+              <div><label className="font-mono text-[10px] uppercase tracking-widest" style={{ color: C.inkSoft }}>Asignar a</label>
+                <select value={assignedToId} onChange={(e) => setAssignedToId(e.target.value)} style={{ borderColor: C.hairline, background: C.panel }} className="w-full border px-3 py-2 text-sm mt-1 outline-none">
+                  {profiles.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
+                </select></div>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div><label className="font-mono text-[10px] uppercase tracking-widest" style={{ color: C.inkSoft }}>Deadline</label>
+                <input type="date" value={deadline} onChange={(e) => setDeadline(e.target.value)} style={{ borderColor: C.hairline, background: C.panel }} className="w-full border px-3 py-2 text-sm mt-1 outline-none" /></div>
+              <div><label className="font-mono text-[10px] uppercase tracking-widest" style={{ color: C.inkSoft }}>Urgencia</label>
+                <select value={urgency} onChange={(e) => setUrgency(e.target.value)} style={{ borderColor: C.hairline, background: C.panel }} className="w-full border px-3 py-2 text-sm mt-1 outline-none">
+                  {URGENCIES.map((u) => <option key={u.label} value={u.label}>{u.label}</option>)}
+                </select></div>
+            </div>
           </div>
-          <div className="grid grid-cols-2 gap-3">
-            <div><label className="font-mono text-[10px] uppercase tracking-widest" style={{ color: C.inkSoft }}>Deadline</label>
-              <input type="date" value={deadline} onChange={(e) => setDeadline(e.target.value)} style={{ borderColor: C.hairline, background: C.panel }} className="w-full border px-3 py-2 text-sm mt-1 outline-none" /></div>
-            <div><label className="font-mono text-[10px] uppercase tracking-widest" style={{ color: C.inkSoft }}>Urgencia</label>
-              <select value={urgency} onChange={(e) => setUrgency(e.target.value)} style={{ borderColor: C.hairline, background: C.panel }} className="w-full border px-3 py-2 text-sm mt-1 outline-none">
-                {URGENCIES.map((u) => <option key={u.label} value={u.label}>{u.label}</option>)}
-              </select></div>
-          </div>
-        </div>
+        )}
+
         <div style={{ borderColor: C.hairline }} className="border-t px-5 py-4 flex justify-end gap-2">
           <button onClick={onClose} style={{ color: C.inkSoft }} className="px-4 py-2 text-sm">Cancelar</button>
-          <button onClick={submit} style={{ background: C.spine, color: C.paper }} className="px-4 py-2 text-sm">Crear pendiente</button>
+          {mode === "popup" && isAdmin ? (
+            <button onClick={submitPopup} disabled={popupSaving || !!popupImageError} style={{ background: C.spine, color: C.paper, opacity: popupSaving ? 0.6 : 1 }} className="px-4 py-2 text-sm">{popupSaving ? "Programando..." : "Programar"}</button>
+          ) : (
+            <button onClick={submit} style={{ background: C.spine, color: C.paper }} className="px-4 py-2 text-sm">Crear pendiente</button>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function PopupModal({ popup, onClose }) {
+  return (
+    <div className="fixed inset-0 z-[60] flex items-center justify-center p-4" style={{ background: "rgba(20,24,31,0.7)" }}>
+      <div style={{ background: C.paper, borderColor: C.hairline }} className="w-full max-w-sm border relative overflow-hidden">
+        <button onClick={onClose} style={{ background: C.paper }} className="absolute top-3 right-3 z-10 p-1 rounded-full">
+          <X size={18} style={{ color: C.inkSoft }} />
+        </button>
+        {popup.image_url && (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img src={popup.image_url} alt="" className="w-full object-cover" style={{ maxHeight: 220 }} />
+        )}
+        <div className="p-5">
+          <div className="flex items-center gap-1.5 mb-2 font-mono text-[10px] uppercase tracking-widest" style={{ color: C.inkSoft }}>
+            <Megaphone size={12} /> Aviso
+          </div>
+          <h2 style={{ color: C.ink, fontFamily: "Georgia, serif" }} className="text-lg mb-2">{popup.title}</h2>
+          {popup.description && <p className="text-sm whitespace-pre-wrap" style={{ color: C.ink }}>{popup.description}</p>}
+          <button onClick={onClose} style={{ background: C.spine, color: C.paper }} className="mt-4 px-4 py-2 text-sm w-full">Entendido</button>
         </div>
       </div>
     </div>
