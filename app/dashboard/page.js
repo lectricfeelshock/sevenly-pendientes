@@ -7,7 +7,7 @@ import {
   ChevronRight, ChevronDown, Trash2, CheckCircle2, Circle,
   PauseCircle, PlayCircle, Send, LogOut, History, Mail, Users,
   User, TrendingUp, BookOpen, Download, Lock, CheckCheck, BellRing,
-  Image as ImageIcon, Megaphone,
+  Image as ImageIcon, Megaphone, Settings,
 } from "lucide-react";
 
 const C = {
@@ -333,6 +333,7 @@ export default function Dashboard() {
           <button onClick={() => router.push("/biblioteca")} className="flex items-center gap-1.5 text-sm" style={{ color: C.ink }}><BookOpen size={15} style={{ color: C.inkSoft }} /> Biblioteca</button>
           <button onClick={() => setShowTeam(true)} className="flex items-center gap-1.5 text-sm" style={{ color: C.ink }}><Users size={15} style={{ color: C.inkSoft }} /> Equipo</button>
           <button onClick={() => setShowActivity(true)} className="flex items-center gap-1.5 text-sm" style={{ color: C.ink }}><User size={14} style={{ color: C.inkSoft }} /> {profile.name}</button>
+          <button onClick={() => router.push("/perfil")} title="Editar mi perfil"><Settings size={15} style={{ color: C.inkSoft }} /></button>
           <button onClick={() => { setShowNotifs(true); markNotifsRead(); }} className="relative">
             <Bell size={17} style={{ color: C.inkSoft }} />
             {bellLabel && <span style={{ background: C.urgent, color: "#fff" }} className="absolute -top-1.5 -right-2 text-[9px] font-mono px-1 py-0.5 leading-none rounded-full">{bellLabel}</span>}
