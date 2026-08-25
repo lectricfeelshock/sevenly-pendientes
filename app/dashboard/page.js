@@ -177,11 +177,16 @@ export default function Dashboard() {
     if (!ready || !profile) return;
     (async () => {
       const today = todayISO();
-      const { data: pops } = await supabase.from("popups").select("*").eq("scheduled_date", today).order("created_at", { ascending: true });
+      const nowHHMM = new Date().toTimeString().slice(0, 5);
+      const { data: pops } = await supabase.from("popups").select("*")
+        .or(`scheduled_date.eq.${today},always_welcome.eq.true`)
+        .order("created_at", { ascending: true });
       if (!pops || pops.length === 0) { setPopupQueue([]); return; }
+      const dueNow = pops.filter((p) => p.always_welcome || !p.scheduled_time || p.scheduled_time.slice(0, 5) <= nowHHMM);
+      if (dueNow.length === 0) { setPopupQueue([]); return; }
       const { data: dismissed } = await supabase.from("popup_dismissed").select("popup_id").eq("user_id", profile.id);
       const dismissedIds = new Set((dismissed || []).map((d) => d.popup_id));
-      setPopupQueue(pops.filter((p) => !dismissedIds.has(p.id)));
+      setPopupQueue(dueNow.filter((p) => !dismissedIds.has(p.id)));
     })();
   }, [ready, profile]);
 
@@ -252,7 +257,8 @@ export default function Dashboard() {
     }
     await supabase.from("popups").insert({
       title: form.title, description: form.description, image_url: imageUrl,
-      scheduled_date: form.scheduledDate, created_by: profile.id,
+      scheduled_date: form.scheduledDate, scheduled_time: form.scheduledTime, always_welcome: form.alwaysWelcome,
+      created_by: profile.id,
     });
     setShowNew(false);
   };
@@ -342,13 +348,17 @@ export default function Dashboard() {
       </div>
 
       <div style={{ borderColor: C.hairline }} className="border-b px-5 py-2.5 flex flex-wrap items-center gap-2">
-        {[["requests", "Mis solicitudes"], ["mine", "Mis pendientes"], ["all", "Todos"]].map(([key, label]) => (
+        {[["requests", "Mis solicitudes"], ["mine", "Mis pendientes"], ["all", "Todos"], ...(isAdmin ? [["popups", "Pop Ups"]] : [])].map(([key, label]) => (
           <button key={key} onClick={() => setPrimaryTab(key)}
             style={{ borderColor: primaryTab === key ? C.signal : C.hairline, background: primaryTab === key ? C.signal : "transparent", color: primaryTab === key ? "#fff" : C.ink }}
             className="border-2 px-3 py-1.5 text-sm font-medium whitespace-nowrap">{label}</button>
         ))}
       </div>
 
+      {primaryTab === "popups" && isAdmin ? (
+        <PopupsAdminPanel profile={profile} />
+      ) : (
+      <>
       <div style={{ borderColor: C.hairline }} className="border-b px-5 py-2.5 flex flex-wrap items-center gap-2">
         <div style={{ borderColor: C.hairline, background: C.panel }} className="flex items-center gap-1.5 border px-2.5 py-1.5 flex-1 min-w-[160px] max-w-xs">
           <Search size={13} style={{ color: C.inkSoft }} />
@@ -379,6 +389,8 @@ export default function Dashboard() {
           );
         })}
       </div>
+      </>
+      )}
 
       {showNew && <NewTaskForm onClose={() => setShowNew(false)} onCreate={createTask} onCreatePopup={createPopup} profiles={profiles} profile={profile} isAdmin={isAdmin} />}
       {popupQueue[0] && <PopupModal popup={popupQueue[0]} onClose={dismissPopup} />}
@@ -426,6 +438,7 @@ function NewTaskForm({ onClose, onCreate, onCreatePopup, profiles, profile, isAd
   // Campos del Pop Up
   const [popupTitle, setPopupTitle] = useState(""), [popupDesc, setPopupDesc] = useState("");
   const [popupDate, setPopupDate] = useState(todayISO()), [popupImage, setPopupImage] = useState(null);
+  const [popupTime, setPopupTime] = useState(""), [popupWelcome, setPopupWelcome] = useState(false);
   const [popupImageError, setPopupImageError] = useState(""), [popupSaving, setPopupSaving] = useState(false);
 
   const submit = () => {
@@ -446,9 +459,10 @@ function NewTaskForm({ onClose, onCreate, onCreatePopup, profiles, profile, isAd
   };
 
   const submitPopup = async () => {
-    if (!popupTitle.trim() || !popupDate || popupSaving) return;
+    if (!popupTitle.trim() || popupSaving) return;
+    if (!popupWelcome && !popupDate) return;
     setPopupSaving(true);
-    await onCreatePopup({ title: popupTitle, description: popupDesc, scheduledDate: popupDate, imageFile: popupImage });
+    await onCreatePopup({ title: popupTitle, description: popupDesc, scheduledDate: popupWelcome ? null : popupDate, scheduledTime: popupWelcome ? null : (popupTime || null), alwaysWelcome: popupWelcome, imageFile: popupImage });
     setPopupSaving(false);
   };
 
@@ -483,8 +497,19 @@ function NewTaskForm({ onClose, onCreate, onCreatePopup, profiles, profile, isAd
               {popupImageError && <p className="text-[11px] mt-1" style={{ color: C.urgent }}>{popupImageError}</p>}
               {popupImage && !popupImageError && <p className="text-[11px] mt-1" style={{ color: C.signal }}>Lista: {popupImage.name}</p>}
             </div>
-            <div><label className="font-mono text-[10px] uppercase tracking-widest" style={{ color: C.inkSoft }}>Día programado</label>
-              <input type="date" value={popupDate} onChange={(e) => setPopupDate(e.target.value)} style={{ borderColor: C.hairline, background: C.panel }} className="w-full border px-3 py-2 text-sm mt-1 outline-none" /></div>
+            <label className="flex items-start gap-2 text-sm" style={{ color: C.ink }}>
+              <input type="checkbox" checked={popupWelcome} onChange={(e) => setPopupWelcome(e.target.checked)} className="mt-0.5" />
+              <span>Bienvenida para nuevos usuarios <span className="block text-[11px]" style={{ color: C.inkSoft }}>Le sale una sola vez a cada quien la primera vez que entra, sin importar el día ni la hora — no uses fecha/hora si activas esto.</span></span>
+            </label>
+            {!popupWelcome && (
+              <div className="grid grid-cols-2 gap-3">
+                <div><label className="font-mono text-[10px] uppercase tracking-widest" style={{ color: C.inkSoft }}>Día programado</label>
+                  <input type="date" value={popupDate} onChange={(e) => setPopupDate(e.target.value)} style={{ borderColor: C.hairline, background: C.panel }} className="w-full border px-3 py-2 text-sm mt-1 outline-none" /></div>
+                <div><label className="font-mono text-[10px] uppercase tracking-widest" style={{ color: C.inkSoft }}>Hora (opcional)</label>
+                  <input type="time" value={popupTime} onChange={(e) => setPopupTime(e.target.value)} style={{ borderColor: C.hairline, background: C.panel }} className="w-full border px-3 py-2 text-sm mt-1 outline-none" />
+                  <p className="text-[10px] mt-1" style={{ color: C.inkSoft }}>Vacío = aparece todo el día.</p></div>
+              </div>
+            )}
           </div>
         ) : (
           <div className="p-5 flex flex-col gap-4">
@@ -528,6 +553,142 @@ function NewTaskForm({ onClose, onCreate, onCreatePopup, profiles, profile, isAd
           ) : (
             <button onClick={submit} style={{ background: C.spine, color: C.paper }} className="px-4 py-2 text-sm">Crear pendiente</button>
           )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function PopupsAdminPanel({ profile }) {
+  const [popups, setPopups] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [editing, setEditing] = useState(null); // popup object or null
+
+  const load = async () => {
+    setLoading(true);
+    const { data } = await supabase.from("popups").select("*").order("always_welcome", { ascending: false }).order("scheduled_date", { ascending: true });
+    setPopups(data || []);
+    setLoading(false);
+  };
+  useEffect(() => { load(); }, []);
+
+  return (
+    <div className="max-w-2xl mx-auto px-5 py-6">
+      {loading && <p className="text-sm" style={{ color: C.inkSoft }}>Cargando...</p>}
+      {!loading && popups.length === 0 && <p className="text-sm" style={{ color: C.inkSoft }}>No hay pop ups programados todavía. Créalos desde el botón "Nuevo".</p>}
+      <div className="flex flex-col gap-2">
+        {popups.map((p) => (
+          <button key={p.id} onClick={() => setEditing(p)} style={{ borderColor: C.hairline, background: C.panel }} className="border p-3.5 text-left flex items-center justify-between gap-3">
+            <div className="min-w-0">
+              <div className="text-sm font-medium truncate" style={{ color: C.ink }}>{p.title}</div>
+              <div className="font-mono text-[11px] mt-0.5" style={{ color: C.inkSoft }}>
+                {p.always_welcome ? "Bienvenida a nuevos usuarios" : `${fmtDate(p.scheduled_date)}${p.scheduled_time ? " · " + p.scheduled_time.slice(0, 5) : ""}`}
+              </div>
+            </div>
+            <ChevronRight size={16} style={{ color: C.inkSoft }} />
+          </button>
+        ))}
+      </div>
+      {editing && <PopupEditForm popup={editing} onClose={() => setEditing(null)} onSaved={() => { setEditing(null); load(); }} />}
+    </div>
+  );
+}
+
+function PopupEditForm({ popup, onClose, onSaved }) {
+  const [title, setTitle] = useState(popup.title || "");
+  const [description, setDescription] = useState(popup.description || "");
+  const [alwaysWelcome, setAlwaysWelcome] = useState(popup.always_welcome);
+  const [scheduledDate, setScheduledDate] = useState(popup.scheduled_date || todayISO());
+  const [scheduledTime, setScheduledTime] = useState(popup.scheduled_time ? popup.scheduled_time.slice(0, 5) : "");
+  const [imageFile, setImageFile] = useState(null);
+  const [imageError, setImageError] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+
+  const handleImage = (e) => {
+    const file = e.target.files?.[0] || null;
+    setImageError("");
+    if (file && file.size > 2 * 1024 * 1024) {
+      setImageError("La imagen pesa más de 2 MB — comprímela antes de subirla.");
+      setImageFile(null);
+      e.target.value = "";
+      return;
+    }
+    setImageFile(file);
+  };
+
+  const save = async () => {
+    if (!title.trim() || (!alwaysWelcome && !scheduledDate) || saving) return;
+    setSaving(true);
+    let imageUrl = popup.image_url || null;
+    if (imageFile) {
+      const ext = (imageFile.name.split(".").pop() || "jpg").toLowerCase();
+      const path = `${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`;
+      const { error: upErr } = await supabase.storage.from("popups").upload(path, imageFile, { cacheControl: "3600", upsert: false });
+      if (!upErr) {
+        const { data: pub } = supabase.storage.from("popups").getPublicUrl(path);
+        imageUrl = pub.publicUrl;
+      }
+    }
+    await supabase.from("popups").update({
+      title: title.trim(), description, image_url: imageUrl,
+      always_welcome: alwaysWelcome,
+      scheduled_date: alwaysWelcome ? null : scheduledDate,
+      scheduled_time: alwaysWelcome ? null : (scheduledTime || null),
+    }).eq("id", popup.id);
+    setSaving(false);
+    onSaved();
+  };
+
+  const remove = async () => {
+    if (!confirm("¿Borrar este pop up? Ya no le saldrá a nadie.")) return;
+    setDeleting(true);
+    await supabase.from("popups").delete().eq("id", popup.id);
+    setDeleting(false);
+    onSaved();
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: "rgba(20,24,31,0.55)" }}>
+      <div style={{ background: C.paper, borderColor: C.hairline }} className="w-full max-w-lg border max-h-[90vh] overflow-y-auto">
+        <div style={{ borderColor: C.hairline }} className="border-b px-5 py-4 flex items-center justify-between">
+          <h2 style={{ color: C.ink, fontFamily: "Georgia, serif" }} className="text-lg">Editar Pop Up</h2>
+          <button onClick={onClose}><X size={18} style={{ color: C.inkSoft }} /></button>
+        </div>
+        <div className="p-5 flex flex-col gap-4">
+          <div><label className="font-mono text-[10px] uppercase tracking-widest" style={{ color: C.inkSoft }}>Título</label>
+            <input value={title} onChange={(e) => setTitle(e.target.value)} style={{ borderColor: C.hairline, background: C.panel }} className="w-full border px-3 py-2 text-sm mt-1 outline-none" /></div>
+          <div><label className="font-mono text-[10px] uppercase tracking-widest" style={{ color: C.inkSoft }}>Descripción</label>
+            <textarea value={description} onChange={(e) => setDescription(e.target.value)} rows={4} style={{ borderColor: C.hairline, background: C.panel }} className="w-full border px-3 py-2 text-sm mt-1 outline-none" /></div>
+          {popup.image_url && !imageFile && (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img src={popup.image_url} alt="" className="w-full object-cover" style={{ maxHeight: 160 }} />
+          )}
+          <div>
+            <label className="font-mono text-[10px] uppercase tracking-widest flex items-center gap-1.5" style={{ color: C.inkSoft }}><ImageIcon size={12} /> Reemplazar imagen (opcional)</label>
+            <input type="file" accept="image/*" onChange={handleImage} className="text-sm mt-1.5 block" />
+            <p className="text-[11px] mt-1" style={{ color: C.inkSoft }}>Recomendado: 800×450px, JPG o WebP, menos de 400 KB.</p>
+            {imageError && <p className="text-[11px] mt-1" style={{ color: C.urgent }}>{imageError}</p>}
+          </div>
+          <label className="flex items-start gap-2 text-sm" style={{ color: C.ink }}>
+            <input type="checkbox" checked={alwaysWelcome} onChange={(e) => setAlwaysWelcome(e.target.checked)} className="mt-0.5" />
+            <span>Bienvenida para nuevos usuarios</span>
+          </label>
+          {!alwaysWelcome && (
+            <div className="grid grid-cols-2 gap-3">
+              <div><label className="font-mono text-[10px] uppercase tracking-widest" style={{ color: C.inkSoft }}>Día programado</label>
+                <input type="date" value={scheduledDate} onChange={(e) => setScheduledDate(e.target.value)} style={{ borderColor: C.hairline, background: C.panel }} className="w-full border px-3 py-2 text-sm mt-1 outline-none" /></div>
+              <div><label className="font-mono text-[10px] uppercase tracking-widest" style={{ color: C.inkSoft }}>Hora (opcional)</label>
+                <input type="time" value={scheduledTime} onChange={(e) => setScheduledTime(e.target.value)} style={{ borderColor: C.hairline, background: C.panel }} className="w-full border px-3 py-2 text-sm mt-1 outline-none" /></div>
+            </div>
+          )}
+        </div>
+        <div style={{ borderColor: C.hairline }} className="border-t px-5 py-4 flex justify-between gap-2">
+          <button onClick={remove} disabled={deleting} style={{ color: C.urgent }} className="px-3 py-2 text-sm flex items-center gap-1.5 disabled:opacity-60"><Trash2 size={14} /> {deleting ? "Borrando..." : "Borrar"}</button>
+          <div className="flex gap-2">
+            <button onClick={onClose} style={{ color: C.inkSoft }} className="px-4 py-2 text-sm">Cancelar</button>
+            <button onClick={save} disabled={saving || !!imageError} style={{ background: C.spine, color: C.paper, opacity: saving ? 0.6 : 1 }} className="px-4 py-2 text-sm">{saving ? "Guardando..." : "Guardar"}</button>
+          </div>
         </div>
       </div>
     </div>
