@@ -333,7 +333,6 @@ export default function Dashboard() {
           <button onClick={() => router.push("/biblioteca")} className="flex items-center gap-1.5 text-sm" style={{ color: C.ink }}><BookOpen size={15} style={{ color: C.inkSoft }} /> Biblioteca</button>
           <button onClick={() => setShowTeam(true)} className="flex items-center gap-1.5 text-sm" style={{ color: C.ink }}><Users size={15} style={{ color: C.inkSoft }} /> Equipo</button>
           <button onClick={() => setShowActivity(true)} className="flex items-center gap-1.5 text-sm" style={{ color: C.ink }}><User size={14} style={{ color: C.inkSoft }} /> {profile.name}</button>
-          <button onClick={() => router.push("/perfil")} title="Editar mi perfil"><Settings size={15} style={{ color: C.inkSoft }} /></button>
           <button onClick={() => { setShowNotifs(true); markNotifsRead(); }} className="relative">
             <Bell size={17} style={{ color: C.inkSoft }} />
             {bellLabel && <span style={{ background: C.urgent, color: "#fff" }} className="absolute -top-1.5 -right-2 text-[9px] font-mono px-1 py-0.5 leading-none rounded-full">{bellLabel}</span>}
@@ -385,7 +384,7 @@ export default function Dashboard() {
       {popupQueue[0] && <PopupModal popup={popupQueue[0]} onClose={dismissPopup} />}
       {selected && <TaskDetail task={selected} onClose={() => setSelected(null)} onUpdate={updateTask} onDelete={deleteTask} onFinalize={finalizeTask} onDeliver={deliverTask} profiles={profiles} profile={profile} notify={notify} />}
       {showTeam && <TeamPanel onClose={() => setShowTeam(false)} profiles={profiles} tasks={tasks} />}
-      {showActivity && <ActivityPanel onClose={() => setShowActivity(false)} profile={profile} />}
+      {showActivity && <ActivityPanel onClose={() => setShowActivity(false)} profile={profile} router={router} />}
       {showNotifs && <NotificationsPanel onClose={() => setShowNotifs(false)} notifications={notifications} onOpenTask={(taskId) => { const t = tasks.find((x) => x.id === taskId); if (t) setSelected(t); setShowNotifs(false); }} pushSupported={pushSupported} pushEnabled={pushEnabled} onEnablePush={enablePush} />}
     </div>
   );
@@ -870,7 +869,7 @@ function TeamPanel({ onClose, profiles, tasks }) {
   );
 }
 
-function ActivityPanel({ onClose, profile }) {
+function ActivityPanel({ onClose, profile, router }) {
   const [log, setLog] = useState([]);
   useEffect(() => {
     (async () => {
@@ -903,7 +902,9 @@ function ActivityPanel({ onClose, profile }) {
     <div className="fixed inset-0 z-50 flex items-start justify-end p-4" style={{ background: "rgba(20,24,31,0.35)" }} onClick={onClose}>
       <div style={{ background: C.paper, borderColor: C.hairline }} className="border w-full max-w-xs mt-14 p-4" onClick={(e) => e.stopPropagation()}>
         <div className="flex items-center justify-between mb-3">
-          <div className="flex items-center gap-1.5 text-sm font-medium" style={{ color: C.ink }}><TrendingUp size={14} /> Mi actividad</div>
+          <div className="flex items-center gap-1.5 text-sm font-medium" style={{ color: C.ink }}><TrendingUp size={14} /> Mi actividad
+            <button onClick={() => router.push("/perfil")} title="Editar mi perfil" className="ml-1"><Settings size={14} style={{ color: C.inkSoft }} /></button>
+          </div>
           <button onClick={onClose}><X size={15} style={{ color: C.inkSoft }} /></button>
         </div>
         <div style={{ background: C.signalSoft, color: C.signal }} className="px-3 py-2 text-sm mb-3">Hoy: <strong>{todayCount}</strong> finalizado(s). {activityMsg(todayCount)}</div>
