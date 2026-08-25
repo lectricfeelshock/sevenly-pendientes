@@ -10,8 +10,10 @@ export default function LoginPage() {
   const router = useRouter();
   const [mode, setMode] = useState("login"); // login | register
   const [name, setName] = useState("");
+  const [username, setUsername] = useState("");
   const [phone, setPhone] = useState("");
   const [email, setEmail] = useState("");
+  const [identifier, setIdentifier] = useState(""); // usuario o correo, solo para login
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState("");
@@ -29,14 +31,26 @@ export default function LoginPage() {
         const { error: signUpError } = await supabase.auth.signUp({
           email: email.trim(),
           password,
-          options: { data: { name: name.trim(), phone: phone.trim() } },
+          options: { data: { name: name.trim(), phone: phone.trim(), username: username.trim() || null } },
         });
         if (signUpError) throw signUpError;
         setInfo("Cuenta creada. Revisa tu correo para confirmar tu cuenta y luego inicia sesión.");
         setMode("login");
       } else {
+        const raw = identifier.trim();
+        if (!raw) throw new Error("Escribe tu usuario o tu correo.");
+
+        let loginEmail = raw;
+        if (!raw.includes("@")) {
+          // No es un correo → lo tratamos como username y buscamos su correo
+          const { data: foundEmail, error: rpcError } = await supabase.rpc("email_for_username", { uname: raw });
+          if (rpcError) throw rpcError;
+          if (!foundEmail) throw new Error("No encontramos ese usuario.");
+          loginEmail = foundEmail;
+        }
+
         const { error: signInError } = await supabase.auth.signInWithPassword({
-          email: email.trim(),
+          email: loginEmail,
           password,
         });
         if (signInError) throw signInError;
@@ -61,10 +75,14 @@ export default function LoginPage() {
           {mode === "register" && (
             <>
               <input value={name} onChange={(e) => setName(e.target.value)} placeholder="Tu nombre" style={{ borderColor: C.hairline, background: C.panel }} className="border px-3 py-2 text-sm outline-none" />
+              <input value={username} onChange={(e) => setUsername(e.target.value)} placeholder="Usuario (opcional, para entrar sin correo)" style={{ borderColor: C.hairline, background: C.panel }} className="border px-3 py-2 text-sm outline-none" />
               <input value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="Tu celular (con lada)" style={{ borderColor: C.hairline, background: C.panel }} className="border px-3 py-2 text-sm outline-none" />
+              <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="Correo" style={{ borderColor: C.hairline, background: C.panel }} className="border px-3 py-2 text-sm outline-none" />
             </>
           )}
-          <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="Correo" style={{ borderColor: C.hairline, background: C.panel }} className="border px-3 py-2 text-sm outline-none" />
+          {mode === "login" && (
+            <input value={identifier} onChange={(e) => setIdentifier(e.target.value)} placeholder="Usuario o correo" style={{ borderColor: C.hairline, background: C.panel }} className="border px-3 py-2 text-sm outline-none" />
+          )}
           <div className="relative">
             <input
               type={showPassword ? "text" : "password"}
