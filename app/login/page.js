@@ -28,12 +28,17 @@ export default function LoginPage() {
         if (!name.trim()) throw new Error("Escribe tu nombre.");
         if (!email.trim() || !email.includes("@")) throw new Error("Escribe un correo válido.");
         if (!password || password.length < 6) throw new Error("La contraseña debe tener al menos 6 caracteres.");
-        const { error: signUpError } = await supabase.auth.signUp({
+        const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
           email: email.trim(),
           password,
           options: { data: { name: name.trim(), phone: phone.trim() } },
         });
         if (signUpError) throw signUpError;
+        if (signUpData?.session) {
+          // La verificación de correo está desactivada → ya quedó logueado, entra directo.
+          router.replace("/dashboard");
+          return;
+        }
         setInfo("Cuenta creada. Revisa tu correo para confirmar tu cuenta y luego inicia sesión.");
         setMode("login");
       } else {
