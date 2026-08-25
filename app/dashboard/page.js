@@ -301,6 +301,7 @@ export default function Dashboard() {
   if (!ready) return <div style={{ background: C.spine, minHeight: "100vh" }} className="w-full" />;
 
   const isAdmin = profile?.role === "admin";
+  const assignableProfiles = profiles.filter((p) => p.role !== "admin");
   let base = tasks;
   if (primaryTab === "requests") base = tasks.filter((t) => t.requested_by_id === profile.id);
   else if (primaryTab === "mine") base = tasks.filter((t) => t.assigned_to_id === profile.id);
@@ -392,10 +393,10 @@ export default function Dashboard() {
       </>
       )}
 
-      {showNew && <NewTaskForm onClose={() => setShowNew(false)} onCreate={createTask} onCreatePopup={createPopup} profiles={profiles} profile={profile} isAdmin={isAdmin} />}
+      {showNew && <NewTaskForm onClose={() => setShowNew(false)} onCreate={createTask} onCreatePopup={createPopup} profiles={assignableProfiles} profile={profile} isAdmin={isAdmin} />}
       {popupQueue[0] && <PopupModal popup={popupQueue[0]} onClose={dismissPopup} />}
-      {selected && <TaskDetail task={selected} onClose={() => setSelected(null)} onUpdate={updateTask} onDelete={deleteTask} onFinalize={finalizeTask} onDeliver={deliverTask} profiles={profiles} profile={profile} notify={notify} />}
-      {showTeam && <TeamPanel onClose={() => setShowTeam(false)} profiles={profiles} tasks={tasks} />}
+      {selected && <TaskDetail task={selected} onClose={() => setSelected(null)} onUpdate={updateTask} onDelete={deleteTask} onFinalize={finalizeTask} onDeliver={deliverTask} profiles={profiles} assignableProfiles={assignableProfiles} profile={profile} notify={notify} />}
+      {showTeam && <TeamPanel onClose={() => setShowTeam(false)} profiles={assignableProfiles} tasks={tasks} />}
       {showActivity && <ActivityPanel onClose={() => setShowActivity(false)} profile={profile} router={router} />}
       {showNotifs && <NotificationsPanel onClose={() => setShowNotifs(false)} notifications={notifications} onOpenTask={(taskId) => { const t = tasks.find((x) => x.id === taskId); if (t) setSelected(t); setShowNotifs(false); }} pushSupported={pushSupported} pushEnabled={pushEnabled} onEnablePush={enablePush} />}
     </div>
@@ -719,7 +720,7 @@ function PopupModal({ popup, onClose }) {
   );
 }
 
-function TaskDetail({ task, onClose, onUpdate, onDelete, onFinalize, onDeliver, profiles, profile, notify }) {
+function TaskDetail({ task, onClose, onUpdate, onDelete, onFinalize, onDeliver, profiles, assignableProfiles, profile, notify }) {
   const [comment, setComment] = useState(""), [comments, setComments] = useState([]);
   const [history, setHistory] = useState([]), [showHistory, setShowHistory] = useState(false);
   const [delegateId, setDelegateId] = useState(""), [confirmDelete, setConfirmDelete] = useState(false);
@@ -880,7 +881,7 @@ function TaskDetail({ task, onClose, onUpdate, onDelete, onFinalize, onDeliver, 
             <div className="flex gap-2">
               <select disabled={isFinalized} value={delegateId} onChange={(e) => setDelegateId(e.target.value)} style={{ borderColor: C.hairline, background: C.panel }} className="flex-1 border px-3 py-2 text-sm outline-none disabled:opacity-50">
                 <option value="">Elegir persona...</option>
-                {profiles.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
+                {assignableProfiles.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
               </select>
               <button disabled={isFinalized} onClick={delegate} style={{ borderColor: C.hairline, color: C.ink }} className="border px-3 py-2 text-sm flex items-center gap-1 disabled:opacity-50"><ArrowRightLeft size={14} /> Delegar</button>
             </div>
