@@ -10,7 +10,6 @@ export default function LoginPage() {
   const router = useRouter();
   const [mode, setMode] = useState("login"); // login | register
   const [name, setName] = useState("");
-  const [username, setUsername] = useState("");
   const [phone, setPhone] = useState("");
   const [email, setEmail] = useState("");
   const [identifier, setIdentifier] = useState(""); // usuario o correo, solo para login
@@ -27,11 +26,12 @@ export default function LoginPage() {
     try {
       if (mode === "register") {
         if (!name.trim()) throw new Error("Escribe tu nombre.");
-        if (password.length < 6) throw new Error("La contraseña debe tener al menos 6 caracteres.");
+        if (!email.trim() || !email.includes("@")) throw new Error("Escribe un correo válido.");
+        if (!password || password.length < 6) throw new Error("La contraseña debe tener al menos 6 caracteres.");
         const { error: signUpError } = await supabase.auth.signUp({
           email: email.trim(),
           password,
-          options: { data: { name: name.trim(), phone: phone.trim(), username: username.trim() || null } },
+          options: { data: { name: name.trim(), phone: phone.trim() } },
         });
         if (signUpError) throw signUpError;
         setInfo("Cuenta creada. Revisa tu correo para confirmar tu cuenta y luego inicia sesión.");
@@ -74,10 +74,9 @@ export default function LoginPage() {
         <div className="flex flex-col gap-3 mb-3">
           {mode === "register" && (
             <>
-              <input value={name} onChange={(e) => setName(e.target.value)} placeholder="Tu nombre" style={{ borderColor: C.hairline, background: C.panel }} className="border px-3 py-2 text-sm outline-none" />
-              <input value={username} onChange={(e) => setUsername(e.target.value)} placeholder="Usuario (opcional, para entrar sin correo)" style={{ borderColor: C.hairline, background: C.panel }} className="border px-3 py-2 text-sm outline-none" />
+              <input value={name} onChange={(e) => setName(e.target.value)} placeholder="Tu nombre" required style={{ borderColor: C.hairline, background: C.panel }} className="border px-3 py-2 text-sm outline-none" />
               <input value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="Tu celular (con lada)" style={{ borderColor: C.hairline, background: C.panel }} className="border px-3 py-2 text-sm outline-none" />
-              <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="Correo" style={{ borderColor: C.hairline, background: C.panel }} className="border px-3 py-2 text-sm outline-none" />
+              <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="Correo" required style={{ borderColor: C.hairline, background: C.panel }} className="border px-3 py-2 text-sm outline-none" />
             </>
           )}
           {mode === "login" && (
@@ -90,6 +89,7 @@ export default function LoginPage() {
               onChange={(e) => setPassword(e.target.value)}
               onKeyDown={(e) => e.key === "Enter" && submit()}
               placeholder="Contraseña"
+              required
               style={{ borderColor: C.hairline, background: C.panel }}
               className="w-full border px-3 py-2 pr-9 text-sm outline-none"
             />
