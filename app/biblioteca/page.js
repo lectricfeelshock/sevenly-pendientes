@@ -9,6 +9,11 @@ const C = {
   hairline: "#DCD6C8", signal: "#0F6E5C", urgent: "#B3402B", urgentSoft: "#F6E4DF", spine: "#14181F",
 };
 
+function isNewResource(createdAt) {
+  if (!createdAt) return false;
+  return new Date(createdAt).toDateString() === new Date().toDateString();
+}
+
 export default function BibliotecaPage() {
   const router = useRouter();
   const [ready, setReady] = useState(false);
@@ -110,7 +115,12 @@ export default function BibliotecaPage() {
         <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
           {filteredResources.map((r) => (
             <button key={r.id} onClick={() => setSelected(r)} style={{ borderColor: C.hairline, background: C.panel }} className="border p-4 text-left flex flex-col gap-2 aspect-square justify-between hover:brightness-[0.98]">
-              <BookOpen size={20} style={{ color: C.signal }} />
+              <div className="flex items-center justify-between">
+                <BookOpen size={20} style={{ color: C.signal }} />
+                {isNewResource(r.created_at) && (
+                  <span className="font-mono text-[9px] uppercase tracking-wider px-1.5 py-0.5" style={{ background: C.urgentSoft, color: C.urgent, border: `1px solid ${C.urgent}` }}>Nuevo</span>
+                )}
+              </div>
               <div>
                 <span style={{ color: C.ink, fontFamily: "Georgia, serif" }} className="text-base leading-tight block mb-1.5">{r.title}</span>
                 {r.tags && r.tags.length > 0 && (
