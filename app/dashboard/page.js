@@ -442,7 +442,7 @@ export default function Dashboard() {
   if (!ready) return <div style={{ background: C.spine, minHeight: "100vh" }} className="w-full" />;
 
   const isAdmin = profile?.role === "admin";
-  const isGerente = profile?.role === "gerente";
+  const isGerente = profile?.role === "gerente" || profile?.role === "admin";
   const assignableProfiles = profiles.filter((p) => p.role !== "admin");
   const effectiveId = viewingAs || profile.id;
   const viewingProfile = viewingAs ? profiles.find((p) => p.id === viewingAs) : null;
