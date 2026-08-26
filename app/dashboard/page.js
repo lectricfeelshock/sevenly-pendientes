@@ -228,14 +228,24 @@ export default function Dashboard() {
       const today = todayISO();
       const nowHHMM = new Date().toTimeString().slice(0, 5);
       const { data: pops } = await supabase.from("popups").select("*")
-        .or(`scheduled_date.eq.${today},always_welcome.eq.true`)
+        .eq("scheduled_date", today)
         .order("created_at", { ascending: true });
       if (!pops || pops.length === 0) { setPopupQueue([]); return; }
-      const dueNow = pops.filter((p) => p.always_welcome || !p.scheduled_time || p.scheduled_time.slice(0, 5) <= nowHHMM);
+      const forMe = pops.filter((p) => !p.target_user_ids || p.target_user_ids.length === 0 || p.target_user_ids.includes(profile.id));
+      const dueNow = forMe.filter((p) => !p.scheduled_time || p.scheduled_time.slice(0, 5) <= nowHHMM);
       if (dueNow.length === 0) { setPopupQueue([]); return; }
       const { data: dismissed } = await supabase.from("popup_dismissed").select("popup_id").eq("user_id", profile.id);
       const dismissedIds = new Set((dismissed || []).map((d) => d.popup_id));
-      setPopupQueue(dueNow.filter((p) => !dismissedIds.has(p.id)));
+      const pending = dueNow.filter((p) => !dismissedIds.has(p.id));
+
+      // "Solo notificación": nunca se muestra como pop up — se manda directo a la campanita, una sola vez.
+      const notifyOnly = pending.filter((p) => p.only_notification);
+      for (const p of notifyOnly) {
+        await supabase.from("notifications").insert({ user_id: profile.id, task_id: null, message: `📣 ${p.title}${p.description ? " — " + p.description : ""}` });
+        await supabase.from("popup_dismissed").insert({ user_id: profile.id, popup_id: p.id });
+      }
+
+      setPopupQueue(pending.filter((p) => !p.only_notification));
     })();
   }, [ready, profile]);
 
@@ -244,6 +254,9 @@ export default function Dashboard() {
     if (!current || !profile) return;
     setPopupQueue((q) => q.slice(1));
     await supabase.from("popup_dismissed").insert({ user_id: profile.id, popup_id: current.id });
+    if (current.replicate_notification) {
+      await supabase.from("notifications").insert({ user_id: profile.id, task_id: null, message: `📣 ${current.title}${current.description ? " — " + current.description : ""}` });
+    }
   };
 
   const enablePush = async () => {
@@ -338,7 +351,8 @@ export default function Dashboard() {
     }
     await supabase.from("popups").insert({
       title: form.title, description: form.description, image_url: imageUrl,
-      scheduled_date: form.scheduledDate, scheduled_time: form.scheduledTime, always_welcome: form.alwaysWelcome,
+      scheduled_date: form.scheduledDate, scheduled_time: form.scheduledTime,
+      target_user_ids: form.targetUserIds || [], replicate_notification: !!form.replicateNotification, only_notification: !!form.onlyNotification,
       created_by: profile.id,
     });
     setShowNew(false);
@@ -487,7 +501,7 @@ export default function Dashboard() {
       )}
 
       {primaryTab === "popups" && isAdmin ? (
-        <PopupsAdminPanel profile={profile} />
+        <PopupsAdminPanel profile={profile} profiles={assignableProfiles} />
       ) : (
       <>
       <div style={{ borderColor: C.hairline }} className="border-b px-5 py-2.5 flex flex-wrap items-center gap-2">
@@ -588,8 +602,11 @@ function NewTaskForm({ onClose, onCreate, onCreatePopup, profiles, profile, isAd
   // Campos del Pop Up
   const [popupTitle, setPopupTitle] = useState(""), [popupDesc, setPopupDesc] = useState("");
   const [popupDate, setPopupDate] = useState(todayISO()), [popupImage, setPopupImage] = useState(null);
-  const [popupTime, setPopupTime] = useState(""), [popupWelcome, setPopupWelcome] = useState(false);
+  const [popupTime, setPopupTime] = useState(""), [popupTargetIds, setPopupTargetIds] = useState([]);
+  const [replicateNotification, setReplicateNotification] = useState(false), [onlyNotification, setOnlyNotification] = useState(false);
   const [popupImageError, setPopupImageError] = useState(""), [popupSaving, setPopupSaving] = useState(false);
+
+  const togglePopupTarget = (id) => setPopupTargetIds((prev) => prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]);
 
   const individualAssignable = profiles.filter((p) => p.id !== profile.id);
 
@@ -632,10 +649,9 @@ function NewTaskForm({ onClose, onCreate, onCreatePopup, profiles, profile, isAd
   };
 
   const submitPopup = async () => {
-    if (!popupTitle.trim() || popupSaving) return;
-    if (!popupWelcome && !popupDate) return;
+    if (!popupTitle.trim() || !popupDate || popupSaving) return;
     setPopupSaving(true);
-    await onCreatePopup({ title: popupTitle, description: popupDesc, scheduledDate: popupWelcome ? null : popupDate, scheduledTime: popupWelcome ? null : (popupTime || null), alwaysWelcome: popupWelcome, imageFile: popupImage });
+    await onCreatePopup({ title: popupTitle, description: popupDesc, scheduledDate: popupDate, scheduledTime: popupTime || null, targetUserIds: popupTargetIds, replicateNotification, onlyNotification, imageFile: onlyNotification ? null : popupImage });
     setPopupSaving(false);
   };
 
@@ -664,25 +680,42 @@ function NewTaskForm({ onClose, onCreate, onCreatePopup, profiles, profile, isAd
             <div><label className="font-mono text-[10px] uppercase tracking-widest" style={{ color: C.inkSoft }}>Descripción</label>
               <textarea value={popupDesc} onChange={(e) => setPopupDesc(e.target.value)} rows={4} style={{ borderColor: C.hairline, background: C.panel }} className="w-full border px-3 py-2 text-sm mt-1 outline-none" /></div>
             <div>
-              <label className="font-mono text-[10px] uppercase tracking-widest flex items-center gap-1.5" style={{ color: C.inkSoft }}><ImageIcon size={12} /> Imagen (opcional)</label>
-              <input type="file" accept="image/*" onChange={handlePopupImage} className="text-sm mt-1.5 block" />
-              <p className="text-[11px] mt-1" style={{ color: C.inkSoft }}>Recomendado: 800×450px (horizontal, 16:9), formato JPG o WebP, menos de 400 KB — así carga rápido en celular.</p>
-              {popupImageError && <p className="text-[11px] mt-1" style={{ color: C.urgent }}>{popupImageError}</p>}
-              {popupImage && !popupImageError && <p className="text-[11px] mt-1" style={{ color: C.signal }}>Lista: {popupImage.name}</p>}
+              <label className="font-mono text-[10px] uppercase tracking-widest" style={{ color: C.inkSoft }}>¿A quién le sale?</label>
+              <div className="flex flex-wrap gap-1.5 mt-1.5">
+                {profiles.map((p) => (
+                  <button key={p.id} type="button" onClick={() => togglePopupTarget(p.id)}
+                    style={{ borderColor: popupTargetIds.includes(p.id) ? C.signal : C.hairline, background: popupTargetIds.includes(p.id) ? C.signal : "transparent", color: popupTargetIds.includes(p.id) ? "#fff" : C.ink }}
+                    className="border px-2.5 py-1 text-xs">{p.name}</button>
+                ))}
+              </div>
+              <p className="text-[11px] mt-1" style={{ color: C.inkSoft }}>Sin nadie seleccionado = le sale a todo el equipo.</p>
             </div>
-            <label className="flex items-start gap-2 text-sm" style={{ color: C.ink }}>
-              <input type="checkbox" checked={popupWelcome} onChange={(e) => setPopupWelcome(e.target.checked)} className="mt-0.5" />
-              <span>Bienvenida para nuevos usuarios <span className="block text-[11px]" style={{ color: C.inkSoft }}>Le sale una sola vez a cada quien la primera vez que entra, sin importar el día ni la hora — no uses fecha/hora si activas esto.</span></span>
-            </label>
-            {!popupWelcome && (
-              <div className="grid grid-cols-2 gap-3">
-                <div><label className="font-mono text-[10px] uppercase tracking-widest" style={{ color: C.inkSoft }}>Día programado</label>
-                  <input type="date" value={popupDate} onChange={(e) => setPopupDate(e.target.value)} style={{ borderColor: C.hairline, background: C.panel }} className="w-full border px-3 py-2 text-sm mt-1 outline-none" /></div>
-                <div><label className="font-mono text-[10px] uppercase tracking-widest" style={{ color: C.inkSoft }}>Hora (opcional)</label>
-                  <input type="time" value={popupTime} onChange={(e) => setPopupTime(e.target.value)} style={{ borderColor: C.hairline, background: C.panel }} className="w-full border px-3 py-2 text-sm mt-1 outline-none" />
-                  <p className="text-[10px] mt-1" style={{ color: C.inkSoft }}>Vacío = aparece todo el día.</p></div>
+            {!onlyNotification && (
+              <div>
+                <label className="font-mono text-[10px] uppercase tracking-widest flex items-center gap-1.5" style={{ color: C.inkSoft }}><ImageIcon size={12} /> Imagen (opcional)</label>
+                <input type="file" accept="image/*" onChange={handlePopupImage} className="text-sm mt-1.5 block" />
+                <p className="text-[11px] mt-1" style={{ color: C.inkSoft }}>Recomendado: 800×450px (horizontal, 16:9), formato JPG o WebP, menos de 400 KB — así carga rápido en celular.</p>
+                {popupImageError && <p className="text-[11px] mt-1" style={{ color: C.urgent }}>{popupImageError}</p>}
+                {popupImage && !popupImageError && <p className="text-[11px] mt-1" style={{ color: C.signal }}>Lista: {popupImage.name}</p>}
               </div>
             )}
+            <div className="flex flex-col gap-1.5">
+              <label className="flex items-start gap-2 text-sm" style={{ color: C.ink }}>
+                <input type="checkbox" checked={replicateNotification} disabled={onlyNotification} onChange={(e) => setReplicateNotification(e.target.checked)} className="mt-0.5" />
+                <span>Replicar en notificación <span className="block text-[11px]" style={{ color: C.inkSoft }}>Además del pop up, deja también un aviso en la campanita.</span></span>
+              </label>
+              <label className="flex items-start gap-2 text-sm" style={{ color: C.ink }}>
+                <input type="checkbox" checked={onlyNotification} onChange={(e) => { setOnlyNotification(e.target.checked); if (e.target.checked) setReplicateNotification(false); }} className="mt-0.5" />
+                <span>Solo notificación <span className="block text-[11px]" style={{ color: C.inkSoft }}>Ya no sale como pop up — solo llega a la campanita.</span></span>
+              </label>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div><label className="font-mono text-[10px] uppercase tracking-widest" style={{ color: C.inkSoft }}>Día programado</label>
+                <input type="date" value={popupDate} onChange={(e) => setPopupDate(e.target.value)} style={{ borderColor: C.hairline, background: C.panel }} className="w-full border px-3 py-2 text-sm mt-1 outline-none" /></div>
+              <div><label className="font-mono text-[10px] uppercase tracking-widest" style={{ color: C.inkSoft }}>Hora (opcional)</label>
+                <input type="time" value={popupTime} onChange={(e) => setPopupTime(e.target.value)} style={{ borderColor: C.hairline, background: C.panel }} className="w-full border px-3 py-2 text-sm mt-1 outline-none" />
+                <p className="text-[10px] mt-1" style={{ color: C.inkSoft }}>Vacío = aparece todo el día.</p></div>
+            </div>
           </div>
         ) : (
           <div className="p-5 flex flex-col gap-4">
@@ -834,14 +867,14 @@ function NewTaskForm({ onClose, onCreate, onCreatePopup, profiles, profile, isAd
   );
 }
 
-function PopupsAdminPanel({ profile }) {
+function PopupsAdminPanel({ profile, profiles }) {
   const [popups, setPopups] = useState([]);
   const [loading, setLoading] = useState(true);
   const [editing, setEditing] = useState(null); // popup object or null
 
   const load = async () => {
     setLoading(true);
-    const { data } = await supabase.from("popups").select("*").order("always_welcome", { ascending: false }).order("scheduled_date", { ascending: true });
+    const { data } = await supabase.from("popups").select("*").order("scheduled_date", { ascending: true });
     setPopups(data || []);
     setLoading(false);
   };
@@ -852,33 +885,40 @@ function PopupsAdminPanel({ profile }) {
       {loading && <p className="text-sm" style={{ color: C.inkSoft }}>Cargando...</p>}
       {!loading && popups.length === 0 && <p className="text-sm" style={{ color: C.inkSoft }}>No hay pop ups programados todavía. Créalos desde el botón "Nuevo".</p>}
       <div className="flex flex-col gap-2">
-        {popups.map((p) => (
-          <button key={p.id} onClick={() => setEditing(p)} style={{ borderColor: C.hairline, background: C.panel }} className="border p-3.5 text-left flex items-center justify-between gap-3">
-            <div className="min-w-0">
-              <div className="text-sm font-medium truncate" style={{ color: C.ink }}>{p.title}</div>
-              <div className="font-mono text-[11px] mt-0.5" style={{ color: C.inkSoft }}>
-                {p.always_welcome ? "Bienvenida a nuevos usuarios" : `${fmtDate(p.scheduled_date)}${p.scheduled_time ? " · " + p.scheduled_time.slice(0, 5) : ""}`}
+        {popups.map((p) => {
+          const targetLabel = !p.target_user_ids || p.target_user_ids.length === 0 ? "Todo el equipo" : `${p.target_user_ids.length} persona(s)`;
+          return (
+            <button key={p.id} onClick={() => setEditing(p)} style={{ borderColor: C.hairline, background: C.panel }} className="border p-3.5 text-left flex items-center justify-between gap-3">
+              <div className="min-w-0">
+                <div className="text-sm font-medium truncate" style={{ color: C.ink }}>{p.title}{p.only_notification && <span className="ml-1.5 font-mono text-[10px]" style={{ color: C.inkSoft }}>· solo notificación</span>}</div>
+                <div className="font-mono text-[11px] mt-0.5" style={{ color: C.inkSoft }}>
+                  {fmtDate(p.scheduled_date)}{p.scheduled_time ? " · " + p.scheduled_time.slice(0, 5) : ""} · {targetLabel}
+                </div>
               </div>
-            </div>
-            <ChevronRight size={16} style={{ color: C.inkSoft }} />
-          </button>
-        ))}
+              <ChevronRight size={16} style={{ color: C.inkSoft }} />
+            </button>
+          );
+        })}
       </div>
-      {editing && <PopupEditForm popup={editing} onClose={() => setEditing(null)} onSaved={() => { setEditing(null); load(); }} />}
+      {editing && <PopupEditForm popup={editing} profiles={profiles} onClose={() => setEditing(null)} onSaved={() => { setEditing(null); load(); }} />}
     </div>
   );
 }
 
-function PopupEditForm({ popup, onClose, onSaved }) {
+function PopupEditForm({ popup, profiles, onClose, onSaved }) {
   const [title, setTitle] = useState(popup.title || "");
   const [description, setDescription] = useState(popup.description || "");
-  const [alwaysWelcome, setAlwaysWelcome] = useState(popup.always_welcome);
   const [scheduledDate, setScheduledDate] = useState(popup.scheduled_date || todayISO());
   const [scheduledTime, setScheduledTime] = useState(popup.scheduled_time ? popup.scheduled_time.slice(0, 5) : "");
+  const [targetUserIds, setTargetUserIds] = useState(popup.target_user_ids || []);
+  const [replicateNotification, setReplicateNotification] = useState(!!popup.replicate_notification);
+  const [onlyNotification, setOnlyNotification] = useState(!!popup.only_notification);
   const [imageFile, setImageFile] = useState(null);
   const [imageError, setImageError] = useState("");
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState(false);
+
+  const toggleTarget = (id) => setTargetUserIds((prev) => prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]);
 
   const handleImage = (e) => {
     const file = e.target.files?.[0] || null;
@@ -893,7 +933,7 @@ function PopupEditForm({ popup, onClose, onSaved }) {
   };
 
   const save = async () => {
-    if (!title.trim() || (!alwaysWelcome && !scheduledDate) || saving) return;
+    if (!title.trim() || !scheduledDate || saving) return;
     setSaving(true);
     let imageUrl = popup.image_url || null;
     if (imageFile) {
@@ -907,9 +947,8 @@ function PopupEditForm({ popup, onClose, onSaved }) {
     }
     await supabase.from("popups").update({
       title: title.trim(), description, image_url: imageUrl,
-      always_welcome: alwaysWelcome,
-      scheduled_date: alwaysWelcome ? null : scheduledDate,
-      scheduled_time: alwaysWelcome ? null : (scheduledTime || null),
+      scheduled_date: scheduledDate, scheduled_time: scheduledTime || null,
+      target_user_ids: targetUserIds, replicate_notification: replicateNotification, only_notification: onlyNotification,
     }).eq("id", popup.id);
     setSaving(false);
     onSaved();
@@ -935,28 +974,45 @@ function PopupEditForm({ popup, onClose, onSaved }) {
             <input value={title} onChange={(e) => setTitle(e.target.value)} style={{ borderColor: C.hairline, background: C.panel }} className="w-full border px-3 py-2 text-sm mt-1 outline-none" /></div>
           <div><label className="font-mono text-[10px] uppercase tracking-widest" style={{ color: C.inkSoft }}>Descripción</label>
             <textarea value={description} onChange={(e) => setDescription(e.target.value)} rows={4} style={{ borderColor: C.hairline, background: C.panel }} className="w-full border px-3 py-2 text-sm mt-1 outline-none" /></div>
-          {popup.image_url && !imageFile && (
+          <div>
+            <label className="font-mono text-[10px] uppercase tracking-widest" style={{ color: C.inkSoft }}>¿A quién le sale?</label>
+            <div className="flex flex-wrap gap-1.5 mt-1.5">
+              {profiles.map((p) => (
+                <button key={p.id} type="button" onClick={() => toggleTarget(p.id)}
+                  style={{ borderColor: targetUserIds.includes(p.id) ? C.signal : C.hairline, background: targetUserIds.includes(p.id) ? C.signal : "transparent", color: targetUserIds.includes(p.id) ? "#fff" : C.ink }}
+                  className="border px-2.5 py-1 text-xs">{p.name}</button>
+              ))}
+            </div>
+            <p className="text-[11px] mt-1" style={{ color: C.inkSoft }}>Sin nadie seleccionado = le sale a todo el equipo.</p>
+          </div>
+          {popup.image_url && !imageFile && !onlyNotification && (
             // eslint-disable-next-line @next/next/no-img-element
             <img src={popup.image_url} alt="" className="w-full object-cover" style={{ maxHeight: 160 }} />
           )}
-          <div>
-            <label className="font-mono text-[10px] uppercase tracking-widest flex items-center gap-1.5" style={{ color: C.inkSoft }}><ImageIcon size={12} /> Reemplazar imagen (opcional)</label>
-            <input type="file" accept="image/*" onChange={handleImage} className="text-sm mt-1.5 block" />
-            <p className="text-[11px] mt-1" style={{ color: C.inkSoft }}>Recomendado: 800×450px, JPG o WebP, menos de 400 KB.</p>
-            {imageError && <p className="text-[11px] mt-1" style={{ color: C.urgent }}>{imageError}</p>}
-          </div>
-          <label className="flex items-start gap-2 text-sm" style={{ color: C.ink }}>
-            <input type="checkbox" checked={alwaysWelcome} onChange={(e) => setAlwaysWelcome(e.target.checked)} className="mt-0.5" />
-            <span>Bienvenida para nuevos usuarios</span>
-          </label>
-          {!alwaysWelcome && (
-            <div className="grid grid-cols-2 gap-3">
-              <div><label className="font-mono text-[10px] uppercase tracking-widest" style={{ color: C.inkSoft }}>Día programado</label>
-                <input type="date" value={scheduledDate} onChange={(e) => setScheduledDate(e.target.value)} style={{ borderColor: C.hairline, background: C.panel }} className="w-full border px-3 py-2 text-sm mt-1 outline-none" /></div>
-              <div><label className="font-mono text-[10px] uppercase tracking-widest" style={{ color: C.inkSoft }}>Hora (opcional)</label>
-                <input type="time" value={scheduledTime} onChange={(e) => setScheduledTime(e.target.value)} style={{ borderColor: C.hairline, background: C.panel }} className="w-full border px-3 py-2 text-sm mt-1 outline-none" /></div>
+          {!onlyNotification && (
+            <div>
+              <label className="font-mono text-[10px] uppercase tracking-widest flex items-center gap-1.5" style={{ color: C.inkSoft }}><ImageIcon size={12} /> Reemplazar imagen (opcional)</label>
+              <input type="file" accept="image/*" onChange={handleImage} className="text-sm mt-1.5 block" />
+              <p className="text-[11px] mt-1" style={{ color: C.inkSoft }}>Recomendado: 800×450px, JPG o WebP, menos de 400 KB.</p>
+              {imageError && <p className="text-[11px] mt-1" style={{ color: C.urgent }}>{imageError}</p>}
             </div>
           )}
+          <div className="flex flex-col gap-1.5">
+            <label className="flex items-start gap-2 text-sm" style={{ color: C.ink }}>
+              <input type="checkbox" checked={replicateNotification} disabled={onlyNotification} onChange={(e) => setReplicateNotification(e.target.checked)} className="mt-0.5" />
+              <span>Replicar en notificación</span>
+            </label>
+            <label className="flex items-start gap-2 text-sm" style={{ color: C.ink }}>
+              <input type="checkbox" checked={onlyNotification} onChange={(e) => { setOnlyNotification(e.target.checked); if (e.target.checked) setReplicateNotification(false); }} className="mt-0.5" />
+              <span>Solo notificación</span>
+            </label>
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div><label className="font-mono text-[10px] uppercase tracking-widest" style={{ color: C.inkSoft }}>Día programado</label>
+              <input type="date" value={scheduledDate} onChange={(e) => setScheduledDate(e.target.value)} style={{ borderColor: C.hairline, background: C.panel }} className="w-full border px-3 py-2 text-sm mt-1 outline-none" /></div>
+            <div><label className="font-mono text-[10px] uppercase tracking-widest" style={{ color: C.inkSoft }}>Hora (opcional)</label>
+              <input type="time" value={scheduledTime} onChange={(e) => setScheduledTime(e.target.value)} style={{ borderColor: C.hairline, background: C.panel }} className="w-full border px-3 py-2 text-sm mt-1 outline-none" /></div>
+          </div>
         </div>
         <div style={{ borderColor: C.hairline }} className="border-t px-5 py-4 flex justify-between gap-2">
           <button onClick={remove} disabled={deleting} style={{ color: C.urgent }} className="px-3 py-2 text-sm flex items-center gap-1.5 disabled:opacity-60"><Trash2 size={14} /> {deleting ? "Borrando..." : "Borrar"}</button>
@@ -998,6 +1054,7 @@ function TaskDetail({ task, onClose, onUpdate, onDelete, onFinalize, onDeliver, 
   const [comment, setComment] = useState(""), [comments, setComments] = useState([]);
   const [history, setHistory] = useState([]), [showHistory, setShowHistory] = useState(false);
   const [delegateId, setDelegateId] = useState(""), [confirmDelete, setConfirmDelete] = useState(false);
+  const [responsibleId, setResponsibleId] = useState("");
   const [confirmFinalize, setConfirmFinalize] = useState(false);
   const [reminderTargetId, setReminderTargetId] = useState("");
   const [showAddSubtask, setShowAddSubtask] = useState(false);
@@ -1052,6 +1109,14 @@ function TaskDetail({ task, onClose, onUpdate, onDelete, onFinalize, onDeliver, 
     await onUpdate(task, { assigned_to_id: p.id, assigned_to_name: p.name }, `${profile.name} ${isPersonalSolo ? "asignó a" : "delegó a"} ${p.name}`);
     if (p.id !== profile.id) await notify(p.id, task.id, `Te ${isPersonalSolo ? "asignaron" : "delegaron"} "${task.title}"`);
     setDelegateId("");
+  };
+  const assignResponsible = async () => {
+    if (isFinalized) return;
+    const p = profiles.find((x) => x.id === responsibleId);
+    if (!p) return;
+    await onUpdate(task, { requested_by_id: p.id, requested_by: p.name, assigned_to_id: profile.id, assigned_to_name: profile.name }, `${profile.name} asignó a ${p.name} como responsable de "${task.title}"`);
+    if (p.id !== profile.id) await notify(p.id, task.id, `Te asignaron como responsable de "${task.title}"`);
+    setResponsibleId("");
   };
 
   const toggleRemindMe = async () => {
@@ -1243,15 +1308,30 @@ function TaskDetail({ task, onClose, onUpdate, onDelete, onFinalize, onDeliver, 
             <p className="text-[11px]" style={{ color: C.inkSoft }}>Se podrá finalizar cuando todas las subtareas queden en "Entregado".</p>
           )}
 
+          {!isColaborativo && isPersonalSolo && (
+            <div style={{ borderColor: C.hairline }} className="border-t pt-4">
+              <div className="font-mono text-[10px] uppercase tracking-widest mb-1" style={{ color: C.inkSoft }}>Asignar responsable</div>
+              <p className="text-[11px] mb-2" style={{ color: C.inkSoft }}>Esa persona se vuelve la solicitante y tú te quedas como asignado.</p>
+              <div className="flex gap-2">
+                <select disabled={isFinalized} value={responsibleId} onChange={(e) => setResponsibleId(e.target.value)} style={{ borderColor: C.hairline, background: C.panel }} className="flex-1 border px-3 py-2 text-sm outline-none disabled:opacity-50">
+                  <option value="">Elegir persona...</option>
+                  {assignableProfiles.filter((p) => p.id !== profile.id).map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
+                </select>
+                <button disabled={isFinalized || !responsibleId} onClick={assignResponsible} style={{ borderColor: C.hairline, color: C.ink }} className="border px-3 py-2 text-sm flex items-center gap-1 disabled:opacity-50"><ArrowRightLeft size={14} /> Asignar responsable</button>
+              </div>
+            </div>
+          )}
+
           {!isColaborativo && (
             <div style={{ borderColor: C.hairline }} className="border-t pt-4">
-              <div className="font-mono text-[10px] uppercase tracking-widest mb-2" style={{ color: C.inkSoft }}>{isPersonalSolo ? "Asignar" : "Delegar"}</div>
+              <div className="font-mono text-[10px] uppercase tracking-widest mb-1" style={{ color: C.inkSoft }}>{isPersonalSolo ? "Asignar a" : "Delegar"}</div>
+              {isPersonalSolo && <p className="text-[11px] mb-2" style={{ color: C.inkSoft }}>Esa persona se vuelve la asignada y tú te quedas como solicitante.</p>}
               <div className="flex gap-2">
                 <select disabled={isFinalized} value={delegateId} onChange={(e) => setDelegateId(e.target.value)} style={{ borderColor: C.hairline, background: C.panel }} className="flex-1 border px-3 py-2 text-sm outline-none disabled:opacity-50">
                   <option value="">Elegir persona...</option>
-                  {assignableProfiles.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
+                  {(isPersonalSolo ? assignableProfiles.filter((p) => p.id !== profile.id) : assignableProfiles).map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
                 </select>
-                <button disabled={isFinalized} onClick={delegate} style={{ borderColor: C.hairline, color: C.ink }} className="border px-3 py-2 text-sm flex items-center gap-1 disabled:opacity-50"><ArrowRightLeft size={14} /> {isPersonalSolo ? "Asignar" : "Delegar"}</button>
+                <button disabled={isFinalized} onClick={delegate} style={{ borderColor: C.hairline, color: C.ink }} className="border px-3 py-2 text-sm flex items-center gap-1 disabled:opacity-50"><ArrowRightLeft size={14} /> {isPersonalSolo ? "Asignar a" : "Delegar"}</button>
               </div>
             </div>
           )}
