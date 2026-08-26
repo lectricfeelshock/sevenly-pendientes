@@ -251,12 +251,17 @@ export default function Dashboard() {
   useEffect(() => {
     if (!ready) return;
     (async () => {
-      const candidates = tasks.filter((t) => t.remind_me_by && !t.remind_me_notified && !DONE_STATUSES.includes(t.status) && t.deadline);
+      const candidates = tasks.filter((t) => (t.remind_me_by_ids || []).length > (t.remind_me_notified_ids || []).length && !DONE_STATUSES.includes(t.status) && t.deadline);
       for (const t of candidates) {
         const d = daysUntil(t.deadline);
         if (d !== null && d <= 2) {
-          await supabase.from("notifications").insert({ user_id: t.remind_me_by, task_id: t.id, message: `Se acerca el deadline de "${t.title}" (${fmtDate(t.deadline)})` });
-          await supabase.from("tasks").update({ remind_me_notified: true }).eq("id", t.id);
+          const notifiedIds = t.remind_me_notified_ids || [];
+          const pendingIds = (t.remind_me_by_ids || []).filter((id) => !notifiedIds.includes(id));
+          if (pendingIds.length === 0) continue;
+          for (const userId of pendingIds) {
+            await supabase.from("notifications").insert({ user_id: userId, task_id: t.id, message: `Se acerca el deadline de "${t.title}" (${fmtDate(t.deadline)})` });
+          }
+          await supabase.from("tasks").update({ remind_me_notified_ids: [...notifiedIds, ...pendingIds] }).eq("id", t.id);
         }
       }
     })();
@@ -1240,9 +1245,10 @@ function TaskDetail({ task, onClose, onUpdate, onDelete, onFinalize, onDeliver, 
     const newFollowers = following ? (task.followers || []).filter((id) => id !== profile.id) : [...(task.followers || []), profile.id];
     await onUpdate(task, { followers: newFollowers }, null);
   };
+  const iAlreadyAskedToRemind = (task.remind_me_by_ids || []).includes(profile.id);
   const toggleRemindMe = async () => {
-    if (task.remind_me_by) return; // ya se activó, no se puede desactivar
-    await onUpdate(task, { remind_me_by: profile.id }, `${profile.name} activó "avisarme" en este pendiente`);
+    if (iAlreadyAskedToRemind) return; // cada quien lo activa una sola vez, no se puede desactivar
+    await onUpdate(task, { remind_me_by_ids: [...(task.remind_me_by_ids || []), profile.id] }, `${profile.name} activó "avisarme" en este pendiente`);
   };
   const toggleNotifyRequester = async () => {
     if (task.notify_requester || !task.requested_by_id || viewerIsGerente) return;
@@ -1496,10 +1502,15 @@ function TaskDetail({ task, onClose, onUpdate, onDelete, onFinalize, onDeliver, 
                   Dar seguimiento <span className="text-[11px]" style={{ color: C.inkSoft }}>(te llegan todas las notificaciones de cambios de este pendiente)</span>
                 </label>
               )}
-              <label className="flex items-center gap-2 cursor-pointer">
-                <input type="checkbox" checked={!!task.remind_me_by} disabled={!!task.remind_me_by || isFinalized} onChange={toggleRemindMe} />
-                Avisarme cuando se acerque el deadline (una sola vez, a mi campanita)
-              </label>
+              <button
+                type="button"
+                disabled={iAlreadyAskedToRemind || isFinalized}
+                onClick={toggleRemindMe}
+                style={iAlreadyAskedToRemind ? { borderColor: C.hairline, color: C.inkSoft, background: C.panel } : { borderColor: C.signal, color: C.signal }}
+                className="border px-2.5 py-1.5 text-xs flex items-center gap-1.5 self-start disabled:cursor-default"
+              >
+                {iAlreadyAskedToRemind ? <><CheckCircle2 size={13} /> Te avisamos</> : <><Bell size={13} /> Avisarme cuando se acerque el deadline</>}
+              </button>
               {!isPersonalSolo && isColaborativo && canRemind && (
                 <div>
                   <label className="font-mono text-[10px] uppercase tracking-widest" style={{ color: C.inkSoft }}>Recordatorio para</label>
