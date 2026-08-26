@@ -146,6 +146,8 @@ export default function Dashboard() {
   const [viewingAs, setViewingAs] = useState(null); // id del compañero que un Gerente está observando
   const [showTeamPicker, setShowTeamPicker] = useState(false);
   const [watchers, setWatchers] = useState([]); // gerentes que me están observando a mí ahora mismo
+  const [taskComments, setTaskComments] = useState([]); // { id, task_id, created_at } de todos los pendientes
+  const [commentReads, setCommentReads] = useState([]); // { task_id, last_read_at } del usuario actual
 
   const loadAll = useCallback(async () => {
     const { data: t } = await supabase.from("tasks").select("*").order("created_at", { ascending: false });
@@ -161,6 +163,15 @@ export default function Dashboard() {
     setNotifications(data || []);
   }, []);
 
+  const loadCommentMeta = useCallback(async (userId) => {
+    const [{ data: c }, { data: r }] = await Promise.all([
+      supabase.from("task_comments").select("id, task_id, created_at"),
+      supabase.from("task_comment_reads").select("task_id, last_read_at").eq("user_id", userId),
+    ]);
+    setTaskComments(c || []);
+    setCommentReads(r || []);
+  }, []);
+
   useEffect(() => {
     (async () => {
       const { data: { session } } = await supabase.auth.getSession();
@@ -169,9 +180,10 @@ export default function Dashboard() {
       setProfile(prof);
       await loadAll();
       await loadNotifications(prof.id);
+      await loadCommentMeta(prof.id);
       setReady(true);
     })();
-  }, [router, loadAll, loadNotifications]);
+  }, [router, loadAll, loadNotifications, loadCommentMeta]);
 
   useEffect(() => {
     const channel = supabase.channel("tasks-changes")
@@ -180,6 +192,15 @@ export default function Dashboard() {
       .subscribe();
     return () => supabase.removeChannel(channel);
   }, [loadAll]);
+
+  useEffect(() => {
+    if (!profile) return;
+    const channel = supabase.channel("comment-meta-changes")
+      .on("postgres_changes", { event: "*", schema: "public", table: "task_comments" }, () => loadCommentMeta(profile.id))
+      .on("postgres_changes", { event: "*", schema: "public", table: "task_comment_reads", filter: `user_id=eq.${profile.id}` }, () => loadCommentMeta(profile.id))
+      .subscribe();
+    return () => supabase.removeChannel(channel);
+  }, [profile, loadCommentMeta]);
 
   useEffect(() => {
     if (!ready || !profile) return;
@@ -467,6 +488,14 @@ export default function Dashboard() {
   const effectiveId = viewingAs || profile.id;
   const viewingProfile = viewingAs ? profiles.find((p) => p.id === viewingAs) : null;
 
+  const readByTask = Object.fromEntries(commentReads.map((r) => [r.task_id, r.last_read_at]));
+  const unreadCommentsByTask = {};
+  for (const c of taskComments) {
+    const lastRead = readByTask[c.task_id];
+    if (lastRead && new Date(c.created_at) <= new Date(lastRead)) continue;
+    unreadCommentsByTask[c.task_id] = (unreadCommentsByTask[c.task_id] || 0) + 1;
+  }
+
   const isAssignedTo = (t, id) =>
     t.assigned_to_id === id ||
     (t.task_type === "colaborativo" && (t.team_member_ids || []).includes(id)) ||
@@ -581,7 +610,7 @@ export default function Dashboard() {
                 <span className="font-mono text-[11px]" style={{ color: C.inkSoft }}>{byUrgency[u].length}</span>
               </div>
               <div style={{ borderColor: C.hairline }} className="border-x">
-                {byUrgency[u].map((t) => <TaskRow key={t.id} task={t} onOpen={() => setSelected(t)} />)}
+                {byUrgency[u].map((t) => <TaskRow key={t.id} task={t} unreadComments={unreadCommentsByTask[t.id] || 0} onOpen={() => setSelected(t)} />)}
               </div>
             </div>
           );
@@ -600,7 +629,7 @@ export default function Dashboard() {
   );
 }
 
-function TaskRow({ task, onOpen }) {
+function TaskRow({ task, onOpen, unreadComments = 0 }) {
   const Icon = STATUS_ICON[task.status];
   const isDone = DONE_STATUSES.includes(task.status);
   const urgent = task.urgency === "Urgente" && !isDone;
@@ -617,6 +646,12 @@ function TaskRow({ task, onOpen }) {
             <span className="font-mono text-[9px] uppercase tracking-wider px-1.5 py-0.5" style={{ background: C.signalSoft, color: C.signal, border: `1px solid ${C.signal}` }}>{typeLabel}</span>
           )}
           <span style={{ color: C.ink, textDecoration: isDone ? "line-through" : "none", opacity: isDone ? 0.6 : 1 }} className="text-sm font-medium truncate">{task.title}</span>
+          {unreadComments > 0 && (
+            <span className="relative inline-flex" style={{ flexShrink: 0 }}>
+              <MessageSquare size={14} style={{ color: C.inkSoft }} />
+              <span style={{ background: C.urgent, color: "#fff" }} className="absolute -top-1.5 -right-1.5 text-[8px] font-mono px-1 py-0.5 leading-none rounded-full">{unreadComments > 9 ? "9+" : unreadComments}</span>
+            </span>
+          )}
           {sameDay && <span className="font-mono text-[9px] uppercase tracking-wider px-1.5 py-0.5 flex items-center gap-1" style={{ background: C.urgentSoft, color: C.urgent, border: `1px solid ${C.urgent}` }}>De hoy para hoy 💀</span>}
           {Array.from({ length: task.remind_assignee_count || 0 }).map((_, i) => <Bell key={i} size={11} style={{ color: C.amber, flexShrink: 0 }} />)}
         </div>
@@ -1138,6 +1173,16 @@ function TaskDetail({ task, onClose, onUpdate, onDelete, onFinalize, onDeliver, 
 
   useEffect(() => { loadExtras(); }, [loadExtras]);
 
+  const markCommentsRead = useCallback(() => {
+    supabase.from("task_comment_reads").upsert(
+      { task_id: task.id, user_id: profile.id, last_read_at: new Date().toISOString() },
+      { onConflict: "task_id,user_id" }
+    );
+  }, [task.id, profile.id]);
+
+  // Abrir el desgloce marca los comentarios como leídos (quita la burbujita del pendiente).
+  useEffect(() => { markCommentsRead(); }, [markCommentsRead]);
+
   const setStatus = (s) => {
     if (isFinalized || viewerIsGerente) return;
     if (s === "Entregado") { onDeliver(task); return; }
@@ -1164,7 +1209,7 @@ function TaskDetail({ task, onClose, onUpdate, onDelete, onFinalize, onDeliver, 
     if (!comment.trim() || isFinalized) return;
     await supabase.from("task_comments").insert({ task_id: task.id, author_id: profile.id, author_name: profile.name, text: comment.trim() });
     await onUpdate(task, {}, `${profile.name} agregó un comentario`);
-    setComment(""); loadExtras();
+    setComment(""); loadExtras(); markCommentsRead();
   };
   const delegate = async () => {
     if (isFinalized || viewerIsGerente) return;
