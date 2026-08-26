@@ -7,7 +7,7 @@ import {
   ChevronRight, ChevronDown, Trash2, CheckCircle2, Circle,
   PauseCircle, PlayCircle, Send, LogOut, History, Mail, Users,
   User, TrendingUp, BookOpen, Download, Lock, CheckCheck, BellRing,
-  Image as ImageIcon, Megaphone, Settings, Eye,
+  Image as ImageIcon, Megaphone, Settings, Eye, Pencil,
 } from "lucide-react";
 
 const C = {
@@ -766,16 +766,14 @@ function NewTaskForm({ onClose, onCreate, onCreatePopup, profiles, profile, isAd
             <div><label className="font-mono text-[10px] uppercase tracking-widest" style={{ color: C.inkSoft }}>Descripción</label>
               <textarea value={description} onChange={(e) => setDescription(e.target.value)} rows={3} style={{ borderColor: C.hairline, background: C.panel }} className="w-full border px-3 py-2 text-sm mt-1 outline-none" /></div>
 
-            {taskType !== "personal" && (
-              <div className="grid grid-cols-2 gap-3">
-                <div><label className="font-mono text-[10px] uppercase tracking-widest" style={{ color: C.inkSoft }}>Categoría</label>
-                  <select value={category} onChange={(e) => setCategory(e.target.value)} style={{ borderColor: C.hairline, background: C.panel }} className="w-full border px-3 py-2 text-sm mt-1 outline-none">
-                    {DEFAULT_CATEGORIES.map((c) => <option key={c} value={c}>{c}</option>)}
-                  </select></div>
-                <div><label className="font-mono text-[10px] uppercase tracking-widest" style={{ color: C.inkSoft }}>...o nueva</label>
-                  <input value={newCategory} onChange={(e) => setNewCategory(e.target.value)} style={{ borderColor: C.hairline, background: C.panel }} className="w-full border px-3 py-2 text-sm mt-1 outline-none" /></div>
-              </div>
-            )}
+            <div className="grid grid-cols-2 gap-3">
+              <div><label className="font-mono text-[10px] uppercase tracking-widest" style={{ color: C.inkSoft }}>Categoría</label>
+                <select value={category} onChange={(e) => setCategory(e.target.value)} style={{ borderColor: C.hairline, background: C.panel }} className="w-full border px-3 py-2 text-sm mt-1 outline-none">
+                  {DEFAULT_CATEGORIES.map((c) => <option key={c} value={c}>{c}</option>)}
+                </select></div>
+              <div><label className="font-mono text-[10px] uppercase tracking-widest" style={{ color: C.inkSoft }}>...o nueva</label>
+                <input value={newCategory} onChange={(e) => setNewCategory(e.target.value)} style={{ borderColor: C.hairline, background: C.panel }} className="w-full border px-3 py-2 text-sm mt-1 outline-none" /></div>
+            </div>
 
             {taskType === "individual" && (
               <>
@@ -1093,6 +1091,9 @@ function TaskDetail({ task, onClose, onUpdate, onDelete, onFinalize, onDeliver, 
   const [reminderTargetId, setReminderTargetId] = useState("");
   const [showAddSubtask, setShowAddSubtask] = useState(false);
   const [newSubtask, setNewSubtask] = useState({ title: "", description: "", assignedToId: "", deadline: "" });
+  const [editingCategory, setEditingCategory] = useState(false);
+  const [categoryDraft, setCategoryDraft] = useState(task.category || "");
+  const [newCategoryDraft, setNewCategoryDraft] = useState("");
   const assignee = profiles.find((p) => p.id === task.assigned_to_id);
 
   const isColaborativo = task.task_type === "colaborativo";
@@ -1129,6 +1130,13 @@ function TaskDetail({ task, onClose, onUpdate, onDelete, onFinalize, onDeliver, 
   const changeDeadline = (d) => {
     if (isFinalized || !isRequester || viewerIsGerente) return;
     onUpdate(task, { deadline: d }, `${profile.name} cambió el deadline a ${fmtDate(d)}`);
+  };
+  const saveCategory = async () => {
+    const val = newCategoryDraft.trim() || categoryDraft;
+    if (!val || isFinalized || viewerIsGerente) return;
+    await onUpdate(task, { category: val }, `${profile.name} cambió la categoría a "${val}"`);
+    setNewCategoryDraft("");
+    setEditingCategory(false);
   };
 
   const addComment = async () => {
@@ -1226,13 +1234,30 @@ function TaskDetail({ task, onClose, onUpdate, onDelete, onFinalize, onDeliver, 
     <div className="fixed inset-0 z-50 flex items-stretch justify-end" style={{ background: "rgba(20,24,31,0.5)" }} onClick={onClose}>
       <div style={{ background: C.paper }} className="w-full max-w-md h-full overflow-y-auto shadow-2xl" onClick={(e) => e.stopPropagation()}>
         <div style={{ borderColor: C.hairline, background: C.paper }} className="border-b px-5 py-4 sticky top-0 flex items-start justify-between gap-3">
-          <div><div className="font-mono text-[10px] uppercase tracking-widest mb-1 flex items-center gap-1.5 flex-wrap" style={{ color: C.inkSoft }}>
+          <div className="flex-1 min-w-0"><div className="font-mono text-[10px] uppercase tracking-widest mb-1 flex items-center gap-1.5 flex-wrap" style={{ color: C.inkSoft }}>
               {task.category}
+              {!isFinalized && !viewerIsGerente && (
+                <button onClick={() => { setCategoryDraft(task.category || DEFAULT_CATEGORIES[0]); setNewCategoryDraft(""); setEditingCategory((v) => !v); }} title="Cambiar categoría">
+                  <Pencil size={11} style={{ color: C.inkSoft }} />
+                </button>
+              )}
               {task.task_type && effectiveTaskType(task) !== "individual" && <span style={{ color: C.signal }}>· {TASK_TYPES.find((t) => t.key === effectiveTaskType(task))?.label}</span>}
               {task.recurring_template_id && <span>· 🔁 Semanal</span>}
               {isFinalized && <><Lock size={10} /> Finalizado — solo lectura</>}
               {viewerIsGerente && !isFinalized && <><Eye size={10} /> Modo lectura</>}
             </div>
+            {editingCategory && (
+              <div style={{ borderColor: C.hairline, background: C.panel }} className="border p-2.5 mb-2 flex flex-col gap-1.5 max-w-xs">
+                <select value={categoryDraft} onChange={(e) => { setCategoryDraft(e.target.value); setNewCategoryDraft(""); }} style={{ borderColor: C.hairline, background: C.paper }} className="border px-2 py-1 text-xs outline-none">
+                  {DEFAULT_CATEGORIES.map((c) => <option key={c} value={c}>{c}</option>)}
+                </select>
+                <input value={newCategoryDraft} onChange={(e) => setNewCategoryDraft(e.target.value)} placeholder="...o escribe una nueva" style={{ borderColor: C.hairline, background: C.paper }} className="border px-2 py-1 text-xs outline-none" />
+                <div className="flex gap-2 justify-end">
+                  <button onClick={() => setEditingCategory(false)} className="text-xs" style={{ color: C.inkSoft }}>Cancelar</button>
+                  <button onClick={saveCategory} style={{ background: C.spine, color: C.paper }} className="text-xs px-2.5 py-1">Guardar</button>
+                </div>
+              </div>
+            )}
             <h2 style={{ color: C.ink, fontFamily: "Georgia, serif" }} className="text-lg leading-tight">{task.title}</h2>
             {task.request_date && task.deadline && task.request_date === task.deadline && (
               <div className="font-mono text-[10px] uppercase tracking-wider mt-1" style={{ color: C.urgent }}>De hoy para hoy 💀</div>
