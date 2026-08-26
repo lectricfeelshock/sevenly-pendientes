@@ -7,7 +7,7 @@ import {
   ChevronRight, ChevronDown, Trash2, CheckCircle2, Circle,
   PauseCircle, PlayCircle, Send, LogOut, History, Mail, Users,
   User, TrendingUp, BookOpen, Download, Lock, CheckCheck, BellRing,
-  Image as ImageIcon, Megaphone, Settings,
+  Image as ImageIcon, Megaphone, Settings, Eye,
 } from "lucide-react";
 
 const C = {
@@ -29,6 +29,17 @@ const URGENCIES = [
 ];
 const DEFAULT_CATEGORIES = ["Video", "Diseño", "Guiones", "Briefs"];
 const DONE_STATUSES = ["Entregado", "Finalizado"];
+const TASK_TYPES = [
+  { key: "individual", label: "Individual" },
+  { key: "personal", label: "Personal" },
+  { key: "colaborativo", label: "Colaborativo" },
+];
+const WEEKDAYS = [
+  { value: 1, label: "Lunes" }, { value: 2, label: "Martes" }, { value: 3, label: "Miércoles" },
+  { value: 4, label: "Jueves" }, { value: 5, label: "Viernes" }, { value: 6, label: "Sábado" }, { value: 0, label: "Domingo" },
+];
+const DEADLINE_OFFSETS = [1, 2, 3, 4, 5, 6];
+const CONSEJO_TEXT = "Si solicitas briefs, en la descripción deja el link del share donde están las solicitudes.\n\nSi se trata del contenido de la press, pon el link de contenido de redes.";
 
 function fmtDate(d) {
   if (!d) return "—";
@@ -104,12 +115,17 @@ export default function Dashboard() {
   const [pushEnabled, setPushEnabled] = useState(false);
   const [pushSupported, setPushSupported] = useState(false);
   const [popupQueue, setPopupQueue] = useState([]);
+  const [subtasks, setSubtasks] = useState([]);
+  const [viewingAs, setViewingAs] = useState(null); // id del compañero que un Gerente está observando
+  const [watchers, setWatchers] = useState([]); // gerentes que me están observando a mí ahora mismo
 
   const loadAll = useCallback(async () => {
     const { data: t } = await supabase.from("tasks").select("*").order("created_at", { ascending: false });
     const { data: p } = await supabase.from("profiles").select("*");
+    const { data: st } = await supabase.from("subtasks").select("*").order("created_at", { ascending: true });
     setTasks(t || []);
     setProfiles(p || []);
+    setSubtasks(st || []);
   }, []);
 
   const loadNotifications = useCallback(async (userId) => {
@@ -132,9 +148,42 @@ export default function Dashboard() {
   useEffect(() => {
     const channel = supabase.channel("tasks-changes")
       .on("postgres_changes", { event: "*", schema: "public", table: "tasks" }, loadAll)
+      .on("postgres_changes", { event: "*", schema: "public", table: "subtasks" }, loadAll)
       .subscribe();
     return () => supabase.removeChannel(channel);
   }, [loadAll]);
+
+  useEffect(() => {
+    if (!ready || !profile) return;
+    const loadWatchers = async () => {
+      const { data } = await supabase.from("watching").select("manager_id").eq("watched_id", profile.id);
+      setWatchers(data || []);
+    };
+    loadWatchers();
+    const channel = supabase.channel("watching-changes")
+      .on("postgres_changes", { event: "*", schema: "public", table: "watching", filter: `watched_id=eq.${profile.id}` }, loadWatchers)
+      .subscribe();
+    return () => supabase.removeChannel(channel);
+  }, [ready, profile]);
+
+  const startViewingAs = async (targetId) => {
+    if (!targetId) { stopViewingAs(); return; }
+    setViewingAs(targetId);
+    await supabase.from("watching").upsert(
+      { manager_id: profile.id, watched_id: targetId, updated_at: new Date().toISOString() },
+      { onConflict: "manager_id,watched_id" }
+    );
+  };
+  const stopViewingAs = async () => {
+    if (viewingAs) await supabase.from("watching").delete().eq("manager_id", profile.id).eq("watched_id", viewingAs);
+    setViewingAs(null);
+  };
+  useEffect(() => {
+    const cleanup = () => { if (viewingAs && profile) supabase.from("watching").delete().eq("manager_id", profile.id).eq("watched_id", viewingAs); };
+    window.addEventListener("beforeunload", cleanup);
+    return () => { window.removeEventListener("beforeunload", cleanup); cleanup(); };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [viewingAs]);
 
   useEffect(() => {
     if (!profile) return;
@@ -224,21 +273,53 @@ export default function Dashboard() {
   };
 
   const createTask = async (form) => {
+    if (form.frequency) {
+      // Pendiente de frecuencia: no crea una tarea ahora, crea la PLANTILLA
+      // que el cron va a usar para generar una tarea nueva cada semana.
+      await supabase.from("recurring_templates").insert({
+        title: form.title, description: form.description, category: form.category,
+        weekday: form.weekday, deadline_offset_days: form.deadlineOffsetDays,
+        requested_by_id: profile.id, assigned_to_id: form.assignedToId,
+      });
+      setShowNew(false);
+      return;
+    }
+
     const assignee = profiles.find((p) => p.id === form.assignedToId);
     const requester = profiles.find((p) => p.id === form.requestedById);
+    const teamNames = (form.teamMemberIds || []).map((id) => profiles.find((p) => p.id === id)?.name).filter(Boolean);
+
     const { data, error } = await supabase.from("tasks").insert({
       title: form.title, description: form.description, category: form.category,
-      requested_by: requester ? requester.name : "", requested_by_id: form.requestedById,
-      deadline: form.deadline || null, urgency: form.urgency,
-      assigned_to_id: form.assignedToId, assigned_to_name: assignee ? assignee.name : "",
+      task_type: form.taskType || "individual",
+      requested_by: requester ? requester.name : profile.name, requested_by_id: form.requestedById || profile.id,
+      deadline: form.deadline || null, urgency: form.urgency || "Media",
+      assigned_to_id: form.assignedToId || null, assigned_to_name: assignee ? assignee.name : "",
+      team_member_ids: form.teamMemberIds || [],
       created_by: profile.id,
     }).select().single();
+
     if (!error && data) {
       await addHistory(data.id, `Creado por ${profile.name}`);
       if (data.request_date && data.deadline && data.request_date === data.deadline) {
         await addHistory(data.id, `⚠️ Pendiente "de hoy para hoy" — se solicitó y se necesita entregar el mismo día`);
       }
       if (assignee && assignee.id !== profile.id) await notify(assignee.id, data.id, `Te asignaron "${data.title}"`);
+      if (form.taskType === "colaborativo") {
+        for (const id of form.teamMemberIds || []) {
+          if (id !== profile.id) await notify(id, data.id, `Te agregaron al equipo del pendiente colaborativo "${data.title}"`);
+        }
+        for (const st of form.subtasks || []) {
+          if (!st.title.trim() || !st.assignedToId) continue;
+          const stAssignee = profiles.find((p) => p.id === st.assignedToId);
+          await supabase.from("subtasks").insert({
+            task_id: data.id, title: st.title, description: st.description,
+            assigned_to_id: st.assignedToId, assigned_to_name: stAssignee ? stAssignee.name : "",
+            deadline: st.deadline || null,
+          });
+          if (st.assignedToId !== profile.id) await notify(st.assignedToId, data.id, `Te asignaron la subtarea "${st.title}" dentro de "${data.title}"`);
+        }
+      }
     }
     setShowNew(false);
     loadAll();
@@ -279,7 +360,7 @@ export default function Dashboard() {
   const finalizeTask = async (task) => {
     await supabase.from("tasks").update({ status: "Finalizado" }).eq("id", task.id);
     await addHistory(task.id, `${profile.name} finalizó el pendiente`);
-    await supabase.from("finalized_log").insert({ user_id: task.assigned_to_id, task_title: task.title });
+    await supabase.from("finalized_log").insert({ user_id: task.assigned_to_id || task.requested_by_id, task_title: task.title });
     await refreshSelected(task.id);
   };
 
@@ -291,6 +372,32 @@ export default function Dashboard() {
 
   const deleteTask = async (id) => { await supabase.from("tasks").delete().eq("id", id); setSelected(null); loadAll(); };
 
+  const addSubtask = async (taskId, st) => {
+    if (!st.title.trim() || !st.assignedToId) return;
+    const stAssignee = profiles.find((p) => p.id === st.assignedToId);
+    await supabase.from("subtasks").insert({
+      task_id: taskId, title: st.title, description: st.description,
+      assigned_to_id: st.assignedToId, assigned_to_name: stAssignee ? stAssignee.name : "",
+      deadline: st.deadline || null,
+    });
+    if (st.assignedToId !== profile.id) {
+      const task = tasks.find((t) => t.id === taskId);
+      await notify(st.assignedToId, taskId, `Te asignaron la subtarea "${st.title}" dentro de "${task?.title || ""}"`);
+    }
+    loadAll();
+  };
+
+  const updateSubtaskStatus = async (subtask, status) => {
+    await supabase.from("subtasks").update({ status }).eq("id", subtask.id);
+    if (status === "Entregado") {
+      const task = tasks.find((t) => t.id === subtask.task_id);
+      if (task && task.requested_by_id && task.requested_by_id !== profile.id) {
+        await notify(task.requested_by_id, task.id, `${subtask.assigned_to_name} entregó la subtarea "${subtask.title}" de "${task.title}"`);
+      }
+    }
+    loadAll();
+  };
+
   const markNotifsRead = async () => {
     const unread = notifications.filter((n) => !n.read).map((n) => n.id);
     if (unread.length === 0) return;
@@ -301,16 +408,26 @@ export default function Dashboard() {
   if (!ready) return <div style={{ background: C.spine, minHeight: "100vh" }} className="w-full" />;
 
   const isAdmin = profile?.role === "admin";
+  const isGerente = profile?.role === "gerente";
   const assignableProfiles = profiles.filter((p) => p.role !== "admin");
+  const effectiveId = viewingAs || profile.id;
+  const viewingProfile = viewingAs ? profiles.find((p) => p.id === viewingAs) : null;
+
+  const isAssignedTo = (t, id) =>
+    t.assigned_to_id === id ||
+    (t.task_type === "colaborativo" && (t.team_member_ids || []).includes(id)) ||
+    subtasks.some((s) => s.task_id === t.id && s.assigned_to_id === id);
+
   let base = tasks;
-  if (primaryTab === "requests") base = tasks.filter((t) => t.requested_by_id === profile.id);
-  else if (primaryTab === "mine") base = tasks.filter((t) => t.assigned_to_id === profile.id);
+  if (primaryTab === "requests") base = tasks.filter((t) => t.requested_by_id === effectiveId);
+  else if (primaryTab === "mine") base = tasks.filter((t) => isAssignedTo(t, effectiveId));
+  else if (primaryTab === "all") base = tasks.filter((t) => t.requested_by_id === effectiveId || isAssignedTo(t, effectiveId));
 
   const filtered = base.filter((t) => {
     if (statusFilter !== "Todos" && t.status !== statusFilter) return false;
     if (search.trim()) {
       const s = search.toLowerCase();
-      if (!t.title.toLowerCase().includes(s) && !(t.requested_by || "").toLowerCase().includes(s) && !t.assigned_to_name.toLowerCase().includes(s)) return false;
+      if (!t.title.toLowerCase().includes(s) && !(t.requested_by || "").toLowerCase().includes(s) && !(t.assigned_to_name || "").toLowerCase().includes(s)) return false;
     }
     return true;
   });
@@ -340,6 +457,7 @@ export default function Dashboard() {
           <button onClick={() => router.push("/biblioteca")} className="flex items-center gap-1.5 text-sm" style={{ color: C.ink }}><BookOpen size={15} style={{ color: C.inkSoft }} /> Biblioteca</button>
           <button onClick={() => setShowTeam(true)} className="flex items-center gap-1.5 text-sm" style={{ color: C.ink }}><Users size={15} style={{ color: C.inkSoft }} /> Equipo</button>
           <button onClick={() => setShowActivity(true)} className="flex items-center gap-1.5 text-sm" style={{ color: C.ink }}><User size={14} style={{ color: C.inkSoft }} /> {profile.name}</button>
+          {watchers.length > 0 && <Eye size={14} style={{ color: C.inkSoft }} title="" />}
           <button onClick={() => { setShowNotifs(true); markNotifsRead(); }} className="relative">
             <Bell size={17} style={{ color: C.inkSoft }} />
             {bellLabel && <span style={{ background: C.urgent, color: "#fff" }} className="absolute -top-1.5 -right-2 text-[9px] font-mono px-1 py-0.5 leading-none rounded-full">{bellLabel}</span>}
@@ -354,7 +472,19 @@ export default function Dashboard() {
             style={{ borderColor: primaryTab === key ? C.signal : C.hairline, background: primaryTab === key ? C.signal : "transparent", color: primaryTab === key ? "#fff" : C.ink }}
             className="border-2 px-3 py-1.5 text-sm font-medium whitespace-nowrap">{label}</button>
         ))}
+        {isGerente && (
+          <select value={viewingAs || ""} onChange={(e) => startViewingAs(e.target.value || null)} style={{ borderColor: C.hairline, background: C.panel, color: C.ink }} className="border-2 px-3 py-1.5 text-sm font-medium ml-auto">
+            <option value="">Mi equipo...</option>
+            {profiles.filter((p) => p.id !== profile.id).map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
+          </select>
+        )}
       </div>
+      {viewingAs && viewingProfile && (
+        <div style={{ background: C.signalSoft, color: C.signal }} className="px-5 py-2 text-sm flex items-center justify-between gap-2">
+          <span>Viendo como <strong>{viewingProfile.name}</strong> (solo lectura)</span>
+          <button onClick={stopViewingAs} className="underline text-xs">Salir</button>
+        </div>
+      )}
 
       {primaryTab === "popups" && isAdmin ? (
         <PopupsAdminPanel profile={profile} />
@@ -384,7 +514,7 @@ export default function Dashboard() {
                 <span className="font-mono text-[11px]" style={{ color: C.inkSoft }}>{byUrgency[u].length}</span>
               </div>
               <div style={{ borderColor: C.hairline }} className="border-x">
-                {byUrgency[u].map((t) => <TaskRow key={t.id} task={t} onOpen={() => setSelected(t)} />)}
+                {byUrgency[u].map((t) => <TaskRow key={t.id} task={t} onOpen={() => !viewingAs && setSelected(t)} />)}
               </div>
             </div>
           );
@@ -395,7 +525,7 @@ export default function Dashboard() {
 
       {showNew && <NewTaskForm onClose={() => setShowNew(false)} onCreate={createTask} onCreatePopup={createPopup} profiles={assignableProfiles} profile={profile} isAdmin={isAdmin} />}
       {popupQueue[0] && <PopupModal popup={popupQueue[0]} onClose={dismissPopup} />}
-      {selected && <TaskDetail task={selected} onClose={() => setSelected(null)} onUpdate={updateTask} onDelete={deleteTask} onFinalize={finalizeTask} onDeliver={deliverTask} profiles={profiles} assignableProfiles={assignableProfiles} profile={profile} notify={notify} />}
+      {selected && <TaskDetail task={selected} onClose={() => setSelected(null)} onUpdate={updateTask} onDelete={deleteTask} onFinalize={finalizeTask} onDeliver={deliverTask} profiles={profiles} assignableProfiles={assignableProfiles} profile={profile} notify={notify} subtasks={subtasks.filter((s) => s.task_id === selected.id)} onAddSubtask={addSubtask} onUpdateSubtaskStatus={updateSubtaskStatus} />}
       {showTeam && <TeamPanel onClose={() => setShowTeam(false)} profiles={assignableProfiles} tasks={tasks} />}
       {showActivity && <ActivityPanel onClose={() => setShowActivity(false)} profile={profile} router={router} />}
       {showNotifs && <NotificationsPanel onClose={() => setShowNotifs(false)} notifications={notifications} onOpenTask={(taskId) => { const t = tasks.find((x) => x.id === taskId); if (t) setSelected(t); setShowNotifs(false); }} pushSupported={pushSupported} pushEnabled={pushEnabled} onEnablePush={enablePush} />}
@@ -408,19 +538,27 @@ function TaskRow({ task, onOpen }) {
   const isDone = DONE_STATUSES.includes(task.status);
   const urgent = task.urgency === "Urgente" && !isDone;
   const sameDay = task.request_date && task.deadline && task.request_date === task.deadline;
+  const typeLabel = TASK_TYPES.find((t) => t.key === task.task_type)?.label;
   return (
     <button onClick={onOpen} style={{ borderColor: C.hairline, background: urgent ? C.urgentSoft : C.panel }} className="w-full text-left border-b px-4 py-3 flex items-center gap-3">
       <Icon size={16} style={{ color: isDone ? C.signal : C.inkSoft, flexShrink: 0 }} />
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-2 flex-wrap">
           <span className="font-mono text-[9px] uppercase tracking-wider px-1.5 py-0.5" style={{ background: C.paper, color: C.inkSoft, border: `1px solid ${C.hairline}` }}>{task.category}</span>
+          {task.task_type && task.task_type !== "individual" && (
+            <span className="font-mono text-[9px] uppercase tracking-wider px-1.5 py-0.5" style={{ background: C.signalSoft, color: C.signal, border: `1px solid ${C.signal}` }}>{typeLabel}</span>
+          )}
           <span style={{ color: C.ink, textDecoration: isDone ? "line-through" : "none", opacity: isDone ? 0.6 : 1 }} className="text-sm font-medium truncate">{task.title}</span>
           {sameDay && <span className="font-mono text-[9px] uppercase tracking-wider px-1.5 py-0.5 flex items-center gap-1" style={{ background: C.urgentSoft, color: C.urgent, border: `1px solid ${C.urgent}` }}>De hoy para hoy 💀</span>}
           {Array.from({ length: task.remind_assignee_count || 0 }).map((_, i) => <Bell key={i} size={11} style={{ color: C.amber, flexShrink: 0 }} />)}
         </div>
         <div className="flex items-center gap-3 mt-1 flex-wrap">
           <span className="font-mono text-[11px]" style={{ color: C.inkSoft }}>solicita {task.requested_by}</span>
-          <span className="font-mono text-[11px]" style={{ color: C.inkSoft }}>→ {task.assigned_to_name}</span>
+          {task.task_type === "colaborativo" ? (
+            <span className="font-mono text-[11px]" style={{ color: C.inkSoft }}>→ equipo ({(task.team_member_ids || []).length})</span>
+          ) : (
+            <span className="font-mono text-[11px]" style={{ color: C.inkSoft }}>→ {task.assigned_to_name}</span>
+          )}
         </div>
       </div>
       <DeadlineBadge deadline={task.deadline} status={task.status} />
@@ -431,10 +569,21 @@ function TaskRow({ task, onOpen }) {
 
 function NewTaskForm({ onClose, onCreate, onCreatePopup, profiles, profile, isAdmin }) {
   const [mode, setMode] = useState("pendiente"); // "pendiente" | "popup" (solo admins ven el selector)
+  const [taskType, setTaskType] = useState("individual"); // individual | personal | colaborativo
   const [title, setTitle] = useState(""), [description, setDescription] = useState("");
   const [category, setCategory] = useState(DEFAULT_CATEGORIES[0]), [newCategory, setNewCategory] = useState("");
-  const [requestedById, setRequestedById] = useState(profile.id), [deadline, setDeadline] = useState("");
-  const [urgency, setUrgency] = useState("Media"), [assignedToId, setAssignedToId] = useState(profile.id);
+  const [deadline, setDeadline] = useState("");
+  const [urgency, setUrgency] = useState("Media"), [assignedToId, setAssignedToId] = useState("");
+
+  // Individual: pendiente de frecuencia
+  const [frequency, setFrequency] = useState(false);
+  const [weekday, setWeekday] = useState(WEEKDAYS[0].value);
+  const [deadlineOffsetDays, setDeadlineOffsetDays] = useState(1);
+  const [showConsejo, setShowConsejo] = useState(false);
+
+  // Colaborativo: equipo + subtareas
+  const [teamMemberIds, setTeamMemberIds] = useState([]);
+  const [subtaskRows, setSubtaskRows] = useState([]);
 
   // Campos del Pop Up
   const [popupTitle, setPopupTitle] = useState(""), [popupDesc, setPopupDesc] = useState("");
@@ -442,9 +591,32 @@ function NewTaskForm({ onClose, onCreate, onCreatePopup, profiles, profile, isAd
   const [popupTime, setPopupTime] = useState(""), [popupWelcome, setPopupWelcome] = useState(false);
   const [popupImageError, setPopupImageError] = useState(""), [popupSaving, setPopupSaving] = useState(false);
 
+  const individualAssignable = profiles.filter((p) => p.id !== profile.id);
+
+  const toggleTeamMember = (id) => {
+    setTeamMemberIds((prev) => prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]);
+    setSubtaskRows((rows) => rows.map((r) => (r.assignedToId && !teamMemberIds.includes(r.assignedToId) ? r : r)));
+  };
+  const addSubtaskRow = () => setSubtaskRows((rows) => [...rows, { title: "", description: "", assignedToId: "", deadline: "" }]);
+  const updateSubtaskRow = (i, field, value) => setSubtaskRows((rows) => rows.map((r, idx) => idx === i ? { ...r, [field]: value } : r));
+  const removeSubtaskRow = (i) => setSubtaskRows((rows) => rows.filter((_, idx) => idx !== i));
+
   const submit = () => {
-    if (!title.trim() || !assignedToId || !requestedById) return;
-    onCreate({ title, description, category: newCategory.trim() || category, requestedById, deadline, urgency, assignedToId });
+    if (!title.trim()) return;
+    const finalCategory = newCategory.trim() || category;
+    if (taskType === "individual") {
+      if (frequency) {
+        onCreate({ title, description, category: finalCategory, taskType, frequency: true, weekday: Number(weekday), deadlineOffsetDays: Number(deadlineOffsetDays), assignedToId });
+        return;
+      }
+      if (!assignedToId) return;
+      onCreate({ title, description, category: finalCategory, taskType, requestedById: profile.id, deadline, urgency, assignedToId });
+    } else if (taskType === "personal") {
+      onCreate({ title, description, category: finalCategory, taskType, requestedById: profile.id, deadline, urgency, assignedToId: profile.id });
+    } else if (taskType === "colaborativo") {
+      if (teamMemberIds.length === 0) return;
+      onCreate({ title, description, category: finalCategory, taskType, requestedById: profile.id, deadline, urgency, teamMemberIds, subtasks: subtaskRows });
+    }
   };
 
   const handlePopupImage = (e) => {
@@ -514,36 +686,138 @@ function NewTaskForm({ onClose, onCreate, onCreatePopup, profiles, profile, isAd
           </div>
         ) : (
           <div className="p-5 flex flex-col gap-4">
+            <div className="flex items-center gap-1.5">
+              {TASK_TYPES.map((tt) => (
+                <button key={tt.key} onClick={() => setTaskType(tt.key)}
+                  style={{ borderColor: taskType === tt.key ? C.signal : C.hairline, background: taskType === tt.key ? C.signal : "transparent", color: taskType === tt.key ? "#fff" : C.ink }}
+                  className="border px-2.5 py-1.5 text-xs font-medium">{tt.label}</button>
+              ))}
+            </div>
+
             <div><label className="font-mono text-[10px] uppercase tracking-widest" style={{ color: C.inkSoft }}>Título</label>
               <input value={title} onChange={(e) => setTitle(e.target.value)} style={{ borderColor: C.hairline, background: C.panel }} className="w-full border px-3 py-2 text-sm mt-1 outline-none" /></div>
             <div><label className="font-mono text-[10px] uppercase tracking-widest" style={{ color: C.inkSoft }}>Descripción</label>
               <textarea value={description} onChange={(e) => setDescription(e.target.value)} rows={3} style={{ borderColor: C.hairline, background: C.panel }} className="w-full border px-3 py-2 text-sm mt-1 outline-none" /></div>
-            <div className="grid grid-cols-2 gap-3">
-              <div><label className="font-mono text-[10px] uppercase tracking-widest" style={{ color: C.inkSoft }}>Categoría</label>
-                <select value={category} onChange={(e) => setCategory(e.target.value)} style={{ borderColor: C.hairline, background: C.panel }} className="w-full border px-3 py-2 text-sm mt-1 outline-none">
-                  {DEFAULT_CATEGORIES.map((c) => <option key={c} value={c}>{c}</option>)}
-                </select></div>
-              <div><label className="font-mono text-[10px] uppercase tracking-widest" style={{ color: C.inkSoft }}>...o nueva</label>
-                <input value={newCategory} onChange={(e) => setNewCategory(e.target.value)} style={{ borderColor: C.hairline, background: C.panel }} className="w-full border px-3 py-2 text-sm mt-1 outline-none" /></div>
-            </div>
-            <div className="grid grid-cols-2 gap-3">
-              <div><label className="font-mono text-[10px] uppercase tracking-widest" style={{ color: C.inkSoft }}>Solicita</label>
-                <select value={requestedById} onChange={(e) => setRequestedById(e.target.value)} style={{ borderColor: C.hairline, background: C.panel }} className="w-full border px-3 py-2 text-sm mt-1 outline-none">
-                  {profiles.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
-                </select></div>
-              <div><label className="font-mono text-[10px] uppercase tracking-widest" style={{ color: C.inkSoft }}>Asignar a</label>
-                <select value={assignedToId} onChange={(e) => setAssignedToId(e.target.value)} style={{ borderColor: C.hairline, background: C.panel }} className="w-full border px-3 py-2 text-sm mt-1 outline-none">
-                  {profiles.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
-                </select></div>
-            </div>
-            <div className="grid grid-cols-2 gap-3">
-              <div><label className="font-mono text-[10px] uppercase tracking-widest" style={{ color: C.inkSoft }}>Deadline</label>
-                <input type="date" value={deadline} onChange={(e) => setDeadline(e.target.value)} style={{ borderColor: C.hairline, background: C.panel }} className="w-full border px-3 py-2 text-sm mt-1 outline-none" /></div>
-              <div><label className="font-mono text-[10px] uppercase tracking-widest" style={{ color: C.inkSoft }}>Urgencia</label>
-                <select value={urgency} onChange={(e) => setUrgency(e.target.value)} style={{ borderColor: C.hairline, background: C.panel }} className="w-full border px-3 py-2 text-sm mt-1 outline-none">
-                  {URGENCIES.map((u) => <option key={u.label} value={u.label}>{u.label}</option>)}
-                </select></div>
-            </div>
+
+            {taskType !== "personal" && (
+              <div className="grid grid-cols-2 gap-3">
+                <div><label className="font-mono text-[10px] uppercase tracking-widest" style={{ color: C.inkSoft }}>Categoría</label>
+                  <select value={category} onChange={(e) => setCategory(e.target.value)} style={{ borderColor: C.hairline, background: C.panel }} className="w-full border px-3 py-2 text-sm mt-1 outline-none">
+                    {DEFAULT_CATEGORIES.map((c) => <option key={c} value={c}>{c}</option>)}
+                  </select></div>
+                <div><label className="font-mono text-[10px] uppercase tracking-widest" style={{ color: C.inkSoft }}>...o nueva</label>
+                  <input value={newCategory} onChange={(e) => setNewCategory(e.target.value)} style={{ borderColor: C.hairline, background: C.panel }} className="w-full border px-3 py-2 text-sm mt-1 outline-none" /></div>
+              </div>
+            )}
+
+            {taskType === "individual" && (
+              <>
+                <div className="grid grid-cols-2 gap-3">
+                  <div><label className="font-mono text-[10px] uppercase tracking-widest" style={{ color: C.inkSoft }}>Solicita</label>
+                    <div style={{ borderColor: C.hairline, background: C.panel, color: C.inkSoft }} className="w-full border px-3 py-2 text-sm mt-1">{profile.name} (tú)</div></div>
+                  <div><label className="font-mono text-[10px] uppercase tracking-widest" style={{ color: C.inkSoft }}>Asignar a</label>
+                    <select value={assignedToId} onChange={(e) => setAssignedToId(e.target.value)} style={{ borderColor: C.hairline, background: C.panel }} className="w-full border px-3 py-2 text-sm mt-1 outline-none">
+                      <option value="">Elegir persona...</option>
+                      {individualAssignable.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
+                    </select></div>
+                </div>
+                <label className="flex items-center gap-2 text-sm" style={{ color: C.ink }}>
+                  <input type="checkbox" checked={frequency} onChange={(e) => setFrequency(e.target.checked)} />
+                  Pendiente de frecuencia <span className="text-[11px]" style={{ color: C.inkSoft }}>(se repite cada semana)</span>
+                </label>
+                {frequency ? (
+                  <div className="grid grid-cols-2 gap-3 items-end">
+                    <div><label className="font-mono text-[10px] uppercase tracking-widest" style={{ color: C.inkSoft }}>Programar solicitud</label>
+                      <select value={weekday} onChange={(e) => setWeekday(e.target.value)} style={{ borderColor: C.hairline, background: C.panel }} className="w-full border px-3 py-2 text-sm mt-1 outline-none">
+                        {WEEKDAYS.map((w) => <option key={w.value} value={w.value}>{w.label}</option>)}
+                      </select></div>
+                    <div><label className="font-mono text-[10px] uppercase tracking-widest" style={{ color: C.inkSoft }}>Deadline</label>
+                      <select value={deadlineOffsetDays} onChange={(e) => setDeadlineOffsetDays(e.target.value)} style={{ borderColor: C.hairline, background: C.panel }} className="w-full border px-3 py-2 text-sm mt-1 outline-none">
+                        {DEADLINE_OFFSETS.map((d) => <option key={d} value={d}>{d} día{d > 1 ? "s" : ""} después</option>)}
+                      </select></div>
+                    <button type="button" onClick={() => setShowConsejo(true)} style={{ borderColor: C.hairline, color: C.ink }} className="border px-3 py-2 text-sm col-span-2">💡 Consejo</button>
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-2 gap-3">
+                    <div><label className="font-mono text-[10px] uppercase tracking-widest" style={{ color: C.inkSoft }}>Deadline</label>
+                      <input type="date" value={deadline} onChange={(e) => setDeadline(e.target.value)} style={{ borderColor: C.hairline, background: C.panel }} className="w-full border px-3 py-2 text-sm mt-1 outline-none" /></div>
+                    <div><label className="font-mono text-[10px] uppercase tracking-widest" style={{ color: C.inkSoft }}>Urgencia</label>
+                      <select value={urgency} onChange={(e) => setUrgency(e.target.value)} style={{ borderColor: C.hairline, background: C.panel }} className="w-full border px-3 py-2 text-sm mt-1 outline-none">
+                        {URGENCIES.map((u) => <option key={u.label} value={u.label}>{u.label}</option>)}
+                      </select></div>
+                  </div>
+                )}
+                {showConsejo && (
+                  <div className="fixed inset-0 z-[70] flex items-center justify-center p-4" style={{ background: "rgba(20,24,31,0.6)" }} onClick={() => setShowConsejo(false)}>
+                    <div style={{ background: C.paper, borderColor: C.hairline }} className="border max-w-xs p-4" onClick={(e) => e.stopPropagation()}>
+                      <p className="text-sm whitespace-pre-line" style={{ color: C.ink }}>{CONSEJO_TEXT}</p>
+                      <button onClick={() => setShowConsejo(false)} style={{ background: C.spine, color: C.paper }} className="mt-3 px-3 py-1.5 text-xs w-full">Entendido</button>
+                    </div>
+                  </div>
+                )}
+              </>
+            )}
+
+            {taskType === "personal" && (
+              <div className="grid grid-cols-2 gap-3">
+                <div><label className="font-mono text-[10px] uppercase tracking-widest" style={{ color: C.inkSoft }}>Deadline</label>
+                  <input type="date" value={deadline} onChange={(e) => setDeadline(e.target.value)} style={{ borderColor: C.hairline, background: C.panel }} className="w-full border px-3 py-2 text-sm mt-1 outline-none" /></div>
+                <div><label className="font-mono text-[10px] uppercase tracking-widest" style={{ color: C.inkSoft }}>Urgencia</label>
+                  <select value={urgency} onChange={(e) => setUrgency(e.target.value)} style={{ borderColor: C.hairline, background: C.panel }} className="w-full border px-3 py-2 text-sm mt-1 outline-none">
+                    {URGENCIES.map((u) => <option key={u.label} value={u.label}>{u.label}</option>)}
+                  </select></div>
+              </div>
+            )}
+
+            {taskType === "colaborativo" && (
+              <>
+                <div><label className="font-mono text-[10px] uppercase tracking-widest" style={{ color: C.inkSoft }}>Solicita</label>
+                  <div style={{ borderColor: C.hairline, background: C.panel, color: C.inkSoft }} className="w-full border px-3 py-2 text-sm mt-1">{profile.name} (tú)</div></div>
+                <div>
+                  <label className="font-mono text-[10px] uppercase tracking-widest" style={{ color: C.inkSoft }}>Equipo de trabajo</label>
+                  <div className="flex flex-wrap gap-1.5 mt-1.5">
+                    {profiles.map((p) => (
+                      <button key={p.id} type="button" onClick={() => toggleTeamMember(p.id)}
+                        style={{ borderColor: teamMemberIds.includes(p.id) ? C.signal : C.hairline, background: teamMemberIds.includes(p.id) ? C.signal : "transparent", color: teamMemberIds.includes(p.id) ? "#fff" : C.ink }}
+                        className="border px-2.5 py-1 text-xs">{p.name}</button>
+                    ))}
+                  </div>
+                </div>
+                <div>
+                  <div className="flex items-center justify-between">
+                    <label className="font-mono text-[10px] uppercase tracking-widest" style={{ color: C.inkSoft }}>Subtareas</label>
+                    <button type="button" onClick={addSubtaskRow} disabled={teamMemberIds.length === 0} style={{ color: C.signal }} className="text-xs flex items-center gap-1 disabled:opacity-40"><Plus size={12} /> Agregar subtarea</button>
+                  </div>
+                  <div className="flex flex-col gap-2 mt-2">
+                    {subtaskRows.map((row, i) => (
+                      <div key={i} style={{ borderColor: C.hairline }} className="border p-2.5 flex flex-col gap-1.5">
+                        <div className="flex gap-1.5">
+                          <input value={row.title} onChange={(e) => updateSubtaskRow(i, "title", e.target.value)} placeholder="Título de la subtarea" style={{ borderColor: C.hairline, background: C.panel }} className="flex-1 border px-2 py-1.5 text-xs outline-none" />
+                          <button type="button" onClick={() => removeSubtaskRow(i)}><X size={14} style={{ color: C.inkSoft }} /></button>
+                        </div>
+                        <input value={row.description} onChange={(e) => updateSubtaskRow(i, "description", e.target.value)} placeholder="Descripción (opcional)" style={{ borderColor: C.hairline, background: C.panel }} className="border px-2 py-1.5 text-xs outline-none" />
+                        <div className="grid grid-cols-2 gap-1.5">
+                          <select value={row.assignedToId} onChange={(e) => updateSubtaskRow(i, "assignedToId", e.target.value)} style={{ borderColor: C.hairline, background: C.panel }} className="border px-2 py-1.5 text-xs outline-none">
+                            <option value="">Asignar a...</option>
+                            {profiles.filter((p) => teamMemberIds.includes(p.id)).map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
+                          </select>
+                          <input type="date" value={row.deadline} onChange={(e) => updateSubtaskRow(i, "deadline", e.target.value)} style={{ borderColor: C.hairline, background: C.panel }} className="border px-2 py-1.5 text-xs outline-none" />
+                        </div>
+                      </div>
+                    ))}
+                    {subtaskRows.length === 0 && <p className="text-[11px]" style={{ color: C.inkSoft }}>Sin subtarea con deadline propio, hereda el deadline general de abajo.</p>}
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div><label className="font-mono text-[10px] uppercase tracking-widest" style={{ color: C.inkSoft }}>Deadline general</label>
+                    <input type="date" value={deadline} onChange={(e) => setDeadline(e.target.value)} style={{ borderColor: C.hairline, background: C.panel }} className="w-full border px-3 py-2 text-sm mt-1 outline-none" /></div>
+                  <div><label className="font-mono text-[10px] uppercase tracking-widest" style={{ color: C.inkSoft }}>Urgencia</label>
+                    <select value={urgency} onChange={(e) => setUrgency(e.target.value)} style={{ borderColor: C.hairline, background: C.panel }} className="w-full border px-3 py-2 text-sm mt-1 outline-none">
+                      {URGENCIES.map((u) => <option key={u.label} value={u.label}>{u.label}</option>)}
+                    </select></div>
+                </div>
+              </>
+            )}
           </div>
         )}
 
@@ -720,17 +994,27 @@ function PopupModal({ popup, onClose }) {
   );
 }
 
-function TaskDetail({ task, onClose, onUpdate, onDelete, onFinalize, onDeliver, profiles, assignableProfiles, profile, notify }) {
+function TaskDetail({ task, onClose, onUpdate, onDelete, onFinalize, onDeliver, profiles, assignableProfiles, profile, notify, subtasks, onAddSubtask, onUpdateSubtaskStatus }) {
   const [comment, setComment] = useState(""), [comments, setComments] = useState([]);
   const [history, setHistory] = useState([]), [showHistory, setShowHistory] = useState(false);
   const [delegateId, setDelegateId] = useState(""), [confirmDelete, setConfirmDelete] = useState(false);
   const [confirmFinalize, setConfirmFinalize] = useState(false);
+  const [reminderTargetId, setReminderTargetId] = useState("");
+  const [showAddSubtask, setShowAddSubtask] = useState(false);
+  const [newSubtask, setNewSubtask] = useState({ title: "", description: "", assignedToId: "", deadline: "" });
   const assignee = profiles.find((p) => p.id === task.assigned_to_id);
 
+  const isColaborativo = task.task_type === "colaborativo";
+  const isPersonalSolo = task.task_type === "personal" && task.assigned_to_id === task.requested_by_id;
   const isAssignee = task.assigned_to_id === profile.id;
   const isRequester = task.requested_by_id === profile.id;
   const isFinalized = task.status === "Finalizado";
   const isDelivered = task.status === "Entregado";
+  const canEditUrgency = isColaborativo ? isRequester : isAssignee;
+  const teamProfiles = profiles.filter((p) => (task.team_member_ids || []).includes(p.id));
+  const allSubtasksDelivered = isColaborativo && subtasks.length > 0 && subtasks.every((s) => s.status === "Entregado");
+  const canFinalize = isColaborativo ? (isRequester && allSubtasksDelivered && !isFinalized) : (isRequester && isDelivered && !isFinalized);
+  const reminderRecipient = isColaborativo ? teamProfiles.find((p) => p.id === reminderTargetId) : assignee;
 
   const loadExtras = useCallback(async () => {
     const { data: c } = await supabase.from("task_comments").select("*").eq("task_id", task.id).order("created_at");
@@ -747,7 +1031,7 @@ function TaskDetail({ task, onClose, onUpdate, onDelete, onFinalize, onDeliver, 
   };
 
   const changeUrgency = (u) => {
-    if (isFinalized || !isAssignee) return;
+    if (isFinalized || !canEditUrgency) return;
     onUpdate(task, { urgency: u }, `${profile.name} cambió la urgencia a "${u}"`);
   };
   const changeDeadline = (d) => {
@@ -765,8 +1049,8 @@ function TaskDetail({ task, onClose, onUpdate, onDelete, onFinalize, onDeliver, 
     if (isFinalized) return;
     const p = profiles.find((x) => x.id === delegateId);
     if (!p) return;
-    await onUpdate(task, { assigned_to_id: p.id, assigned_to_name: p.name }, `${profile.name} delegó a ${p.name}`);
-    if (p.id !== profile.id) await notify(p.id, task.id, `Te delegaron "${task.title}"`);
+    await onUpdate(task, { assigned_to_id: p.id, assigned_to_name: p.name }, `${profile.name} ${isPersonalSolo ? "asignó a" : "delegó a"} ${p.name}`);
+    if (p.id !== profile.id) await notify(p.id, task.id, `Te ${isPersonalSolo ? "asignaron" : "delegaron"} "${task.title}"`);
     setDelegateId("");
   };
 
@@ -781,6 +1065,12 @@ function TaskDetail({ task, onClose, onUpdate, onDelete, onFinalize, onDeliver, 
   };
   const bumpRemindAssignee = async () => {
     if (!isRequester) return;
+    if (isColaborativo) {
+      if (!reminderRecipient) return;
+      await notify(reminderRecipient.id, task.id, `Te resaltaron "${task.title}"`);
+      await onUpdate(task, {}, `${profile.name} resaltó "${task.title}" para ${reminderRecipient.name}`);
+      return;
+    }
     const today = todayISO();
     if ((task.remind_assignee_count || 0) >= 3 || task.remind_assignee_last_date === today) return;
     await onUpdate(task, { remind_assignee_count: (task.remind_assignee_count || 0) + 1, remind_assignee_last_date: today }, `${profile.name} resaltó el pendiente para ${task.assigned_to_name}`);
@@ -788,25 +1078,33 @@ function TaskDetail({ task, onClose, onUpdate, onDelete, onFinalize, onDeliver, 
   };
 
   const sendReminderEmail = async () => {
-    if (!assignee) return;
+    if (!reminderRecipient) return;
     const subject = encodeURIComponent(`Recordatorio: ${task.title}`);
-    const body = encodeURIComponent(`Hola ${assignee.name},\n\nRecordatorio del pendiente "${task.title}" (${task.category}).\nDeadline: ${fmtDate(task.deadline)}\nEstado: ${task.status}\n\nDe parte de ${profile.name}, panel Sevenly.`);
-    const to = encodeURIComponent(assignee.email || "");
+    const body = encodeURIComponent(`Hola ${reminderRecipient.name},\n\nRecordatorio del pendiente "${task.title}" (${task.category}).\nDeadline: ${fmtDate(task.deadline)}\nEstado: ${task.status}\n\nDe parte de ${profile.name}, panel Sevenly.`);
+    const to = encodeURIComponent(reminderRecipient.email || "");
     window.open(`https://outlook.office.com/mail/deeplink/compose?to=${to}&subject=${subject}&body=${body}`, "_blank");
-    await onUpdate(task, {}, `${profile.name} envió recordatorio por correo a ${assignee.name}`);
+    await onUpdate(task, {}, `${profile.name} envió recordatorio por correo a ${reminderRecipient.name}`);
   };
   const sendReminderWhatsapp = async () => {
-    if (!assignee || !assignee.phone) return;
-    const cleanPhone = assignee.phone.replace(/\D/g, "");
-    const text = encodeURIComponent(`Hola ${assignee.name}, recordatorio: "${task.title}" (${task.category}). Deadline: ${fmtDate(task.deadline)}. Estado: ${task.status}. — ${profile.name}, Sevenly`);
+    if (!reminderRecipient || !reminderRecipient.phone) return;
+    const cleanPhone = reminderRecipient.phone.replace(/\D/g, "");
+    const text = encodeURIComponent(`Hola ${reminderRecipient.name}, recordatorio: "${task.title}" (${task.category}). Deadline: ${fmtDate(task.deadline)}. Estado: ${task.status}. — ${profile.name}, Sevenly`);
     window.open(`https://wa.me/${cleanPhone}?text=${text}`, "_blank");
-    await onUpdate(task, {}, `${profile.name} envió recordatorio por WhatsApp a ${assignee.name}`);
+    await onUpdate(task, {}, `${profile.name} envió recordatorio por WhatsApp a ${reminderRecipient.name}`);
+  };
+
+  const submitNewSubtask = async () => {
+    if (!newSubtask.title.trim() || !newSubtask.assignedToId) return;
+    await onAddSubtask(task.id, newSubtask);
+    setNewSubtask({ title: "", description: "", assignedToId: "", deadline: "" });
+    setShowAddSubtask(false);
   };
 
   const downloadHistory = () => {
     const lines = [
       `Pendiente: ${task.title}`, `Categoría: ${task.category}`, `Solicita: ${task.requested_by}`,
-      `Asignado a: ${task.assigned_to_name}`, `Deadline: ${fmtDate(task.deadline)}`, `Urgencia: ${task.urgency}`,
+      isColaborativo ? `Equipo: ${teamProfiles.map((p) => p.name).join(", ")}` : `Asignado a: ${task.assigned_to_name}`,
+      `Deadline: ${fmtDate(task.deadline)}`, `Urgencia: ${task.urgency}`,
       `Estado final: ${task.status}`, "", "--- Historial ---",
       ...history.slice().reverse().map((h) => `[${new Date(h.created_at).toLocaleString("es-MX")}] ${h.text}`),
       "", "--- Comentarios ---",
@@ -823,7 +1121,12 @@ function TaskDetail({ task, onClose, onUpdate, onDelete, onFinalize, onDeliver, 
     <div className="fixed inset-0 z-50 flex items-stretch justify-end" style={{ background: "rgba(20,24,31,0.5)" }} onClick={onClose}>
       <div style={{ background: C.paper }} className="w-full max-w-md h-full overflow-y-auto shadow-2xl" onClick={(e) => e.stopPropagation()}>
         <div style={{ borderColor: C.hairline, background: C.paper }} className="border-b px-5 py-4 sticky top-0 flex items-start justify-between gap-3">
-          <div><div className="font-mono text-[10px] uppercase tracking-widest mb-1 flex items-center gap-1.5" style={{ color: C.inkSoft }}>{task.category}{isFinalized && <><Lock size={10} /> Finalizado — solo lectura</>}</div>
+          <div><div className="font-mono text-[10px] uppercase tracking-widest mb-1 flex items-center gap-1.5 flex-wrap" style={{ color: C.inkSoft }}>
+              {task.category}
+              {task.task_type && task.task_type !== "individual" && <span style={{ color: C.signal }}>· {TASK_TYPES.find((t) => t.key === task.task_type)?.label}</span>}
+              {task.recurring_template_id && <span>· 🔁 Semanal</span>}
+              {isFinalized && <><Lock size={10} /> Finalizado — solo lectura</>}
+            </div>
             <h2 style={{ color: C.ink, fontFamily: "Georgia, serif" }} className="text-lg leading-tight">{task.title}</h2>
             {task.request_date && task.deadline && task.request_date === task.deadline && (
               <div className="font-mono text-[10px] uppercase tracking-wider mt-1" style={{ color: C.urgent }}>De hoy para hoy 💀</div>
@@ -833,19 +1136,29 @@ function TaskDetail({ task, onClose, onUpdate, onDelete, onFinalize, onDeliver, 
         <div className="p-5 flex flex-col gap-5">
           {task.description && <p style={{ color: C.ink }} className="text-sm leading-relaxed">{task.description}</p>}
           <div className="grid grid-cols-2 gap-3 text-sm">
-            <div><div className="font-mono text-[10px] uppercase tracking-widest mb-0.5" style={{ color: C.inkSoft }}>Solicita</div><div style={{ color: C.ink }}>{task.requested_by}</div></div>
-            <div><div className="font-mono text-[10px] uppercase tracking-widest mb-0.5" style={{ color: C.inkSoft }}>Asignado a</div><div style={{ color: C.ink }}>{task.assigned_to_name}</div></div>
+            {isPersonalSolo ? (
+              <div className="col-span-2"><div className="font-mono text-[10px] uppercase tracking-widest mb-0.5" style={{ color: C.inkSoft }}>Tipo</div><div style={{ color: C.ink }}>Pendiente personal (solo tuyo)</div></div>
+            ) : (
+              <>
+                <div><div className="font-mono text-[10px] uppercase tracking-widest mb-0.5" style={{ color: C.inkSoft }}>Solicita</div><div style={{ color: C.ink }}>{task.requested_by}</div></div>
+                {isColaborativo ? (
+                  <div><div className="font-mono text-[10px] uppercase tracking-widest mb-0.5" style={{ color: C.inkSoft }}>Equipo</div><div style={{ color: C.ink }} className="text-xs leading-relaxed">{teamProfiles.map((p) => p.name).join(", ") || "—"}</div></div>
+                ) : (
+                  <div><div className="font-mono text-[10px] uppercase tracking-widest mb-0.5" style={{ color: C.inkSoft }}>Asignado a</div><div style={{ color: C.ink }}>{task.assigned_to_name}</div></div>
+                )}
+              </>
+            )}
             <div><div className="font-mono text-[10px] uppercase tracking-widest mb-0.5" style={{ color: C.inkSoft }}>Fecha de solicitud</div><div style={{ color: C.ink }}>{fmtDate(task.request_date)}</div></div>
             <div></div>
             <div>
-              <div className="font-mono text-[10px] uppercase tracking-widest mb-0.5" style={{ color: C.inkSoft }}>Deadline</div>
+              <div className="font-mono text-[10px] uppercase tracking-widest mb-0.5" style={{ color: C.inkSoft }}>Deadline{isColaborativo ? " general" : ""}</div>
               {isRequester && !isFinalized ? (
                 <input type="date" value={task.deadline || ""} onChange={(e) => changeDeadline(e.target.value)} style={{ borderColor: C.hairline, background: C.panel }} className="border px-2 py-1 text-xs outline-none" />
               ) : <div style={{ color: C.ink }}>{fmtDate(task.deadline)}</div>}
             </div>
             <div>
               <div className="font-mono text-[10px] uppercase tracking-widest mb-0.5" style={{ color: C.inkSoft }}>Urgencia</div>
-              {isAssignee && !isFinalized ? (
+              {canEditUrgency && !isFinalized ? (
                 <select value={task.urgency} onChange={(e) => changeUrgency(e.target.value)} style={{ borderColor: C.hairline, background: C.panel }} className="border px-2 py-1 text-xs outline-none">
                   {URGENCIES.map((u) => <option key={u.label} value={u.label}>{u.label}</option>)}
                 </select>
@@ -853,16 +1166,67 @@ function TaskDetail({ task, onClose, onUpdate, onDelete, onFinalize, onDeliver, 
             </div>
           </div>
 
-          <div>
-            <div className="font-mono text-[10px] uppercase tracking-widest mb-2" style={{ color: C.inkSoft }}>Estado</div>
-            <div className="flex flex-wrap gap-1.5">
-              {ASSIGNEE_STATUSES.map((s) => { const Icon = STATUS_ICON[s]; const active = task.status === s;
-                return <button key={s} disabled={isFinalized} onClick={() => setStatus(s)} style={{ borderColor: active ? C.spine : C.hairline, background: active ? C.spine : "transparent", color: active ? C.paper : C.inkSoft }} className="border px-2.5 py-1.5 text-xs flex items-center gap-1.5 disabled:opacity-50"><Icon size={13} /> {s}</button>; })}
-              {isFinalized && <span style={{ borderColor: C.signal, color: C.signal }} className="border px-2.5 py-1.5 text-xs flex items-center gap-1.5"><CheckCheck size={13} /> Finalizado</span>}
+          {!isColaborativo && (
+            <div>
+              <div className="font-mono text-[10px] uppercase tracking-widest mb-2" style={{ color: C.inkSoft }}>Estado</div>
+              <div className="flex flex-wrap gap-1.5">
+                {ASSIGNEE_STATUSES.map((s) => { const Icon = STATUS_ICON[s]; const active = task.status === s;
+                  return <button key={s} disabled={isFinalized} onClick={() => setStatus(s)} style={{ borderColor: active ? C.spine : C.hairline, background: active ? C.spine : "transparent", color: active ? C.paper : C.inkSoft }} className="border px-2.5 py-1.5 text-xs flex items-center gap-1.5 disabled:opacity-50"><Icon size={13} /> {s}</button>; })}
+                {isFinalized && <span style={{ borderColor: C.signal, color: C.signal }} className="border px-2.5 py-1.5 text-xs flex items-center gap-1.5"><CheckCheck size={13} /> Finalizado</span>}
+              </div>
             </div>
-          </div>
+          )}
 
-          {isRequester && isDelivered && !isFinalized && (
+          {isColaborativo && (
+            <div style={{ borderColor: C.hairline }} className="border-t pt-4">
+              <div className="flex items-center justify-between mb-2">
+                <div className="font-mono text-[10px] uppercase tracking-widest" style={{ color: C.inkSoft }}>Subtareas ({subtasks.filter((s) => s.status === "Entregado").length}/{subtasks.length})</div>
+                {isRequester && !isFinalized && (
+                  <button onClick={() => setShowAddSubtask((v) => !v)} style={{ color: C.signal }} className="text-xs flex items-center gap-1"><Plus size={12} /> Agregar</button>
+                )}
+              </div>
+              {showAddSubtask && (
+                <div style={{ borderColor: C.hairline }} className="border p-2.5 flex flex-col gap-1.5 mb-2">
+                  <input value={newSubtask.title} onChange={(e) => setNewSubtask((s) => ({ ...s, title: e.target.value }))} placeholder="Título" style={{ borderColor: C.hairline, background: C.panel }} className="border px-2 py-1.5 text-xs outline-none" />
+                  <input value={newSubtask.description} onChange={(e) => setNewSubtask((s) => ({ ...s, description: e.target.value }))} placeholder="Descripción (opcional)" style={{ borderColor: C.hairline, background: C.panel }} className="border px-2 py-1.5 text-xs outline-none" />
+                  <div className="grid grid-cols-2 gap-1.5">
+                    <select value={newSubtask.assignedToId} onChange={(e) => setNewSubtask((s) => ({ ...s, assignedToId: e.target.value }))} style={{ borderColor: C.hairline, background: C.panel }} className="border px-2 py-1.5 text-xs outline-none">
+                      <option value="">Asignar a...</option>
+                      {teamProfiles.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
+                    </select>
+                    <input type="date" value={newSubtask.deadline} onChange={(e) => setNewSubtask((s) => ({ ...s, deadline: e.target.value }))} style={{ borderColor: C.hairline, background: C.panel }} className="border px-2 py-1.5 text-xs outline-none" />
+                  </div>
+                  <button onClick={submitNewSubtask} style={{ background: C.spine, color: C.paper }} className="px-3 py-1.5 text-xs">Agregar subtarea</button>
+                </div>
+              )}
+              <div className="flex flex-col gap-1.5">
+                {subtasks.length === 0 && <div className="text-xs" style={{ color: C.inkSoft }}>Sin subtareas todavía.</div>}
+                {subtasks.map((s) => {
+                  const mine = s.assigned_to_id === profile.id;
+                  const StIcon = STATUS_ICON[s.status];
+                  return (
+                    <div key={s.id} style={{ borderColor: mine ? C.signal : C.hairline, background: mine ? C.signalSoft : C.panel }} className="border p-2.5">
+                      <div className="flex items-center justify-between gap-2">
+                        <div className="min-w-0">
+                          <div className="text-sm font-medium truncate" style={{ color: C.ink }}>{s.title}</div>
+                          <div className="font-mono text-[10px]" style={{ color: C.inkSoft }}>{s.assigned_to_name} · {fmtDate(s.deadline || task.deadline)}</div>
+                        </div>
+                        {mine && !isFinalized ? (
+                          <select value={s.status} onChange={(e) => onUpdateSubtaskStatus(s, e.target.value)} style={{ borderColor: C.hairline, background: C.paper }} className="border px-1.5 py-1 text-[11px] outline-none shrink-0">
+                            {ASSIGNEE_STATUSES.map((st) => <option key={st} value={st}>{st}</option>)}
+                          </select>
+                        ) : (
+                          <span className="flex items-center gap-1 text-[11px] shrink-0" style={{ color: C.inkSoft }}><StIcon size={12} /> {s.status}</span>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
+          {canFinalize && (
             !confirmFinalize ? (
               <button onClick={() => setConfirmFinalize(true)} style={{ background: C.signal, color: "#fff" }} className="px-3 py-2 text-sm flex items-center justify-center gap-2"><CheckCheck size={14} /> Finalizar pendiente</button>
             ) : (
@@ -875,22 +1239,27 @@ function TaskDetail({ task, onClose, onUpdate, onDelete, onFinalize, onDeliver, 
               </div>
             )
           )}
+          {isColaborativo && isRequester && !isFinalized && !allSubtasksDelivered && (
+            <p className="text-[11px]" style={{ color: C.inkSoft }}>Se podrá finalizar cuando todas las subtareas queden en "Entregado".</p>
+          )}
 
-          <div style={{ borderColor: C.hairline }} className="border-t pt-4">
-            <div className="font-mono text-[10px] uppercase tracking-widest mb-2" style={{ color: C.inkSoft }}>Delegar</div>
-            <div className="flex gap-2">
-              <select disabled={isFinalized} value={delegateId} onChange={(e) => setDelegateId(e.target.value)} style={{ borderColor: C.hairline, background: C.panel }} className="flex-1 border px-3 py-2 text-sm outline-none disabled:opacity-50">
-                <option value="">Elegir persona...</option>
-                {assignableProfiles.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
-              </select>
-              <button disabled={isFinalized} onClick={delegate} style={{ borderColor: C.hairline, color: C.ink }} className="border px-3 py-2 text-sm flex items-center gap-1 disabled:opacity-50"><ArrowRightLeft size={14} /> Delegar</button>
+          {!isColaborativo && (
+            <div style={{ borderColor: C.hairline }} className="border-t pt-4">
+              <div className="font-mono text-[10px] uppercase tracking-widest mb-2" style={{ color: C.inkSoft }}>{isPersonalSolo ? "Asignar" : "Delegar"}</div>
+              <div className="flex gap-2">
+                <select disabled={isFinalized} value={delegateId} onChange={(e) => setDelegateId(e.target.value)} style={{ borderColor: C.hairline, background: C.panel }} className="flex-1 border px-3 py-2 text-sm outline-none disabled:opacity-50">
+                  <option value="">Elegir persona...</option>
+                  {assignableProfiles.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
+                </select>
+                <button disabled={isFinalized} onClick={delegate} style={{ borderColor: C.hairline, color: C.ink }} className="border px-3 py-2 text-sm flex items-center gap-1 disabled:opacity-50"><ArrowRightLeft size={14} /> {isPersonalSolo ? "Asignar" : "Delegar"}</button>
+              </div>
             </div>
-          </div>
+          )}
 
           <div style={{ borderColor: C.hairline }} className="border-t pt-4">
             <div className="font-mono text-[10px] uppercase tracking-widest mb-2" style={{ color: C.inkSoft }}>Recordatorios</div>
             <div className="flex flex-col gap-1.5 text-sm mb-3" style={{ color: C.ink }}>
-              {isDelivered && isAssignee && (
+              {!isPersonalSolo && isDelivered && isAssignee && (
                 <label className="flex items-center gap-2 cursor-pointer">
                   <input type="checkbox" checked={!!task.notify_requester} disabled={!!task.notify_requester || isFinalized} onChange={toggleNotifyRequester} />
                   Avisar al solicitante (una sola vez)
@@ -900,41 +1269,57 @@ function TaskDetail({ task, onClose, onUpdate, onDelete, onFinalize, onDeliver, 
                 <input type="checkbox" checked={!!task.remind_me_by} disabled={!!task.remind_me_by || isFinalized} onChange={toggleRemindMe} />
                 Avisarme cuando se acerque el deadline (una sola vez, a mi campanita)
               </label>
-              {isRequester && (
+              {!isPersonalSolo && isColaborativo && isRequester && (
+                <div>
+                  <label className="font-mono text-[10px] uppercase tracking-widest" style={{ color: C.inkSoft }}>Recordatorio para</label>
+                  <select value={reminderTargetId} onChange={(e) => setReminderTargetId(e.target.value)} style={{ borderColor: C.hairline, background: C.panel }} className="w-full border px-2 py-1.5 text-xs outline-none mt-1">
+                    <option value="">Elegir miembro del equipo...</option>
+                    {teamProfiles.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
+                  </select>
+                </div>
+              )}
+              {!isPersonalSolo && !isColaborativo && isRequester && (
                 <div className="flex items-center justify-between">
                   <span className="text-xs" style={{ color: C.inkSoft }}>Resaltar para {task.assigned_to_name} ({task.remind_assignee_count || 0}/3 hoy máx. 1)</span>
                   <button disabled={isFinalized || (task.remind_assignee_count || 0) >= 3 || task.remind_assignee_last_date === todayISO()} onClick={bumpRemindAssignee} style={{ borderColor: C.hairline, color: C.ink }} className="border px-2 py-1 text-xs disabled:opacity-40">Resaltar</button>
                 </div>
               )}
+              {!isPersonalSolo && isColaborativo && isRequester && (
+                <div className="flex items-center justify-end">
+                  <button disabled={isFinalized || !reminderRecipient} onClick={bumpRemindAssignee} style={{ borderColor: C.hairline, color: C.ink }} className="border px-2 py-1 text-xs disabled:opacity-40">Resaltar</button>
+                </div>
+              )}
             </div>
-            {isRequester && (
+            {!isPersonalSolo && isRequester && (
               <div className="flex flex-col gap-2">
-                <button onClick={sendReminderEmail} style={{ borderColor: C.hairline, color: C.ink }} className="border px-3 py-2 text-sm flex items-center gap-2 w-full justify-center"><Mail size={14} /> Enviar recordatorio por correo</button>
-                <button onClick={sendReminderWhatsapp} disabled={!assignee?.phone} style={{ borderColor: C.signal, color: assignee?.phone ? C.signal : C.gray }} className="border px-3 py-2 text-sm flex items-center gap-2 w-full justify-center disabled:cursor-not-allowed"><Send size={14} /> {assignee?.phone ? "Recordar por WhatsApp" : "Sin celular registrado"}</button>
+                <button onClick={sendReminderEmail} disabled={isColaborativo && !reminderRecipient} style={{ borderColor: C.hairline, color: C.ink }} className="border px-3 py-2 text-sm flex items-center gap-2 w-full justify-center disabled:opacity-40"><Mail size={14} /> Enviar recordatorio por correo</button>
+                <button onClick={sendReminderWhatsapp} disabled={!reminderRecipient?.phone} style={{ borderColor: C.signal, color: reminderRecipient?.phone ? C.signal : C.gray }} className="border px-3 py-2 text-sm flex items-center gap-2 w-full justify-center disabled:cursor-not-allowed"><Send size={14} /> {reminderRecipient?.phone ? "Recordar por WhatsApp" : "Sin celular registrado"}</button>
               </div>
             )}
-            <p className="text-[11px] mt-1.5" style={{ color: C.inkSoft }}>Correo abre Outlook Web ya redactado (solo dale enviar); WhatsApp abre con el mensaje listo. Ninguno sale automático.</p>
+            {!isPersonalSolo && <p className="text-[11px] mt-1.5" style={{ color: C.inkSoft }}>Correo abre Outlook Web ya redactado (solo dale enviar); WhatsApp abre con el mensaje listo. Ninguno sale automático.</p>}
           </div>
 
-          <div style={{ borderColor: C.hairline }} className="border-t pt-4">
-            <div className="font-mono text-[10px] uppercase tracking-widest mb-2 flex items-center gap-1.5" style={{ color: C.inkSoft }}><MessageSquare size={12} /> Comentarios</div>
-            <div className="flex flex-col gap-2 mb-3 max-h-52 overflow-y-auto">
-              {comments.length === 0 && <div className="text-xs" style={{ color: C.inkSoft }}>Sin comentarios todavía.</div>}
-              {comments.map((c) => (
-                <div key={c.id} style={{ background: C.panel, borderColor: C.hairline }} className="border px-3 py-2">
-                  <div className="flex items-center justify-between mb-0.5"><span className="text-xs font-medium" style={{ color: C.ink }}>{c.author_name}</span>
-                    <span className="font-mono text-[10px]" style={{ color: C.inkSoft }}>{new Date(c.created_at).toLocaleDateString("es-MX", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" })}</span></div>
-                  <div className="text-sm" style={{ color: C.ink }}>{c.text}</div>
-                </div>
-              ))}
-            </div>
-            {!isFinalized && (
-              <div className="flex gap-2">
-                <input value={comment} onChange={(e) => setComment(e.target.value)} onKeyDown={(e) => e.key === "Enter" && addComment()} placeholder="Agregar link, avance o lo que falta..." style={{ borderColor: C.hairline, background: C.panel }} className="flex-1 border px-3 py-2 text-sm outline-none" />
-                <button onClick={addComment} style={{ background: C.spine, color: C.paper }} className="px-3 py-2"><Send size={14} /></button>
+          {!isPersonalSolo && (
+            <div style={{ borderColor: C.hairline }} className="border-t pt-4">
+              <div className="font-mono text-[10px] uppercase tracking-widest mb-2 flex items-center gap-1.5" style={{ color: C.inkSoft }}><MessageSquare size={12} /> Comentarios</div>
+              <div className="flex flex-col gap-2 mb-3 max-h-52 overflow-y-auto">
+                {comments.length === 0 && <div className="text-xs" style={{ color: C.inkSoft }}>Sin comentarios todavía.</div>}
+                {comments.map((c) => (
+                  <div key={c.id} style={{ background: C.panel, borderColor: C.hairline }} className="border px-3 py-2">
+                    <div className="flex items-center justify-between mb-0.5"><span className="text-xs font-medium" style={{ color: C.ink }}>{c.author_name}</span>
+                      <span className="font-mono text-[10px]" style={{ color: C.inkSoft }}>{new Date(c.created_at).toLocaleDateString("es-MX", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" })}</span></div>
+                    <div className="text-sm" style={{ color: C.ink }}>{c.text}</div>
+                  </div>
+                ))}
               </div>
-            )}
-          </div>
+              {!isFinalized && (
+                <div className="flex gap-2">
+                  <input value={comment} onChange={(e) => setComment(e.target.value)} onKeyDown={(e) => e.key === "Enter" && addComment()} placeholder="Agregar link, avance o lo que falta..." style={{ borderColor: C.hairline, background: C.panel }} className="flex-1 border px-3 py-2 text-sm outline-none" />
+                  <button onClick={addComment} style={{ background: C.spine, color: C.paper }} className="px-3 py-2"><Send size={14} /></button>
+                </div>
+              )}
+            </div>
+          )}
 
           <div style={{ borderColor: C.hairline }} className="border-t pt-4 flex items-center justify-between gap-2">
             <button onClick={() => setShowHistory((v) => !v)} className="flex items-center gap-1.5 text-sm" style={{ color: C.ink }}>
