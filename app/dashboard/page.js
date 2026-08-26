@@ -7,7 +7,7 @@ import {
   ChevronRight, ChevronDown, Trash2, CheckCircle2, Circle,
   PauseCircle, PlayCircle, Send, LogOut, History, Mail, Users,
   User, TrendingUp, BookOpen, Download, Lock, CheckCheck, BellRing,
-  Image as ImageIcon, Megaphone, Settings, Eye, Pencil,
+  Image as ImageIcon, Megaphone, Settings, Eye, Pencil, Paperclip,
 } from "lucide-react";
 
 const C = {
@@ -59,6 +59,26 @@ function daysUntil(d) {
   return Math.round((dt - now) / 86400000);
 }
 function todayISO() { return new Date().toISOString().slice(0, 10); }
+
+const URL_MATCH_REGEX = /https?:\/\/[^\s]+/g;
+const URL_SPLIT_REGEX = /(https?:\/\/[^\s]+)/;
+
+function renderWithLinks(text, linkColor) {
+  return text.split(URL_SPLIT_REGEX).map((part, i) =>
+    /^https?:\/\//.test(part)
+      ? <a key={i} href={part} target="_blank" rel="noopener noreferrer" className="underline break-all" style={{ color: linkColor }} onClick={(e) => e.stopPropagation()}>{part}</a>
+      : <span key={i}>{part}</span>
+  );
+}
+
+function extractCommentLinks(comments) {
+  const out = [];
+  for (const c of comments) {
+    const matches = (c.text || "").match(URL_MATCH_REGEX) || [];
+    for (const url of matches) out.push({ url, author: c.author_name, date: c.created_at });
+  }
+  return out;
+}
 function urgencyRank(u) { return (URGENCIES.find((x) => x.label === u) || URGENCIES[0]).rank; }
 
 function dueLegend(deadline, status) {
@@ -1094,6 +1114,7 @@ function TaskDetail({ task, onClose, onUpdate, onDelete, onFinalize, onDeliver, 
   const [editingCategory, setEditingCategory] = useState(false);
   const [categoryDraft, setCategoryDraft] = useState(task.category || "");
   const [newCategoryDraft, setNewCategoryDraft] = useState("");
+  const [showAttachments, setShowAttachments] = useState(false);
   const assignee = profiles.find((p) => p.id === task.assigned_to_id);
 
   const isColaborativo = task.task_type === "colaborativo";
@@ -1453,14 +1474,28 @@ function TaskDetail({ task, onClose, onUpdate, onDelete, onFinalize, onDeliver, 
 
           {!isPersonalSolo && (
             <div style={{ borderColor: C.hairline }} className="border-t pt-4">
-              <div className="font-mono text-[10px] uppercase tracking-widest mb-2 flex items-center gap-1.5" style={{ color: C.inkSoft }}><MessageSquare size={12} /> Comentarios</div>
+              <div className="flex items-center justify-between mb-2">
+                <div className="font-mono text-[10px] uppercase tracking-widest flex items-center gap-1.5" style={{ color: C.inkSoft }}><MessageSquare size={12} /> Comentarios</div>
+                {extractCommentLinks(comments).length > 0 && (
+                  <button onClick={() => setShowAttachments((v) => !v)} className="text-xs flex items-center gap-1" style={{ color: C.signal }}>
+                    <Paperclip size={12} /> Archivos adjuntos ({extractCommentLinks(comments).length})
+                  </button>
+                )}
+              </div>
+              {showAttachments && (
+                <div style={{ borderColor: C.hairline, background: C.panel }} className="border p-2.5 mb-3 flex flex-col gap-1.5 max-h-40 overflow-y-auto">
+                  {extractCommentLinks(comments).map((l, i) => (
+                    <a key={i} href={l.url} target="_blank" rel="noopener noreferrer" className="text-xs underline break-all" style={{ color: C.signal }}>{l.url}</a>
+                  ))}
+                </div>
+              )}
               <div className="flex flex-col gap-2 mb-3 max-h-52 overflow-y-auto">
                 {comments.length === 0 && <div className="text-xs" style={{ color: C.inkSoft }}>Sin comentarios todavía.</div>}
                 {comments.map((c) => (
                   <div key={c.id} style={{ background: C.panel, borderColor: C.hairline }} className="border px-3 py-2">
                     <div className="flex items-center justify-between mb-0.5"><span className="text-xs font-medium" style={{ color: C.ink }}>{c.author_name}</span>
                       <span className="font-mono text-[10px]" style={{ color: C.inkSoft }}>{new Date(c.created_at).toLocaleDateString("es-MX", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" })}</span></div>
-                    <div className="text-sm" style={{ color: C.ink }}>{c.text}</div>
+                    <div className="text-sm break-words whitespace-pre-wrap" style={{ color: C.ink }}>{renderWithLinks(c.text, C.signal)}</div>
                   </div>
                 ))}
               </div>
