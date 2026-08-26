@@ -172,6 +172,10 @@ export default function Dashboard() {
     setCommentReads(r || []);
   }, []);
 
+  const reloadMyCommentReads = useCallback(() => {
+    if (profile) loadCommentMeta(profile.id);
+  }, [profile, loadCommentMeta]);
+
   useEffect(() => {
     (async () => {
       const { data: { session } } = await supabase.auth.getSession();
@@ -621,7 +625,7 @@ export default function Dashboard() {
 
       {showNew && <NewTaskForm onClose={() => setShowNew(false)} onCreate={createTask} onCreatePopup={createPopup} profiles={assignableProfiles} profile={profile} isAdmin={isAdmin} />}
       {popupQueue[0] && <PopupModal popup={popupQueue[0]} onClose={dismissPopup} />}
-      {selected && <TaskDetail task={selected} onClose={() => setSelected(null)} onUpdate={updateTask} onDelete={deleteTask} onFinalize={finalizeTask} onDeliver={deliverTask} profiles={profiles} assignableProfiles={assignableProfiles} profile={profile} notify={notify} subtasks={subtasks.filter((s) => s.task_id === selected.id)} onAddSubtask={addSubtask} onUpdateSubtaskStatus={updateSubtaskStatus} viewerIsGerente={!!viewingAs} />}
+      {selected && <TaskDetail task={selected} onClose={() => setSelected(null)} onUpdate={updateTask} onDelete={deleteTask} onFinalize={finalizeTask} onDeliver={deliverTask} profiles={profiles} assignableProfiles={assignableProfiles} profile={profile} notify={notify} subtasks={subtasks.filter((s) => s.task_id === selected.id)} onAddSubtask={addSubtask} onUpdateSubtaskStatus={updateSubtaskStatus} viewerIsGerente={!!viewingAs} onCommentsRead={reloadMyCommentReads} />}
       {showTeam && <TeamPanel onClose={() => setShowTeam(false)} profiles={assignableProfiles} tasks={tasks} />}
       {showActivity && <ActivityPanel onClose={() => setShowActivity(false)} profile={profile} router={router} />}
       {showNotifs && <NotificationsPanel onClose={() => setShowNotifs(false)} notifications={notifications} onOpenTask={(taskId) => { const t = tasks.find((x) => x.id === taskId); if (t) setSelected(t); setShowNotifs(false); }} pushSupported={pushSupported} pushEnabled={pushEnabled} onEnablePush={enablePush} />}
@@ -1137,7 +1141,7 @@ function PopupModal({ popup, onClose }) {
   );
 }
 
-function TaskDetail({ task, onClose, onUpdate, onDelete, onFinalize, onDeliver, profiles, assignableProfiles, profile, notify, subtasks, onAddSubtask, onUpdateSubtaskStatus, viewerIsGerente }) {
+function TaskDetail({ task, onClose, onUpdate, onDelete, onFinalize, onDeliver, profiles, assignableProfiles, profile, notify, subtasks, onAddSubtask, onUpdateSubtaskStatus, viewerIsGerente, onCommentsRead }) {
   const [comment, setComment] = useState(""), [comments, setComments] = useState([]);
   const [history, setHistory] = useState([]), [showHistory, setShowHistory] = useState(false);
   const [delegateId, setDelegateId] = useState(""), [confirmDelete, setConfirmDelete] = useState(false);
@@ -1173,12 +1177,14 @@ function TaskDetail({ task, onClose, onUpdate, onDelete, onFinalize, onDeliver, 
 
   useEffect(() => { loadExtras(); }, [loadExtras]);
 
-  const markCommentsRead = useCallback(() => {
-    supabase.from("task_comment_reads").upsert(
+  const markCommentsRead = useCallback(async () => {
+    const { error } = await supabase.from("task_comment_reads").upsert(
       { task_id: task.id, user_id: profile.id, last_read_at: new Date().toISOString() },
       { onConflict: "task_id,user_id" }
     );
-  }, [task.id, profile.id]);
+    if (error) { console.error("No se pudo marcar los comentarios como leídos:", error); return; }
+    onCommentsRead?.();
+  }, [task.id, profile.id, onCommentsRead]);
 
   // Abrir el desgloce marca los comentarios como leídos (quita la burbujita del pendiente).
   useEffect(() => { markCommentsRead(); }, [markCommentsRead]);
