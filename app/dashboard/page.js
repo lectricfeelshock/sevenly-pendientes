@@ -169,6 +169,7 @@ export default function Dashboard() {
 
   const startViewingAs = async (targetId) => {
     if (!targetId) { stopViewingAs(); return; }
+    await supabase.from("watching").delete().eq("manager_id", profile.id); // limpia cualquier observación anterior
     setViewingAs(targetId);
     await supabase.from("watching").upsert(
       { manager_id: profile.id, watched_id: targetId, updated_at: new Date().toISOString() },
