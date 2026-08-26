@@ -41,6 +41,13 @@ const WEEKDAYS = [
 const DEADLINE_OFFSETS = [1, 2, 3, 4, 5, 6];
 const CONSEJO_TEXT = "Si solicitas briefs, en la descripción deja el link del share donde están las solicitudes.\n\nSi se trata del contenido de la press, pon el link de contenido de redes.";
 
+// Un pendiente Personal se muestra como Individual en cuanto se le asigna
+// a alguien más (con "Asignar responsable" o "Asignar a").
+function effectiveTaskType(task) {
+  if (task.task_type === "personal" && task.assigned_to_id !== task.requested_by_id) return "individual";
+  return task.task_type;
+}
+
 function fmtDate(d) {
   if (!d) return "—";
   return new Date(d + "T00:00:00").toLocaleDateString("es-MX", { day: "2-digit", month: "short" });
@@ -367,15 +374,25 @@ export default function Dashboard() {
     if (fresh) setSelected(fresh);
   };
 
+  const notifyFollowers = async (task, message) => {
+    for (const followerId of task.followers || []) {
+      if (followerId !== profile.id) await notify(followerId, task.id, message);
+    }
+  };
+
   const updateTask = async (task, patch, historyNote) => {
     await supabase.from("tasks").update(patch).eq("id", task.id);
-    if (historyNote) await addHistory(task.id, historyNote);
+    if (historyNote) {
+      await addHistory(task.id, historyNote);
+      await notifyFollowers(task, historyNote);
+    }
     await refreshSelected(task.id);
   };
 
   const finalizeTask = async (task) => {
     await supabase.from("tasks").update({ status: "Finalizado" }).eq("id", task.id);
     await addHistory(task.id, `${profile.name} finalizó el pendiente`);
+    await notifyFollowers(task, `${profile.name} finalizó "${task.title}"`);
     await supabase.from("finalized_log").insert({ user_id: task.assigned_to_id || task.requested_by_id, task_title: task.title });
     await refreshSelected(task.id);
   };
@@ -383,6 +400,7 @@ export default function Dashboard() {
   const deliverTask = async (task) => {
     await supabase.from("tasks").update({ status: "Entregado" }).eq("id", task.id);
     await addHistory(task.id, `${profile.name} marcó como entregado`);
+    await notifyFollowers(task, `${profile.name} marcó como entregado "${task.title}"`);
     await refreshSelected(task.id);
   };
 
@@ -543,7 +561,7 @@ export default function Dashboard() {
                 <span className="font-mono text-[11px]" style={{ color: C.inkSoft }}>{byUrgency[u].length}</span>
               </div>
               <div style={{ borderColor: C.hairline }} className="border-x">
-                {byUrgency[u].map((t) => <TaskRow key={t.id} task={t} onOpen={() => !viewingAs && setSelected(t)} />)}
+                {byUrgency[u].map((t) => <TaskRow key={t.id} task={t} onOpen={() => setSelected(t)} />)}
               </div>
             </div>
           );
@@ -554,7 +572,7 @@ export default function Dashboard() {
 
       {showNew && <NewTaskForm onClose={() => setShowNew(false)} onCreate={createTask} onCreatePopup={createPopup} profiles={assignableProfiles} profile={profile} isAdmin={isAdmin} />}
       {popupQueue[0] && <PopupModal popup={popupQueue[0]} onClose={dismissPopup} />}
-      {selected && <TaskDetail task={selected} onClose={() => setSelected(null)} onUpdate={updateTask} onDelete={deleteTask} onFinalize={finalizeTask} onDeliver={deliverTask} profiles={profiles} assignableProfiles={assignableProfiles} profile={profile} notify={notify} subtasks={subtasks.filter((s) => s.task_id === selected.id)} onAddSubtask={addSubtask} onUpdateSubtaskStatus={updateSubtaskStatus} />}
+      {selected && <TaskDetail task={selected} onClose={() => setSelected(null)} onUpdate={updateTask} onDelete={deleteTask} onFinalize={finalizeTask} onDeliver={deliverTask} profiles={profiles} assignableProfiles={assignableProfiles} profile={profile} notify={notify} subtasks={subtasks.filter((s) => s.task_id === selected.id)} onAddSubtask={addSubtask} onUpdateSubtaskStatus={updateSubtaskStatus} viewerIsGerente={!!viewingAs} />}
       {showTeam && <TeamPanel onClose={() => setShowTeam(false)} profiles={assignableProfiles} tasks={tasks} />}
       {showActivity && <ActivityPanel onClose={() => setShowActivity(false)} profile={profile} router={router} />}
       {showNotifs && <NotificationsPanel onClose={() => setShowNotifs(false)} notifications={notifications} onOpenTask={(taskId) => { const t = tasks.find((x) => x.id === taskId); if (t) setSelected(t); setShowNotifs(false); }} pushSupported={pushSupported} pushEnabled={pushEnabled} onEnablePush={enablePush} />}
@@ -567,14 +585,15 @@ function TaskRow({ task, onOpen }) {
   const isDone = DONE_STATUSES.includes(task.status);
   const urgent = task.urgency === "Urgente" && !isDone;
   const sameDay = task.request_date && task.deadline && task.request_date === task.deadline;
-  const typeLabel = TASK_TYPES.find((t) => t.key === task.task_type)?.label;
+  const effType = effectiveTaskType(task);
+  const typeLabel = TASK_TYPES.find((t) => t.key === effType)?.label;
   return (
     <button onClick={onOpen} style={{ borderColor: C.hairline, background: urgent ? C.urgentSoft : C.panel }} className="w-full text-left border-b px-4 py-3 flex items-center gap-3">
       <Icon size={16} style={{ color: isDone ? C.signal : C.inkSoft, flexShrink: 0 }} />
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-2 flex-wrap">
           <span className="font-mono text-[9px] uppercase tracking-wider px-1.5 py-0.5" style={{ background: C.paper, color: C.inkSoft, border: `1px solid ${C.hairline}` }}>{task.category}</span>
-          {task.task_type && task.task_type !== "individual" && (
+          {effType && effType !== "individual" && (
             <span className="font-mono text-[9px] uppercase tracking-wider px-1.5 py-0.5" style={{ background: C.signalSoft, color: C.signal, border: `1px solid ${C.signal}` }}>{typeLabel}</span>
           )}
           <span style={{ color: C.ink, textDecoration: isDone ? "line-through" : "none", opacity: isDone ? 0.6 : 1 }} className="text-sm font-medium truncate">{task.title}</span>
@@ -1065,7 +1084,7 @@ function PopupModal({ popup, onClose }) {
   );
 }
 
-function TaskDetail({ task, onClose, onUpdate, onDelete, onFinalize, onDeliver, profiles, assignableProfiles, profile, notify, subtasks, onAddSubtask, onUpdateSubtaskStatus }) {
+function TaskDetail({ task, onClose, onUpdate, onDelete, onFinalize, onDeliver, profiles, assignableProfiles, profile, notify, subtasks, onAddSubtask, onUpdateSubtaskStatus, viewerIsGerente }) {
   const [comment, setComment] = useState(""), [comments, setComments] = useState([]);
   const [history, setHistory] = useState([]), [showHistory, setShowHistory] = useState(false);
   const [delegateId, setDelegateId] = useState(""), [confirmDelete, setConfirmDelete] = useState(false);
@@ -1085,7 +1104,8 @@ function TaskDetail({ task, onClose, onUpdate, onDelete, onFinalize, onDeliver, 
   const canEditUrgency = isColaborativo ? isRequester : isAssignee;
   const teamProfiles = profiles.filter((p) => (task.team_member_ids || []).includes(p.id));
   const allSubtasksDelivered = isColaborativo && subtasks.length > 0 && subtasks.every((s) => s.status === "Entregado");
-  const canFinalize = isColaborativo ? (isRequester && allSubtasksDelivered && !isFinalized) : (isRequester && isDelivered && !isFinalized);
+  const canFinalize = !viewerIsGerente && (isColaborativo ? (isRequester && allSubtasksDelivered && !isFinalized) : (isRequester && isDelivered && !isFinalized));
+  const canRemind = isRequester || viewerIsGerente; // el gerente sí puede mandar recordatorio de correo/whatsapp aunque esté en modo lectura
   const reminderRecipient = isColaborativo ? teamProfiles.find((p) => p.id === reminderTargetId) : assignee;
 
   const loadExtras = useCallback(async () => {
@@ -1097,17 +1117,17 @@ function TaskDetail({ task, onClose, onUpdate, onDelete, onFinalize, onDeliver, 
   useEffect(() => { loadExtras(); }, [loadExtras]);
 
   const setStatus = (s) => {
-    if (isFinalized) return;
+    if (isFinalized || viewerIsGerente) return;
     if (s === "Entregado") { onDeliver(task); return; }
     onUpdate(task, { status: s }, `${profile.name} cambió el estado a "${s}"`);
   };
 
   const changeUrgency = (u) => {
-    if (isFinalized || !canEditUrgency) return;
+    if (isFinalized || !canEditUrgency || viewerIsGerente) return;
     onUpdate(task, { urgency: u }, `${profile.name} cambió la urgencia a "${u}"`);
   };
   const changeDeadline = (d) => {
-    if (isFinalized || !isRequester) return;
+    if (isFinalized || !isRequester || viewerIsGerente) return;
     onUpdate(task, { deadline: d }, `${profile.name} cambió el deadline a ${fmtDate(d)}`);
   };
 
@@ -1118,7 +1138,7 @@ function TaskDetail({ task, onClose, onUpdate, onDelete, onFinalize, onDeliver, 
     setComment(""); loadExtras();
   };
   const delegate = async () => {
-    if (isFinalized) return;
+    if (isFinalized || viewerIsGerente) return;
     const p = profiles.find((x) => x.id === delegateId);
     if (!p) return;
     await onUpdate(task, { assigned_to_id: p.id, assigned_to_name: p.name }, `${profile.name} ${isPersonalSolo ? "asignó a" : "delegó a"} ${p.name}`);
@@ -1126,7 +1146,7 @@ function TaskDetail({ task, onClose, onUpdate, onDelete, onFinalize, onDeliver, 
     setDelegateId("");
   };
   const assignResponsible = async () => {
-    if (isFinalized) return;
+    if (isFinalized || viewerIsGerente) return;
     const p = profiles.find((x) => x.id === responsibleId);
     if (!p) return;
     await onUpdate(task, { requested_by_id: p.id, requested_by: p.name, assigned_to_id: profile.id, assigned_to_name: profile.name }, `${profile.name} asignó a ${p.name} como responsable de "${task.title}"`);
@@ -1134,17 +1154,22 @@ function TaskDetail({ task, onClose, onUpdate, onDelete, onFinalize, onDeliver, 
     setResponsibleId("");
   };
 
+  const toggleFollow = async () => {
+    const following = (task.followers || []).includes(profile.id);
+    const newFollowers = following ? (task.followers || []).filter((id) => id !== profile.id) : [...(task.followers || []), profile.id];
+    await onUpdate(task, { followers: newFollowers }, null);
+  };
   const toggleRemindMe = async () => {
     if (task.remind_me_by) return; // ya se activó, no se puede desactivar
     await onUpdate(task, { remind_me_by: profile.id }, `${profile.name} activó "avisarme" en este pendiente`);
   };
   const toggleNotifyRequester = async () => {
-    if (task.notify_requester || !task.requested_by_id) return;
+    if (task.notify_requester || !task.requested_by_id || viewerIsGerente) return;
     await onUpdate(task, { notify_requester: true }, `${profile.name} activó el aviso al solicitante`);
     await notify(task.requested_by_id, task.id, `"${task.title}" fue entregado`);
   };
   const bumpRemindAssignee = async () => {
-    if (!isRequester) return;
+    if (!isRequester || viewerIsGerente) return;
     if (isColaborativo) {
       if (!reminderRecipient) return;
       await notify(reminderRecipient.id, task.id, `Te resaltaron "${task.title}"`);
@@ -1203,9 +1228,10 @@ function TaskDetail({ task, onClose, onUpdate, onDelete, onFinalize, onDeliver, 
         <div style={{ borderColor: C.hairline, background: C.paper }} className="border-b px-5 py-4 sticky top-0 flex items-start justify-between gap-3">
           <div><div className="font-mono text-[10px] uppercase tracking-widest mb-1 flex items-center gap-1.5 flex-wrap" style={{ color: C.inkSoft }}>
               {task.category}
-              {task.task_type && task.task_type !== "individual" && <span style={{ color: C.signal }}>· {TASK_TYPES.find((t) => t.key === task.task_type)?.label}</span>}
+              {task.task_type && effectiveTaskType(task) !== "individual" && <span style={{ color: C.signal }}>· {TASK_TYPES.find((t) => t.key === effectiveTaskType(task))?.label}</span>}
               {task.recurring_template_id && <span>· 🔁 Semanal</span>}
               {isFinalized && <><Lock size={10} /> Finalizado — solo lectura</>}
+              {viewerIsGerente && !isFinalized && <><Eye size={10} /> Modo lectura</>}
             </div>
             <h2 style={{ color: C.ink, fontFamily: "Georgia, serif" }} className="text-lg leading-tight">{task.title}</h2>
             {task.request_date && task.deadline && task.request_date === task.deadline && (
@@ -1232,13 +1258,13 @@ function TaskDetail({ task, onClose, onUpdate, onDelete, onFinalize, onDeliver, 
             <div></div>
             <div>
               <div className="font-mono text-[10px] uppercase tracking-widest mb-0.5" style={{ color: C.inkSoft }}>Deadline{isColaborativo ? " general" : ""}</div>
-              {isRequester && !isFinalized ? (
+              {isRequester && !isFinalized && !viewerIsGerente ? (
                 <input type="date" value={task.deadline || ""} onChange={(e) => changeDeadline(e.target.value)} style={{ borderColor: C.hairline, background: C.panel }} className="border px-2 py-1 text-xs outline-none" />
               ) : <div style={{ color: C.ink }}>{fmtDate(task.deadline)}</div>}
             </div>
             <div>
               <div className="font-mono text-[10px] uppercase tracking-widest mb-0.5" style={{ color: C.inkSoft }}>Urgencia</div>
-              {canEditUrgency && !isFinalized ? (
+              {canEditUrgency && !isFinalized && !viewerIsGerente ? (
                 <select value={task.urgency} onChange={(e) => changeUrgency(e.target.value)} style={{ borderColor: C.hairline, background: C.panel }} className="border px-2 py-1 text-xs outline-none">
                   {URGENCIES.map((u) => <option key={u.label} value={u.label}>{u.label}</option>)}
                 </select>
@@ -1251,7 +1277,7 @@ function TaskDetail({ task, onClose, onUpdate, onDelete, onFinalize, onDeliver, 
               <div className="font-mono text-[10px] uppercase tracking-widest mb-2" style={{ color: C.inkSoft }}>Estado</div>
               <div className="flex flex-wrap gap-1.5">
                 {ASSIGNEE_STATUSES.map((s) => { const Icon = STATUS_ICON[s]; const active = task.status === s;
-                  return <button key={s} disabled={isFinalized} onClick={() => setStatus(s)} style={{ borderColor: active ? C.spine : C.hairline, background: active ? C.spine : "transparent", color: active ? C.paper : C.inkSoft }} className="border px-2.5 py-1.5 text-xs flex items-center gap-1.5 disabled:opacity-50"><Icon size={13} /> {s}</button>; })}
+                  return <button key={s} disabled={isFinalized || viewerIsGerente} onClick={() => setStatus(s)} style={{ borderColor: active ? C.spine : C.hairline, background: active ? C.spine : "transparent", color: active ? C.paper : C.inkSoft }} className="border px-2.5 py-1.5 text-xs flex items-center gap-1.5 disabled:opacity-50"><Icon size={13} /> {s}</button>; })}
                 {isFinalized && <span style={{ borderColor: C.signal, color: C.signal }} className="border px-2.5 py-1.5 text-xs flex items-center gap-1.5"><CheckCheck size={13} /> Finalizado</span>}
               </div>
             </div>
@@ -1261,7 +1287,7 @@ function TaskDetail({ task, onClose, onUpdate, onDelete, onFinalize, onDeliver, 
             <div style={{ borderColor: C.hairline }} className="border-t pt-4">
               <div className="flex items-center justify-between mb-2">
                 <div className="font-mono text-[10px] uppercase tracking-widest" style={{ color: C.inkSoft }}>Subtareas ({subtasks.filter((s) => s.status === "Entregado").length}/{subtasks.length})</div>
-                {isRequester && !isFinalized && (
+                {isRequester && !isFinalized && !viewerIsGerente && (
                   <button onClick={() => setShowAddSubtask((v) => !v)} style={{ color: C.signal }} className="text-xs flex items-center gap-1"><Plus size={12} /> Agregar</button>
                 )}
               </div>
@@ -1323,7 +1349,7 @@ function TaskDetail({ task, onClose, onUpdate, onDelete, onFinalize, onDeliver, 
             <p className="text-[11px]" style={{ color: C.inkSoft }}>Se podrá finalizar cuando todas las subtareas queden en "Entregado".</p>
           )}
 
-          {!isColaborativo && isPersonalSolo && (
+          {!isColaborativo && isPersonalSolo && !viewerIsGerente && (
             <div style={{ borderColor: C.hairline }} className="border-t pt-4">
               <div className="font-mono text-[10px] uppercase tracking-widest mb-1" style={{ color: C.inkSoft }}>Asignar responsable</div>
               <p className="text-[11px] mb-2" style={{ color: C.inkSoft }}>Esa persona se vuelve la solicitante y tú te quedas como asignado.</p>
@@ -1337,7 +1363,7 @@ function TaskDetail({ task, onClose, onUpdate, onDelete, onFinalize, onDeliver, 
             </div>
           )}
 
-          {!isColaborativo && (
+          {!isColaborativo && !viewerIsGerente && (
             <div style={{ borderColor: C.hairline }} className="border-t pt-4">
               <div className="font-mono text-[10px] uppercase tracking-widest mb-1" style={{ color: C.inkSoft }}>{isPersonalSolo ? "Asignar a" : "Delegar"}</div>
               {isPersonalSolo && <p className="text-[11px] mb-2" style={{ color: C.inkSoft }}>Esa persona se vuelve la asignada y tú te quedas como solicitante.</p>}
@@ -1354,17 +1380,23 @@ function TaskDetail({ task, onClose, onUpdate, onDelete, onFinalize, onDeliver, 
           <div style={{ borderColor: C.hairline }} className="border-t pt-4">
             <div className="font-mono text-[10px] uppercase tracking-widest mb-2" style={{ color: C.inkSoft }}>Recordatorios</div>
             <div className="flex flex-col gap-1.5 text-sm mb-3" style={{ color: C.ink }}>
-              {!isPersonalSolo && isDelivered && isAssignee && (
+              {!isPersonalSolo && !viewerIsGerente && isDelivered && isAssignee && (
                 <label className="flex items-center gap-2 cursor-pointer">
                   <input type="checkbox" checked={!!task.notify_requester} disabled={!!task.notify_requester || isFinalized} onChange={toggleNotifyRequester} />
                   Avisar al solicitante (una sola vez)
+                </label>
+              )}
+              {viewerIsGerente && (
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input type="checkbox" checked={(task.followers || []).includes(profile.id)} onChange={toggleFollow} />
+                  Dar seguimiento <span className="text-[11px]" style={{ color: C.inkSoft }}>(te llegan todas las notificaciones de cambios de este pendiente)</span>
                 </label>
               )}
               <label className="flex items-center gap-2 cursor-pointer">
                 <input type="checkbox" checked={!!task.remind_me_by} disabled={!!task.remind_me_by || isFinalized} onChange={toggleRemindMe} />
                 Avisarme cuando se acerque el deadline (una sola vez, a mi campanita)
               </label>
-              {!isPersonalSolo && isColaborativo && isRequester && (
+              {!isPersonalSolo && isColaborativo && canRemind && (
                 <div>
                   <label className="font-mono text-[10px] uppercase tracking-widest" style={{ color: C.inkSoft }}>Recordatorio para</label>
                   <select value={reminderTargetId} onChange={(e) => setReminderTargetId(e.target.value)} style={{ borderColor: C.hairline, background: C.panel }} className="w-full border px-2 py-1.5 text-xs outline-none mt-1">
@@ -1373,25 +1405,25 @@ function TaskDetail({ task, onClose, onUpdate, onDelete, onFinalize, onDeliver, 
                   </select>
                 </div>
               )}
-              {!isPersonalSolo && !isColaborativo && isRequester && (
+              {!isPersonalSolo && !isColaborativo && isRequester && !viewerIsGerente && (
                 <div className="flex items-center justify-between">
                   <span className="text-xs" style={{ color: C.inkSoft }}>Resaltar para {task.assigned_to_name} ({task.remind_assignee_count || 0}/3 hoy máx. 1)</span>
                   <button disabled={isFinalized || (task.remind_assignee_count || 0) >= 3 || task.remind_assignee_last_date === todayISO()} onClick={bumpRemindAssignee} style={{ borderColor: C.hairline, color: C.ink }} className="border px-2 py-1 text-xs disabled:opacity-40">Resaltar</button>
                 </div>
               )}
-              {!isPersonalSolo && isColaborativo && isRequester && (
+              {!isPersonalSolo && isColaborativo && isRequester && !viewerIsGerente && (
                 <div className="flex items-center justify-end">
                   <button disabled={isFinalized || !reminderRecipient} onClick={bumpRemindAssignee} style={{ borderColor: C.hairline, color: C.ink }} className="border px-2 py-1 text-xs disabled:opacity-40">Resaltar</button>
                 </div>
               )}
             </div>
-            {!isPersonalSolo && isRequester && (
+            {!isPersonalSolo && canRemind && (
               <div className="flex flex-col gap-2">
                 <button onClick={sendReminderEmail} disabled={isColaborativo && !reminderRecipient} style={{ borderColor: C.hairline, color: C.ink }} className="border px-3 py-2 text-sm flex items-center gap-2 w-full justify-center disabled:opacity-40"><Mail size={14} /> Enviar recordatorio por correo</button>
                 <button onClick={sendReminderWhatsapp} disabled={!reminderRecipient?.phone} style={{ borderColor: C.signal, color: reminderRecipient?.phone ? C.signal : C.gray }} className="border px-3 py-2 text-sm flex items-center gap-2 w-full justify-center disabled:cursor-not-allowed"><Send size={14} /> {reminderRecipient?.phone ? "Recordar por WhatsApp" : "Sin celular registrado"}</button>
               </div>
             )}
-            {!isPersonalSolo && <p className="text-[11px] mt-1.5" style={{ color: C.inkSoft }}>Correo abre Outlook Web ya redactado (solo dale enviar); WhatsApp abre con el mensaje listo. Ninguno sale automático.</p>}
+            {!isPersonalSolo && canRemind && <p className="text-[11px] mt-1.5" style={{ color: C.inkSoft }}>Correo abre Outlook Web ya redactado (solo dale enviar); WhatsApp abre con el mensaje listo. Ninguno sale automático.</p>}
           </div>
 
           {!isPersonalSolo && (
@@ -1433,7 +1465,7 @@ function TaskDetail({ task, onClose, onUpdate, onDelete, onFinalize, onDeliver, 
             </div>
           )}
 
-          {!confirmDelete ? (
+          {!viewerIsGerente && (!confirmDelete ? (
             <button onClick={() => setConfirmDelete(true)} className="text-xs flex items-center gap-1.5 mt-1 self-start" style={{ color: C.urgent }}><Trash2 size={13} /> Eliminar pendiente</button>
           ) : (
             <div style={{ borderColor: C.urgent, background: C.urgentSoft }} className="border px-3 py-2.5 flex items-center justify-between gap-2 mt-1">
@@ -1443,7 +1475,7 @@ function TaskDetail({ task, onClose, onUpdate, onDelete, onFinalize, onDeliver, 
                 <button onClick={() => onDelete(task.id)} style={{ background: C.urgent, color: "#fff" }} className="text-xs px-2.5 py-1">Sí, eliminar</button>
               </div>
             </div>
-          )}
+          ))}
         </div>
       </div>
     </div>
