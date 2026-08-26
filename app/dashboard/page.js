@@ -497,7 +497,7 @@ export default function Dashboard() {
             {showTeamPicker && (
               <div style={{ borderColor: C.hairline, background: C.paper }} className="absolute left-0 top-full mt-1 border z-30 min-w-[180px] shadow-lg">
                 <button onClick={() => { stopViewingAs(); setShowTeamPicker(false); }} style={{ color: C.inkSoft, borderColor: C.hairline }} className="w-full text-left px-3 py-2 text-sm border-b">Ver el mío (salir)</button>
-                {profiles.filter((p) => p.id !== profile.id).map((p) => (
+                {profiles.filter((p) => p.id !== profile.id && p.role !== "admin").map((p) => (
                   <button key={p.id} onClick={() => { startViewingAs(p.id); setShowTeamPicker(false); }}
                     style={{ color: viewingAs === p.id ? C.signal : C.ink, background: viewingAs === p.id ? C.signalSoft : "transparent" }}
                     className="w-full text-left px-3 py-2 text-sm">{p.name}</button>
