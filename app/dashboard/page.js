@@ -472,7 +472,6 @@ export default function Dashboard() {
           <button onClick={() => router.push("/biblioteca")} className="flex items-center gap-1.5 text-sm" style={{ color: C.ink }}><BookOpen size={15} style={{ color: C.inkSoft }} /> Biblioteca</button>
           <button onClick={() => setShowTeam(true)} className="flex items-center gap-1.5 text-sm" style={{ color: C.ink }}><Users size={15} style={{ color: C.inkSoft }} /> Equipo</button>
           <button onClick={() => setShowActivity(true)} className="flex items-center gap-1.5 text-sm" style={{ color: C.ink }}><User size={14} style={{ color: C.inkSoft }} /> {profile.name}</button>
-          {watchers.length > 0 && <Eye size={14} style={{ color: C.inkSoft }} title="" />}
           <button onClick={() => { setShowNotifs(true); markNotifsRead(); }} className="relative">
             <Bell size={17} style={{ color: C.inkSoft }} />
             {bellLabel && <span style={{ background: C.urgent, color: "#fff" }} className="absolute -top-1.5 -right-2 text-[9px] font-mono px-1 py-0.5 leading-none rounded-full">{bellLabel}</span>}
@@ -487,6 +486,7 @@ export default function Dashboard() {
             style={{ borderColor: primaryTab === key ? C.signal : C.hairline, background: primaryTab === key ? C.signal : "transparent", color: primaryTab === key ? "#fff" : C.ink }}
             className="border-2 px-3 py-1.5 text-sm font-medium whitespace-nowrap">{label}</button>
         ))}
+        {watchers.length > 0 && <Eye size={15} style={{ color: C.urgent }} />}
         {isGerente && (
           <div className="relative">
             <button onClick={() => setShowTeamPicker((v) => !v)}
