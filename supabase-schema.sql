@@ -106,6 +106,25 @@ create policy "Todos los logueados ven comentarios"
 create policy "Todos los logueados comentan"
   on task_comments for insert to authenticated with check (true);
 
+-- ---------- Marca de "hasta cuándo leyó cada quién los comentarios de cada pendiente" ----------
+create table if not exists task_comment_reads (
+  task_id uuid references tasks(id) on delete cascade,
+  user_id uuid references profiles(id) on delete cascade,
+  last_read_at timestamptz not null default now(),
+  primary key (task_id, user_id)
+);
+
+alter table task_comment_reads enable row level security;
+
+create policy "Ves solo tus propias marcas de lectura"
+  on task_comment_reads for select to authenticated using (auth.uid() = user_id);
+
+create policy "Marcas tus propios comentarios como leídos"
+  on task_comment_reads for insert to authenticated with check (auth.uid() = user_id);
+
+create policy "Actualizas tus propias marcas de lectura"
+  on task_comment_reads for update to authenticated using (auth.uid() = user_id);
+
 -- ---------- Historial ----------
 create table if not exists task_history (
   id uuid primary key default gen_random_uuid(),
@@ -125,4 +144,5 @@ create policy "Todos los logueados agregan historial"
 -- ---------- Habilitar tiempo real (para que se actualice solo en pantalla) ----------
 alter publication supabase_realtime add table tasks;
 alter publication supabase_realtime add table task_comments;
+alter publication supabase_realtime add table task_comment_reads;
 alter publication supabase_realtime add table task_history;
