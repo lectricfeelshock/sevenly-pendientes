@@ -1149,6 +1149,7 @@ function TaskDetail({ task, onClose, onUpdate, onDelete, onFinalize, onDeliver, 
   const [confirmFinalize, setConfirmFinalize] = useState(false);
   const [reminderTargetId, setReminderTargetId] = useState("");
   const [showAddSubtask, setShowAddSubtask] = useState(false);
+  const [expandedSubtaskId, setExpandedSubtaskId] = useState(null);
   const [newSubtask, setNewSubtask] = useState({ title: "", description: "", assignedToId: "", deadline: "" });
   const [editingCategory, setEditingCategory] = useState(false);
   const [categoryDraft, setCategoryDraft] = useState(task.category || "");
@@ -1337,7 +1338,7 @@ function TaskDetail({ task, onClose, onUpdate, onDelete, onFinalize, onDeliver, 
           <button onClick={onClose}><X size={18} style={{ color: C.inkSoft }} /></button>
         </div>
         <div className="p-5 flex flex-col gap-5">
-          {task.description && <p style={{ color: C.ink }} className="text-sm leading-relaxed">{task.description}</p>}
+          {task.description && <p style={{ color: C.ink }} className="text-sm leading-relaxed whitespace-pre-wrap break-words">{renderWithLinks(task.description, C.signal)}</p>}
           <div className="grid grid-cols-2 gap-3 text-sm">
             {isPersonalSolo ? (
               <div className="col-span-2"><div className="font-mono text-[10px] uppercase tracking-widest mb-0.5" style={{ color: C.inkSoft }}>Tipo</div><div style={{ color: C.ink }}>Pendiente personal (solo tuyo)</div></div>
@@ -1383,10 +1384,12 @@ function TaskDetail({ task, onClose, onUpdate, onDelete, onFinalize, onDeliver, 
           {isColaborativo && (
             <div style={{ borderColor: C.hairline }} className="border-t pt-4">
               <div className="flex items-center justify-between mb-2">
-                <div className="font-mono text-[10px] uppercase tracking-widest" style={{ color: C.inkSoft }}>Subtareas ({subtasks.filter((s) => s.status === "Entregado").length}/{subtasks.length})</div>
-                {isRequester && !isFinalized && !viewerIsGerente && (
-                  <button onClick={() => setShowAddSubtask((v) => !v)} style={{ color: C.signal }} className="text-xs flex items-center gap-1"><Plus size={12} /> Agregar</button>
-                )}
+                <div className="flex items-center gap-1.5">
+                  <span className="font-mono text-[10px] uppercase tracking-widest" style={{ color: C.inkSoft }}>Subtareas ({subtasks.filter((s) => s.status === "Entregado").length}/{subtasks.length})</span>
+                  {isRequester && !isFinalized && !viewerIsGerente && (
+                    <button onClick={() => setShowAddSubtask((v) => !v)} title="Agregar subtarea" style={{ borderColor: C.signal, color: C.signal }} className="border rounded-full w-4 h-4 flex items-center justify-center leading-none"><Plus size={10} /></button>
+                  )}
+                </div>
               </div>
               {showAddSubtask && (
                 <div style={{ borderColor: C.hairline }} className="border p-2.5 flex flex-col gap-1.5 mb-2">
@@ -1407,21 +1410,25 @@ function TaskDetail({ task, onClose, onUpdate, onDelete, onFinalize, onDeliver, 
                 {subtasks.map((s) => {
                   const mine = s.assigned_to_id === profile.id;
                   const StIcon = STATUS_ICON[s.status];
+                  const expanded = expandedSubtaskId === s.id;
                   return (
-                    <div key={s.id} style={{ borderColor: mine ? C.signal : C.hairline, background: mine ? C.signalSoft : C.panel }} className="border p-2.5">
+                    <div key={s.id} style={{ borderColor: mine ? C.signal : C.hairline, background: mine ? C.signalSoft : C.panel }} className="border p-2.5 cursor-pointer" onClick={() => setExpandedSubtaskId((id) => (id === s.id ? null : s.id))}>
                       <div className="flex items-center justify-between gap-2">
                         <div className="min-w-0">
-                          <div className="text-sm font-medium truncate" style={{ color: C.ink }}>{s.title}</div>
+                          <div className={`text-sm font-medium ${expanded ? "whitespace-pre-wrap break-words" : "truncate"}`} style={{ color: C.ink }}>{expanded ? renderWithLinks(s.title, C.signal) : s.title}</div>
                           <div className="font-mono text-[10px]" style={{ color: C.inkSoft }}>{s.assigned_to_name} · {fmtDate(s.deadline || task.deadline)}</div>
                         </div>
                         {mine && !isFinalized ? (
-                          <select value={s.status} onChange={(e) => onUpdateSubtaskStatus(s, e.target.value)} style={{ borderColor: C.hairline, background: C.paper }} className="border px-1.5 py-1 text-[11px] outline-none shrink-0">
+                          <select value={s.status} onClick={(e) => e.stopPropagation()} onChange={(e) => onUpdateSubtaskStatus(s, e.target.value)} style={{ borderColor: C.hairline, background: C.paper }} className="border px-1.5 py-1 text-[11px] outline-none shrink-0">
                             {ASSIGNEE_STATUSES.map((st) => <option key={st} value={st}>{st}</option>)}
                           </select>
                         ) : (
                           <span className="flex items-center gap-1 text-[11px] shrink-0" style={{ color: C.inkSoft }}><StIcon size={12} /> {s.status}</span>
                         )}
                       </div>
+                      {expanded && s.description && (
+                        <div className="text-xs mt-2 pt-2 border-t whitespace-pre-wrap break-words" style={{ borderColor: C.hairline, color: C.ink }}>{renderWithLinks(s.description, C.signal)}</div>
+                      )}
                     </div>
                   );
                 })}
