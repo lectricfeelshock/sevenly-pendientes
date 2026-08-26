@@ -117,6 +117,7 @@ export default function Dashboard() {
   const [popupQueue, setPopupQueue] = useState([]);
   const [subtasks, setSubtasks] = useState([]);
   const [viewingAs, setViewingAs] = useState(null); // id del compañero que un Gerente está observando
+  const [showTeamPicker, setShowTeamPicker] = useState(false);
   const [watchers, setWatchers] = useState([]); // gerentes que me están observando a mí ahora mismo
 
   const loadAll = useCallback(async () => {
@@ -480,17 +481,30 @@ export default function Dashboard() {
         </div>
       </div>
 
-      <div style={{ borderColor: C.hairline }} className="border-b px-5 py-2.5 flex flex-wrap items-center gap-2">
+      <div style={{ borderColor: C.hairline }} className="border-b px-5 py-2.5 flex flex-wrap items-center gap-2 relative">
         {[["requests", "Mis solicitudes"], ["mine", "Mis pendientes"], ["all", "Todos"], ...(isAdmin ? [["popups", "Pop Ups"]] : [])].map(([key, label]) => (
           <button key={key} onClick={() => setPrimaryTab(key)}
             style={{ borderColor: primaryTab === key ? C.signal : C.hairline, background: primaryTab === key ? C.signal : "transparent", color: primaryTab === key ? "#fff" : C.ink }}
             className="border-2 px-3 py-1.5 text-sm font-medium whitespace-nowrap">{label}</button>
         ))}
         {isGerente && (
-          <select value={viewingAs || ""} onChange={(e) => startViewingAs(e.target.value || null)} style={{ borderColor: C.hairline, background: C.panel, color: C.ink }} className="border-2 px-3 py-1.5 text-sm font-medium ml-auto">
-            <option value="">Mi equipo...</option>
-            {profiles.filter((p) => p.id !== profile.id).map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
-          </select>
+          <div className="relative">
+            <button onClick={() => setShowTeamPicker((v) => !v)}
+              style={{ borderColor: viewingAs ? C.signal : C.hairline, background: viewingAs ? C.signal : "transparent", color: viewingAs ? "#fff" : C.ink }}
+              className="border-2 px-3 py-1.5 text-sm font-medium whitespace-nowrap flex items-center gap-1">
+              Mi equipo <ChevronDown size={13} style={{ transform: showTeamPicker ? "rotate(180deg)" : "none" }} />
+            </button>
+            {showTeamPicker && (
+              <div style={{ borderColor: C.hairline, background: C.paper }} className="absolute left-0 top-full mt-1 border z-30 min-w-[180px] shadow-lg">
+                <button onClick={() => { stopViewingAs(); setShowTeamPicker(false); }} style={{ color: C.inkSoft, borderColor: C.hairline }} className="w-full text-left px-3 py-2 text-sm border-b">Ver el mío (salir)</button>
+                {profiles.filter((p) => p.id !== profile.id).map((p) => (
+                  <button key={p.id} onClick={() => { startViewingAs(p.id); setShowTeamPicker(false); }}
+                    style={{ color: viewingAs === p.id ? C.signal : C.ink, background: viewingAs === p.id ? C.signalSoft : "transparent" }}
+                    className="w-full text-left px-3 py-2 text-sm">{p.name}</button>
+                ))}
+              </div>
+            )}
+          </div>
         )}
       </div>
       {viewingAs && viewingProfile && (
