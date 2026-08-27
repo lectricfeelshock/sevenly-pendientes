@@ -61,6 +61,17 @@ function effectiveUrgency(task) {
   return isOverdueUrgent(task) ? "Muy urgente" : task.urgency;
 }
 
+// Estado general derivado de las subtareas (Colaborativo, y también Individual
+// cuando tiene subtareas): "Entregado" solo si TODAS están "Entregado";
+// si no, gana "Detenido" sobre "En progreso" sobre "No iniciado".
+function computeGeneralStatus(subs) {
+  if (!subs || subs.length === 0) return null;
+  if (subs.every((s) => s.status === "Entregado")) return "Entregado";
+  if (subs.some((s) => s.status === "Detenido")) return "Detenido";
+  if (subs.some((s) => s.status === "En progreso")) return "En progreso";
+  return "No iniciado";
+}
+
 function fmtDate(d) {
   if (!d) return "—";
   return new Date(d + "T00:00:00").toLocaleDateString("es-MX", { day: "2-digit", month: "short" });
@@ -386,13 +397,13 @@ export default function Dashboard() {
 
     const assignee = profiles.find((p) => p.id === form.assignedToId);
     const requester = profiles.find((p) => p.id === form.requestedById);
-    const responsible = profiles.find((p) => p.id === form.responsibleId);
+    const coRequesters = (form.coRequesterIds || []).map((id) => profiles.find((p) => p.id === id)).filter(Boolean);
 
     const { data, error } = await supabase.from("tasks").insert({
       title: form.title, description: form.description, category: form.category,
       task_type: form.taskType || "individual",
       requested_by: requester ? requester.name : profile.name, requested_by_id: form.requestedById || profile.id,
-      responsible_id: form.responsibleId || null, responsible_name: responsible ? responsible.name : null,
+      co_requester_ids: coRequesters.map((p) => p.id), co_requester_names: coRequesters.map((p) => p.name),
       deadline: form.deadline || null, urgency: form.urgency || "Media",
       assigned_to_id: form.assignedToId || null, assigned_to_name: assignee ? assignee.name : "",
       team_member_ids: form.teamMemberIds || [],
@@ -405,8 +416,10 @@ export default function Dashboard() {
         await addHistory(data.id, `⚠️ Pendiente "de hoy para hoy" — se solicitó y se necesita entregar el mismo día`);
       }
       if (assignee && assignee.id !== profile.id) await notify(assignee.id, data.id, `Te asignaron "${data.title}"`);
+      for (const p of coRequesters) {
+        if (p.id !== profile.id) await notify(p.id, data.id, `Te agregaron como solicitante del pendiente "${data.title}"`);
+      }
       if (form.taskType === "colaborativo") {
-        if (responsible && responsible.id !== profile.id) await notify(responsible.id, data.id, `Te asignaron como responsable del pendiente colaborativo "${data.title}"`);
         for (const id of form.teamMemberIds || []) {
           if (id !== profile.id) await notify(id, data.id, `Te agregaron al equipo del pendiente colaborativo "${data.title}"`);
         }
@@ -494,18 +507,38 @@ export default function Dashboard() {
 
   const deleteTask = async (id) => { await supabase.from("tasks").delete().eq("id", id); setSelected(null); loadAll(); };
 
+  // Recalcula el estado general de un pendiente (Colaborativo, o Individual con
+  // subtareas) a partir del estado actual de todas sus subtareas, y lo guarda si
+  // cambió. Solo los solicitantes se notifican cuando queda listo para finalizar.
+  const applyGeneralStatusFromSubtasks = async (taskId, subtasksForTask) => {
+    const task = tasks.find((t) => t.id === taskId);
+    if (!task || task.status === "Finalizado") return;
+    const newStatus = computeGeneralStatus(subtasksForTask);
+    if (!newStatus || newStatus === task.status) return;
+    await supabase.from("tasks").update({ status: newStatus }).eq("id", taskId);
+    await addHistory(taskId, `Estado general actualizado automáticamente a "${newStatus}" según las subtareas`);
+    if (newStatus === "Entregado") {
+      const requesterIds = new Set([task.requested_by_id, task.responsible_id, ...(task.co_requester_ids || [])].filter(Boolean));
+      for (const rid of requesterIds) {
+        if (rid !== profile.id) await notify(rid, taskId, `Todas las subtareas de "${task.title}" fueron entregadas — ya puedes finalizarlo`);
+      }
+    }
+  };
+
   const addSubtask = async (taskId, st) => {
     if (!st.title.trim() || !st.assignedToId) return;
     const stAssignee = profiles.find((p) => p.id === st.assignedToId);
-    await supabase.from("subtasks").insert({
+    const { data: inserted } = await supabase.from("subtasks").insert({
       task_id: taskId, title: st.title, description: st.description,
       assigned_to_id: st.assignedToId, assigned_to_name: stAssignee ? stAssignee.name : "",
       deadline: st.deadline || null,
-    });
+    }).select().single();
     if (st.assignedToId !== profile.id) {
       const task = tasks.find((t) => t.id === taskId);
       await notify(st.assignedToId, taskId, `Te asignaron la subtarea "${st.title}" dentro de "${task?.title || ""}"`);
     }
+    const forTask = [...subtasks.filter((s) => s.task_id === taskId), inserted].filter(Boolean);
+    await applyGeneralStatusFromSubtasks(taskId, forTask);
     loadAll();
   };
 
@@ -517,6 +550,8 @@ export default function Dashboard() {
         await notify(task.requested_by_id, task.id, `${subtask.assigned_to_name} entregó la subtarea "${subtask.title}" de "${task.title}"`);
       }
     }
+    const forTask = subtasks.filter((s) => s.task_id === subtask.task_id).map((s) => (s.id === subtask.id ? { ...s, status } : s));
+    await applyGeneralStatusFromSubtasks(subtask.task_id, forTask);
     loadAll();
   };
 
@@ -548,7 +583,7 @@ export default function Dashboard() {
     (t.task_type === "colaborativo" && (t.team_member_ids || []).includes(id)) ||
     subtasks.some((s) => s.task_id === t.id && s.assigned_to_id === id);
 
-  const isRequesterOf = (t, id) => t.requested_by_id === id || t.responsible_id === id;
+  const isRequesterOf = (t, id) => t.requested_by_id === id || t.responsible_id === id || (t.co_requester_ids || []).includes(id);
   let base = tasks;
   if (primaryTab === "requests") base = tasks.filter((t) => isRequesterOf(t, effectiveId));
   else if (primaryTab === "mine") base = tasks.filter((t) => isAssignedTo(t, effectiveId));
@@ -705,7 +740,7 @@ function TaskRow({ task, onOpen, unreadComments = 0 }) {
           {Array.from({ length: task.remind_assignee_count || 0 }).map((_, i) => <Bell key={i} size={11} style={{ color: C.amber, flexShrink: 0 }} />)}
         </div>
         <div className="flex items-center gap-3 mt-1 flex-wrap">
-          <span className="font-mono text-[11px]" style={{ color: C.inkSoft }}>solicita {task.requested_by}{task.responsible_name ? ` + ${task.responsible_name}` : ""}</span>
+          <span className="font-mono text-[11px]" style={{ color: C.inkSoft }}>solicita {task.requested_by}{(task.co_requester_names || []).length > 0 ? ` + ${task.co_requester_names.join(", ")}` : task.responsible_name ? ` + ${task.responsible_name}` : ""}</span>
           {task.task_type === "colaborativo" ? (
             <span className="font-mono text-[11px]" style={{ color: C.inkSoft }}>→ equipo ({(task.team_member_ids || []).length})</span>
           ) : (
@@ -733,10 +768,15 @@ function NewTaskForm({ onClose, onCreate, onCreatePopup, profiles, profile, isAd
   const [deadlineOffsetDays, setDeadlineOffsetDays] = useState(1);
   const [showConsejo, setShowConsejo] = useState(false);
 
-  // Colaborativo: equipo + responsable + subtareas
+  // Colaborativo: equipo + subtareas
   const [teamMemberIds, setTeamMemberIds] = useState([]);
-  const [responsibleId, setResponsibleId] = useState("");
   const [subtaskRows, setSubtaskRows] = useState([]);
+  const [showSubtaskRule, setShowSubtaskRule] = useState(false);
+
+  // Solicita: además de ti, puedes agregar más solicitantes (individual y colaborativo)
+  const [coRequesterIds, setCoRequesterIds] = useState([]);
+  const [showRequesterPicker, setShowRequesterPicker] = useState(false);
+  const toggleCoRequester = (id) => setCoRequesterIds((prev) => prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]);
 
   // Campos del Pop Up
   const [popupTitle, setPopupTitle] = useState(""), [popupDesc, setPopupDesc] = useState("");
@@ -754,12 +794,17 @@ function NewTaskForm({ onClose, onCreate, onCreatePopup, profiles, profile, isAd
     setTeamMemberIds((prev) => removing ? prev.filter((x) => x !== id) : [...prev, id]);
     if (removing) {
       setSubtaskRows((rows) => rows.map((r) => (r.assignedToId === id ? { ...r, assignedToId: "" } : r)));
-      if (responsibleId === id) setResponsibleId("");
     }
   };
   const addSubtaskRow = () => setSubtaskRows((rows) => [...rows, { title: "", description: "", assignedToId: "", deadline: "" }]);
   const updateSubtaskRow = (i, field, value) => setSubtaskRows((rows) => rows.map((r, idx) => idx === i ? { ...r, [field]: value } : r));
   const removeSubtaskRow = (i) => setSubtaskRows((rows) => rows.filter((_, idx) => idx !== i));
+
+  // Colaborativo: hasta que no crear pendiente hasta que cada miembro del equipo
+  // tenga al menos una subtarea propia con título — si no, nadie del equipo podrá
+  // marcar su parte como entregada y el pendiente jamás se podría finalizar.
+  const missingSubtaskCoverage = taskType === "colaborativo" &&
+    teamMemberIds.some((id) => !subtaskRows.some((r) => r.assignedToId === id && r.title.trim()));
 
   // Reglas de deadline (individual y colaborativo): nunca antes de hoy, y el
   // deadline general nunca antes que el deadline más lejano de las subtareas.
@@ -783,13 +828,18 @@ function NewTaskForm({ onClose, onCreate, onCreatePopup, profiles, profile, isAd
         return;
       }
       if (!assignedToId || deadlineError) return;
-      onCreate({ title, description, category: finalCategory, taskType, requestedById: profile.id, deadline, urgency, assignedToId, subtasks: subtaskRows });
+      onCreate({ title, description, category: finalCategory, taskType, requestedById: profile.id, coRequesterIds, deadline, urgency, assignedToId, subtasks: subtaskRows });
     } else if (taskType === "personal") {
       onCreate({ title, description, category: finalCategory, taskType, requestedById: profile.id, deadline, urgency, assignedToId: profile.id });
     } else if (taskType === "colaborativo") {
-      if (teamMemberIds.length < 2 || !responsibleId || deadlineError) return;
-      onCreate({ title, description, category: finalCategory, taskType, requestedById: profile.id, responsibleId, deadline, urgency, teamMemberIds, subtasks: subtaskRows });
+      if (teamMemberIds.length < 2 || deadlineError || missingSubtaskCoverage) return;
+      onCreate({ title, description, category: finalCategory, taskType, requestedById: profile.id, coRequesterIds, deadline, urgency, teamMemberIds, subtasks: subtaskRows });
     }
+  };
+
+  const handleCreateClick = () => {
+    if (taskType === "colaborativo" && missingSubtaskCoverage) { setShowSubtaskRule(true); return; }
+    submit();
   };
 
   const handlePopupImage = (e) => {
@@ -900,14 +950,33 @@ function NewTaskForm({ onClose, onCreate, onCreatePopup, profiles, profile, isAd
             {taskType === "individual" && (
               <>
                 <div className="grid grid-cols-2 gap-3">
-                  <div><label className="font-mono text-[10px] uppercase tracking-widest" style={{ color: C.inkSoft }}>Solicita</label>
-                    <div style={{ borderColor: C.hairline, background: C.panel, color: C.inkSoft }} className="w-full border px-3 py-2 text-sm mt-1">{profile.name} (tú)</div></div>
+                  <div>
+                    <label className="font-mono text-[10px] uppercase tracking-widest flex items-center gap-1.5" style={{ color: C.inkSoft }}>
+                      Solicita
+                      <button type="button" onClick={() => setShowRequesterPicker((v) => !v)} title="Agregar más solicitantes" style={{ borderColor: C.signal, color: C.signal }} className="border rounded-full w-3.5 h-3.5 flex items-center justify-center leading-none"><Plus size={9} /></button>
+                    </label>
+                    <div style={{ borderColor: C.hairline, background: C.panel, color: C.inkSoft }} className="w-full border px-3 py-2 text-sm mt-1">
+                      {profile.name} (tú){coRequesterIds.length > 0 ? ` + ${coRequesterIds.map((id) => profiles.find((p) => p.id === id)?.name).filter(Boolean).join(", ")}` : ""}
+                    </div>
+                  </div>
                   <div><label className="font-mono text-[10px] uppercase tracking-widest" style={{ color: C.inkSoft }}>Asignar a</label>
                     <select value={assignedToId} onChange={(e) => setAssignedToId(e.target.value)} style={{ borderColor: C.hairline, background: C.panel }} className="w-full border px-3 py-2 text-sm mt-1 outline-none">
                       <option value="">Elegir persona...</option>
                       {individualAssignable.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
                     </select></div>
                 </div>
+                {showRequesterPicker && (
+                  <div style={{ borderColor: C.hairline }} className="border p-2.5 flex flex-col gap-1.5">
+                    <div className="flex flex-wrap gap-1.5">
+                      {profiles.filter((p) => p.id !== profile.id).map((p) => (
+                        <button key={p.id} type="button" onClick={() => toggleCoRequester(p.id)}
+                          style={{ borderColor: coRequesterIds.includes(p.id) ? C.signal : C.hairline, background: coRequesterIds.includes(p.id) ? C.signal : "transparent", color: coRequesterIds.includes(p.id) ? "#fff" : C.ink }}
+                          className="border px-2.5 py-1 text-xs">{p.name}</button>
+                      ))}
+                    </div>
+                    <p className="text-[11px]" style={{ color: C.inkSoft }}>Las personas que selecciones aparecerán contigo como solicitantes.</p>
+                  </div>
+                )}
                 {!frequency && (
                   <div>
                     <div className="flex items-center justify-between">
@@ -980,16 +1049,27 @@ function NewTaskForm({ onClose, onCreate, onCreatePopup, profiles, profile, isAd
 
             {taskType === "colaborativo" && (
               <>
-                <div className="grid grid-cols-2 gap-3">
-                  <div><label className="font-mono text-[10px] uppercase tracking-widest" style={{ color: C.inkSoft }}>Solicita</label>
-                    <div style={{ borderColor: C.hairline, background: C.panel, color: C.inkSoft }} className="w-full border px-3 py-2 text-sm mt-1">{profile.name} (tú)</div></div>
-                  <div><label className="font-mono text-[10px] uppercase tracking-widest" style={{ color: C.inkSoft }}>Responsable</label>
-                    <select value={responsibleId} onChange={(e) => setResponsibleId(e.target.value)} disabled={teamMemberIds.length === 0} style={{ borderColor: C.hairline, background: C.panel }} className="w-full border px-3 py-2 text-sm mt-1 outline-none disabled:opacity-50">
-                      <option value="">{teamMemberIds.length === 0 ? "Elige primero el equipo..." : "Elegir persona del equipo..."}</option>
-                      {profiles.filter((p) => teamMemberIds.includes(p.id) && p.id !== profile.id).map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
-                    </select></div>
+                <div>
+                  <label className="font-mono text-[10px] uppercase tracking-widest flex items-center gap-1.5" style={{ color: C.inkSoft }}>
+                    Solicita
+                    <button type="button" onClick={() => setShowRequesterPicker((v) => !v)} title="Agregar más solicitantes" style={{ borderColor: C.signal, color: C.signal }} className="border rounded-full w-3.5 h-3.5 flex items-center justify-center leading-none"><Plus size={9} /></button>
+                  </label>
+                  <div style={{ borderColor: C.hairline, background: C.panel, color: C.inkSoft }} className="w-full border px-3 py-2 text-sm mt-1">
+                    {profile.name} (tú){coRequesterIds.length > 0 ? ` + ${coRequesterIds.map((id) => profiles.find((p) => p.id === id)?.name).filter(Boolean).join(", ")}` : ""}
+                  </div>
                 </div>
-                <p className="text-[11px] -mt-2" style={{ color: C.inkSoft }}>El responsable queda junto a ti en "Solicita": también podrá finalizar el pendiente y enviar recordatorios por correo y WhatsApp.</p>
+                {showRequesterPicker && (
+                  <div style={{ borderColor: C.hairline }} className="border p-2.5 flex flex-col gap-1.5">
+                    <div className="flex flex-wrap gap-1.5">
+                      {profiles.filter((p) => p.id !== profile.id).map((p) => (
+                        <button key={p.id} type="button" onClick={() => toggleCoRequester(p.id)}
+                          style={{ borderColor: coRequesterIds.includes(p.id) ? C.signal : C.hairline, background: coRequesterIds.includes(p.id) ? C.signal : "transparent", color: coRequesterIds.includes(p.id) ? "#fff" : C.ink }}
+                          className="border px-2.5 py-1 text-xs">{p.name}</button>
+                      ))}
+                    </div>
+                    <p className="text-[11px]" style={{ color: C.inkSoft }}>Las personas que selecciones aparecerán contigo como solicitantes.</p>
+                  </div>
+                )}
                 <div>
                   <label className="font-mono text-[10px] uppercase tracking-widest" style={{ color: C.inkSoft }}>Equipo de trabajo</label>
                   <div className="flex flex-wrap gap-1.5 mt-1.5">
@@ -1025,6 +1105,11 @@ function NewTaskForm({ onClose, onCreate, onCreatePopup, profiles, profile, isAd
                     ))}
                     {subtaskRows.length === 0 && <p className="text-[11px]" style={{ color: C.inkSoft }}>Sin subtarea con deadline propio, hereda el deadline general de abajo.</p>}
                   </div>
+                  {missingSubtaskCoverage && (
+                    <p className="text-[11px] mt-1.5" style={{ color: C.urgent }}>
+                      Falta asignar subtarea a: {teamMemberIds.filter((id) => !subtaskRows.some((r) => r.assignedToId === id && r.title.trim())).map((id) => profiles.find((p) => p.id === id)?.name).filter(Boolean).join(", ")}
+                    </p>
+                  )}
                 </div>
                 <div className="grid grid-cols-2 gap-3">
                   <div><label className="font-mono text-[10px] uppercase tracking-widest" style={{ color: C.inkSoft }}>Deadline general</label>
@@ -1045,10 +1130,19 @@ function NewTaskForm({ onClose, onCreate, onCreatePopup, profiles, profile, isAd
           {mode === "popup" && isAdmin ? (
             <button onClick={submitPopup} disabled={popupSaving || !!popupImageError} style={{ background: C.spine, color: C.paper, opacity: popupSaving ? 0.6 : 1 }} className="px-4 py-2 text-sm">{popupSaving ? "Programando..." : "Programar"}</button>
           ) : (
-            <button onClick={submit} disabled={usesDeadlineRules && !!deadlineError} style={{ background: C.spine, color: C.paper, opacity: usesDeadlineRules && deadlineError ? 0.5 : 1 }} className="px-4 py-2 text-sm disabled:cursor-not-allowed">Crear pendiente</button>
+            <button onClick={handleCreateClick} disabled={usesDeadlineRules && !!deadlineError} style={{ background: C.spine, color: C.paper, opacity: usesDeadlineRules && deadlineError ? 0.5 : 1 }} className="px-4 py-2 text-sm disabled:cursor-not-allowed">Crear pendiente</button>
           )}
         </div>
       </div>
+      {showSubtaskRule && (
+        <div className="fixed inset-0 z-[70] flex items-center justify-center p-4" style={{ background: "rgba(20,24,31,0.6)" }} onClick={() => setShowSubtaskRule(false)}>
+          <div style={{ background: C.paper, borderColor: C.hairline }} className="border max-w-xs p-4" onClick={(e) => e.stopPropagation()}>
+            <p className="text-sm font-semibold" style={{ color: C.urgent }}>Tienes que asignar subtareas</p>
+            <p className="text-sm mt-2" style={{ color: C.ink }}>Si no asignas subtareas los de tu equipo no podrán seleccionar que ya entregaron su parte y el pendiente no se podrá finalizar.</p>
+            <button onClick={() => setShowSubtaskRule(false)} style={{ background: C.spine, color: C.paper }} className="mt-3 px-3 py-1.5 text-xs w-full">Entendido</button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -1258,17 +1352,26 @@ function TaskDetail({ task, onClose, onUpdate, onDelete, onFinalize, onDeliver, 
   const isPersonalSolo = task.task_type === "personal" && task.assigned_to_id === task.requested_by_id;
   const isAssignee = task.assigned_to_id === profile.id;
   const isRequester = task.requested_by_id === profile.id;
-  const isResponsible = !!task.responsible_id && task.responsible_id === profile.id;
+  // Co-solicitantes: el "responsable" (legado, uno solo) o cualquiera de los
+  // "co_requester_ids" (varios) agregados con el "+" junto a "Solicita".
+  const isResponsible = (!!task.responsible_id && task.responsible_id === profile.id) || (task.co_requester_ids || []).includes(profile.id);
+  const isAnyRequester = isRequester || isResponsible;
   const isAdmin = profile.role === "admin";
+  const isGerenteRole = profile.role === "gerente" || profile.role === "admin";
   const isFinalized = task.status === "Finalizado";
   const isDelivered = task.status === "Entregado";
-  const canEditUrgency = isColaborativo ? isRequester : isAssignee;
+  const canEditUrgency = isColaborativo ? isAnyRequester : isAssignee;
   const teamProfiles = profiles.filter((p) => (task.team_member_ids || []).includes(p.id));
+  const coRequesterNames = (task.co_requester_names || []).length > 0 ? task.co_requester_names : (task.responsible_name ? [task.responsible_name] : []);
   const showSubtasks = isColaborativo || task.task_type === "individual";
-  const allSubtasksDelivered = isColaborativo && subtasks.length > 0 && subtasks.every((s) => s.status === "Entregado");
-  const canFinalize = !viewerIsGerente && !isFinalized && (isAdmin || (isColaborativo ? (isRequester || isResponsible) && allSubtasksDelivered : isRequester && isDelivered));
-  const canEditDeadline = (isRequester || isAdmin) && !isFinalized && !viewerIsGerente;
-  const canRemind = isRequester || isResponsible || viewerIsGerente; // el gerente sí puede mandar recordatorio de correo/whatsapp aunque esté en modo lectura
+  const hasSubtasks = subtasks.length > 0;
+  const allSubtasksDelivered = hasSubtasks && subtasks.every((s) => s.status === "Entregado");
+  const canFinalize = !viewerIsGerente && !isFinalized && (isAdmin || (isColaborativo ? isAnyRequester && allSubtasksDelivered : isRequester && (hasSubtasks ? allSubtasksDelivered : isDelivered)));
+  // El estado general de un Colaborativo se mueve solo (según subtareas); a mano
+  // solo lo pueden mover los solicitantes, el rol gerente y el rol admin.
+  const canEditGeneralStatus = isColaborativo && !isFinalized && !viewerIsGerente && (isAnyRequester || isGerenteRole);
+  const canEditDeadline = (isAnyRequester || isAdmin) && !isFinalized && !viewerIsGerente;
+  const canRemind = isAnyRequester || viewerIsGerente; // el gerente sí puede mandar recordatorio de correo/whatsapp aunque esté en modo lectura
   const reminderRecipient = isColaborativo ? teamProfiles.find((p) => p.id === reminderTargetId) : assignee;
   const latestSubtaskDeadline = subtasks.reduce((max, s) => (s.deadline && (!max || s.deadline > max) ? s.deadline : max), null);
   const minGeneralDeadline = latestSubtaskDeadline && latestSubtaskDeadline > todayISO() ? latestSubtaskDeadline : todayISO();
@@ -1306,6 +1409,17 @@ function TaskDetail({ task, onClose, onUpdate, onDelete, onFinalize, onDeliver, 
     if (task.notify_requester) patch.notify_requester = false;
     if (task.overdue_notified) patch.overdue_notified = false;
     onUpdate(task, patch, `${profile.name} cambió el estado a "${s}"`);
+  };
+
+  // Mueve a mano el estado general de un Colaborativo (solo solicitantes/gerente/admin).
+  // "Entregado" no se puede forzar a mano: solo llega solo cuando todas las subtareas
+  // quedan "Entregado".
+  const setGeneralStatus = (s) => {
+    if (!canEditGeneralStatus || s === "Entregado") return;
+    const patch = { status: s };
+    if (task.notify_requester) patch.notify_requester = false;
+    if (task.overdue_notified) patch.overdue_notified = false;
+    onUpdate(task, patch, `${profile.name} movió el estado general a "${s}"`);
   };
 
   const changeUrgency = (u) => {
@@ -1382,7 +1496,7 @@ function TaskDetail({ task, onClose, onUpdate, onDelete, onFinalize, onDeliver, 
     await notify(task.requested_by_id, task.id, `"${task.title}" fue entregado`);
   };
   const bumpRemindAssignee = async () => {
-    if (!(isRequester || isResponsible) || viewerIsGerente) return;
+    if (!isAnyRequester || viewerIsGerente) return;
     if (isColaborativo) {
       if (!reminderRecipient) return;
       await notify(reminderRecipient.id, task.id, `Te resaltaron "${task.title}"`);
@@ -1421,7 +1535,7 @@ function TaskDetail({ task, onClose, onUpdate, onDelete, onFinalize, onDeliver, 
 
   const downloadHistory = () => {
     const lines = [
-      `Pendiente: ${task.title}`, `Categoría: ${task.category}`, `Solicita: ${task.requested_by}${isColaborativo && task.responsible_name ? " + " + task.responsible_name : ""}`,
+      `Pendiente: ${task.title}`, `Categoría: ${task.category}`, `Solicita: ${task.requested_by}${coRequesterNames.length ? " + " + coRequesterNames.join(", ") : ""}`,
       isColaborativo ? `Equipo: ${teamProfiles.map((p) => p.name).join(", ")}` : `Asignado a: ${task.assigned_to_name}`,
       `Deadline: ${fmtDate(task.deadline)}`, `Urgencia: ${task.urgency}`,
       `Estado final: ${task.status}`, "", "--- Historial ---",
@@ -1477,7 +1591,7 @@ function TaskDetail({ task, onClose, onUpdate, onDelete, onFinalize, onDeliver, 
               <div className="col-span-2"><div className="font-mono text-[10px] uppercase tracking-widest mb-0.5" style={{ color: C.inkSoft }}>Tipo</div><div style={{ color: C.ink }}>Pendiente personal (solo tuyo)</div></div>
             ) : (
               <>
-                <div><div className="font-mono text-[10px] uppercase tracking-widest mb-0.5" style={{ color: C.inkSoft }}>Solicita</div><div style={{ color: C.ink }}>{task.requested_by}{isColaborativo && task.responsible_name ? ` + ${task.responsible_name}` : ""}</div></div>
+                <div><div className="font-mono text-[10px] uppercase tracking-widest mb-0.5" style={{ color: C.inkSoft }}>Solicita</div><div style={{ color: C.ink }}>{task.requested_by}{coRequesterNames.length ? ` + ${coRequesterNames.join(", ")}` : ""}</div></div>
                 {isColaborativo ? (
                   <div><div className="font-mono text-[10px] uppercase tracking-widest mb-0.5" style={{ color: C.inkSoft }}>Equipo</div><div style={{ color: C.ink }} className="text-xs leading-relaxed">{teamProfiles.map((p) => p.name).join(", ") || "—"}</div></div>
                 ) : (
@@ -1531,7 +1645,7 @@ function TaskDetail({ task, onClose, onUpdate, onDelete, onFinalize, onDeliver, 
             </div>
           )}
 
-          {!isColaborativo && (
+          {!isColaborativo && !hasSubtasks && (
             <div>
               <div className="font-mono text-[10px] uppercase tracking-widest mb-2 flex items-center gap-2 flex-wrap" style={{ color: C.inkSoft }}>
                 Estado
@@ -1545,12 +1659,36 @@ function TaskDetail({ task, onClose, onUpdate, onDelete, onFinalize, onDeliver, 
             </div>
           )}
 
+          {!isColaborativo && task.task_type === "individual" && hasSubtasks && (
+            <div>
+              <div className="font-mono text-[10px] uppercase tracking-widest mb-2" style={{ color: C.inkSoft }}>Estado general</div>
+              <div className="flex items-center gap-1.5">
+                {(() => { const Icon = STATUS_ICON[isFinalized ? "Finalizado" : task.status]; return <Icon size={14} style={{ color: isFinalized ? C.signal : C.inkSoft }} />; })()}
+                <span className="text-sm" style={{ color: C.ink }}>{isFinalized ? "Finalizado" : task.status}</span>
+              </div>
+              <p className="text-[11px] mt-1.5" style={{ color: C.inkSoft }}>Se mueve solo según el estado de las subtareas.</p>
+            </div>
+          )}
+
+          {isColaborativo && (
+            <div>
+              <div className="font-mono text-[10px] uppercase tracking-widest mb-2" style={{ color: C.inkSoft }}>Estado general</div>
+              <div className="flex flex-wrap gap-1.5">
+                {ASSIGNEE_STATUSES.filter((s) => s !== "Entregado").map((s) => { const Icon = STATUS_ICON[s]; const active = task.status === s;
+                  return <button key={s} disabled={!canEditGeneralStatus} onClick={() => setGeneralStatus(s)} style={{ borderColor: active ? C.spine : C.hairline, background: active ? C.spine : "transparent", color: active ? C.paper : C.inkSoft }} className="border px-2.5 py-1.5 text-xs flex items-center gap-1.5 disabled:opacity-50 disabled:cursor-not-allowed"><Icon size={13} /> {s}</button>; })}
+                {(task.status === "Entregado" || isFinalized) && (() => { const Icon = STATUS_ICON[isFinalized ? "Finalizado" : "Entregado"];
+                  return <span style={{ borderColor: C.signal, color: C.signal }} className="border px-2.5 py-1.5 text-xs flex items-center gap-1.5"><Icon size={13} /> {isFinalized ? "Finalizado" : "Entregado"}</span>; })()}
+              </div>
+              <p className="text-[11px] mt-1.5" style={{ color: C.inkSoft }}>{canEditGeneralStatus ? "Se mueve solo según las subtareas del equipo — como solicitante también puedes moverlo a mano." : "Se mueve automáticamente según las subtareas del equipo."}</p>
+            </div>
+          )}
+
           {showSubtasks && (
             <div style={{ borderColor: C.hairline }} className="border-t pt-4">
               <div className="flex items-center justify-between mb-2">
                 <div className="flex items-center gap-1.5">
                   <span className="font-mono text-[10px] uppercase tracking-widest" style={{ color: C.inkSoft }}>Subtareas ({subtasks.filter((s) => s.status === "Entregado").length}/{subtasks.length})</span>
-                  {isRequester && !isFinalized && !viewerIsGerente && (
+                  {isAnyRequester && !isFinalized && !viewerIsGerente && (
                     <button onClick={() => setShowAddSubtask((v) => !v)} title="Agregar subtarea" style={{ borderColor: C.signal, color: C.signal }} className="border rounded-full w-4 h-4 flex items-center justify-center leading-none"><Plus size={10} /></button>
                   )}
                 </div>
@@ -1618,7 +1756,7 @@ function TaskDetail({ task, onClose, onUpdate, onDelete, onFinalize, onDeliver, 
               </div>
             )
           )}
-          {isColaborativo && !isAdmin && (isRequester || isResponsible) && !isFinalized && !allSubtasksDelivered && (
+          {!isAdmin && !isFinalized && !allSubtasksDelivered && ((isColaborativo && isAnyRequester) || (task.task_type === "individual" && hasSubtasks && isRequester)) && (
             <p className="text-[11px]" style={{ color: C.inkSoft }}>Se podrá finalizar cuando todas las subtareas queden en "Entregado".</p>
           )}
 
@@ -1688,13 +1826,13 @@ function TaskDetail({ task, onClose, onUpdate, onDelete, onFinalize, onDeliver, 
                   </select>
                 </div>
               )}
-              {!isPersonalSolo && !isColaborativo && isRequester && !viewerIsGerente && (
+              {!isPersonalSolo && !isColaborativo && isAnyRequester && !viewerIsGerente && (
                 <div className="flex items-center justify-between">
                   <span className="text-xs" style={{ color: C.inkSoft }}>Resaltar para {task.assigned_to_name} ({task.remind_assignee_count || 0}/3 hoy máx. 1)</span>
                   <button disabled={isFinalized || (task.remind_assignee_count || 0) >= 3 || task.remind_assignee_last_date === todayISO()} onClick={bumpRemindAssignee} style={{ borderColor: C.hairline, color: C.ink }} className="border px-2 py-1 text-xs disabled:opacity-40">Resaltar</button>
                 </div>
               )}
-              {!isPersonalSolo && isColaborativo && (isRequester || isResponsible) && !viewerIsGerente && (
+              {!isPersonalSolo && isColaborativo && isAnyRequester && !viewerIsGerente && (
                 <div className="flex items-center justify-end">
                   <button disabled={isFinalized || !reminderRecipient} onClick={bumpRemindAssignee} style={{ borderColor: C.hairline, color: C.ink }} className="border px-2 py-1 text-xs disabled:opacity-40">Resaltar</button>
                 </div>
