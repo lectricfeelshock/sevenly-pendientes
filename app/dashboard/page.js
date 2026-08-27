@@ -14,6 +14,7 @@ const C = {
   paper: "#F6F4EE", panel: "#FFFFFF", ink: "#1C1F26", inkSoft: "#5B5F6B",
   hairline: "#DCD6C8", signal: "#0F6E5C", signalSoft: "#E4EFEA",
   amber: "#B8791F", amberSoft: "#F5EBDA", urgent: "#B3402B", urgentSoft: "#F6E4DF",
+  veryUrgent: "#7A1B10", veryUrgentSoft: "#E7B3A6",
   gray: "#8A8D95", spine: "#14181F",
 };
 
@@ -26,7 +27,10 @@ const STATUS_ICON = {
 const URGENCIES = [
   { label: "Baja", color: C.gray, rank: 0 }, { label: "Media", color: C.signal, rank: 1 },
   { label: "Alta", color: C.amber, rank: 2 }, { label: "Urgente", color: C.urgent, rank: 3 },
+  { label: "Muy urgente", color: C.veryUrgent, rank: 4 },
 ];
+// "Muy urgente" es automática (pendiente vencido) — nadie la elige a mano.
+const SELECTABLE_URGENCIES = URGENCIES.filter((u) => u.label !== "Muy urgente");
 const DEFAULT_CATEGORIES = ["Video", "Diseño", "Guiones", "Briefs"];
 const DONE_STATUSES = ["Entregado", "Finalizado"];
 const TASK_TYPES = [
@@ -46,6 +50,15 @@ const CONSEJO_TEXT = "Si solicitas briefs, en la descripción deja el link del s
 function effectiveTaskType(task) {
   if (task.task_type === "personal" && task.assigned_to_id !== task.requested_by_id) return "individual";
   return task.task_type;
+}
+
+// Un pendiente Individual o Personal (nunca Colaborativo) cuyo deadline ya
+// pasó y que aún no se entrega se vuelve "Muy urgente" automáticamente.
+function isOverdueUrgent(task) {
+  return task.task_type !== "colaborativo" && !DONE_STATUSES.includes(task.status) && !!task.deadline && daysUntil(task.deadline) < 0;
+}
+function effectiveUrgency(task) {
+  return isOverdueUrgent(task) ? "Muy urgente" : task.urgency;
 }
 
 function fmtDate(d) {
@@ -263,6 +276,20 @@ export default function Dashboard() {
           }
           await supabase.from("tasks").update({ remind_me_notified_ids: [...notifiedIds, ...pendingIds] }).eq("id", t.id);
         }
+      }
+    })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [ready, tasks]);
+
+  // Avisa una sola vez a la persona asignada cuando su pendiente Individual o
+  // Personal se vence sin haberse entregado (los Colaborativos no aplican).
+  useEffect(() => {
+    if (!ready) return;
+    (async () => {
+      const overdue = tasks.filter((t) => isOverdueUrgent(t) && t.assigned_to_id && !t.overdue_notified);
+      for (const t of overdue) {
+        await supabase.from("notifications").insert({ user_id: t.assigned_to_id, task_id: t.id, message: `Venció tu pendiente "${t.title}" el día de ayer ¿Si lo entregaste?` });
+        await supabase.from("tasks").update({ overdue_notified: true }).eq("id", t.id);
       }
     })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -537,8 +564,8 @@ export default function Dashboard() {
   });
 
   const byUrgency = {};
-  filtered.forEach((t) => { (byUrgency[t.urgency] = byUrgency[t.urgency] || []).push(t); });
-  const urgencyOrder = ["Urgente", "Alta", "Media", "Baja"];
+  filtered.forEach((t) => { const u = effectiveUrgency(t); (byUrgency[u] = byUrgency[u] || []).push(t); });
+  const urgencyOrder = ["Muy urgente", "Urgente", "Alta", "Media", "Baja"];
   Object.values(byUrgency).forEach((arr) => arr.sort((a, b) => {
     const aDone = DONE_STATUSES.includes(a.status) ? 1 : 0, bDone = DONE_STATUSES.includes(b.status) ? 1 : 0;
     if (aDone !== bDone) return aDone - bDone;
@@ -653,12 +680,13 @@ export default function Dashboard() {
 function TaskRow({ task, onOpen, unreadComments = 0 }) {
   const Icon = STATUS_ICON[task.status];
   const isDone = DONE_STATUSES.includes(task.status);
-  const urgent = task.urgency === "Urgente" && !isDone;
+  const veryUrgent = isOverdueUrgent(task);
+  const urgent = task.urgency === "Urgente" && !isDone && !veryUrgent;
   const sameDay = task.request_date && task.deadline && task.request_date === task.deadline;
   const effType = effectiveTaskType(task);
   const typeLabel = TASK_TYPES.find((t) => t.key === effType)?.label;
   return (
-    <button onClick={onOpen} style={{ borderColor: C.hairline, background: urgent ? C.urgentSoft : C.panel }} className="w-full text-left border-b px-4 py-3 flex items-center gap-3">
+    <button onClick={onOpen} style={{ borderColor: C.hairline, background: veryUrgent ? C.veryUrgentSoft : urgent ? C.urgentSoft : C.panel }} className="w-full text-left border-b px-4 py-3 flex items-center gap-3">
       <Icon size={16} style={{ color: isDone ? C.signal : C.inkSoft, flexShrink: 0 }} />
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-2 flex-wrap">
@@ -923,7 +951,7 @@ function NewTaskForm({ onClose, onCreate, onCreatePopup, profiles, profile, isAd
                       <input type="date" value={deadline} min={minGeneralDeadline} onChange={(e) => setDeadline(e.target.value)} style={{ borderColor: C.hairline, background: C.panel }} className="w-full border px-3 py-2 text-sm mt-1 outline-none" /></div>
                     <div><label className="font-mono text-[10px] uppercase tracking-widest" style={{ color: C.inkSoft }}>Urgencia</label>
                       <select value={urgency} onChange={(e) => setUrgency(e.target.value)} style={{ borderColor: C.hairline, background: C.panel }} className="w-full border px-3 py-2 text-sm mt-1 outline-none">
-                        {URGENCIES.map((u) => <option key={u.label} value={u.label}>{u.label}</option>)}
+                        {SELECTABLE_URGENCIES.map((u) => <option key={u.label} value={u.label}>{u.label}</option>)}
                       </select></div>
                     {deadlineError && <p className="col-span-2 text-[11px]" style={{ color: C.urgent }}>{deadlineError}</p>}
                   </div>
@@ -945,7 +973,7 @@ function NewTaskForm({ onClose, onCreate, onCreatePopup, profiles, profile, isAd
                   <input type="date" value={deadline} onChange={(e) => setDeadline(e.target.value)} style={{ borderColor: C.hairline, background: C.panel }} className="w-full border px-3 py-2 text-sm mt-1 outline-none" /></div>
                 <div><label className="font-mono text-[10px] uppercase tracking-widest" style={{ color: C.inkSoft }}>Urgencia</label>
                   <select value={urgency} onChange={(e) => setUrgency(e.target.value)} style={{ borderColor: C.hairline, background: C.panel }} className="w-full border px-3 py-2 text-sm mt-1 outline-none">
-                    {URGENCIES.map((u) => <option key={u.label} value={u.label}>{u.label}</option>)}
+                    {SELECTABLE_URGENCIES.map((u) => <option key={u.label} value={u.label}>{u.label}</option>)}
                   </select></div>
               </div>
             )}
@@ -1003,7 +1031,7 @@ function NewTaskForm({ onClose, onCreate, onCreatePopup, profiles, profile, isAd
                     <input type="date" value={deadline} min={minGeneralDeadline} onChange={(e) => setDeadline(e.target.value)} style={{ borderColor: C.hairline, background: C.panel }} className="w-full border px-3 py-2 text-sm mt-1 outline-none" /></div>
                   <div><label className="font-mono text-[10px] uppercase tracking-widest" style={{ color: C.inkSoft }}>Urgencia</label>
                     <select value={urgency} onChange={(e) => setUrgency(e.target.value)} style={{ borderColor: C.hairline, background: C.panel }} className="w-full border px-3 py-2 text-sm mt-1 outline-none">
-                      {URGENCIES.map((u) => <option key={u.label} value={u.label}>{u.label}</option>)}
+                      {SELECTABLE_URGENCIES.map((u) => <option key={u.label} value={u.label}>{u.label}</option>)}
                     </select></div>
                   {deadlineError && <p className="col-span-2 text-[11px]" style={{ color: C.urgent }}>{deadlineError}</p>}
                 </div>
@@ -1273,8 +1301,10 @@ function TaskDetail({ task, onClose, onUpdate, onDelete, onFinalize, onDeliver, 
     if (isFinalized || viewerIsGerente) return;
     if (s === "Entregado") { onDeliver(task); return; }
     // Si el pendiente deja de estar "Entregado", se libera el aviso al solicitante
-    // para que se pueda volver a mandar cuando se re-entregue (hubo cambios).
-    const patch = task.notify_requester ? { status: s, notify_requester: false } : { status: s };
+    // y el de "se venció" — por si se vuelve a vencer y hay que avisar de nuevo.
+    const patch = { status: s };
+    if (task.notify_requester) patch.notify_requester = false;
+    if (task.overdue_notified) patch.overdue_notified = false;
     onUpdate(task, patch, `${profile.name} cambió el estado a "${s}"`);
   };
 
@@ -1288,7 +1318,10 @@ function TaskDetail({ task, onClose, onUpdate, onDelete, onFinalize, onDeliver, 
       if (d < todayISO()) return;
       if (latestSubtaskDeadline && d < latestSubtaskDeadline) return;
     }
-    onUpdate(task, { deadline: d }, `${profile.name} cambió el deadline a ${fmtDate(d)}`);
+    // Deadline nuevo: si ya se había avisado que venció, se libera para
+    // poder avisar de nuevo si se vuelve a vencer.
+    const patch = task.overdue_notified ? { deadline: d, overdue_notified: false } : { deadline: d };
+    onUpdate(task, patch, `${profile.name} cambió el deadline a ${fmtDate(d)}`);
   };
   const toggleNewTeamId = (id) => setNewTeamIds((prev) => prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]);
   const convertToColaborativo = async () => {
@@ -1471,10 +1504,13 @@ function TaskDetail({ task, onClose, onUpdate, onDelete, onFinalize, onDeliver, 
             <div>
               <div className="font-mono text-[10px] uppercase tracking-widest mb-0.5" style={{ color: C.inkSoft }}>Urgencia</div>
               {canEditUrgency && !isFinalized && !viewerIsGerente ? (
-                <select value={task.urgency} onChange={(e) => changeUrgency(e.target.value)} style={{ borderColor: C.hairline, background: C.panel }} className="border px-2 py-1 text-xs outline-none">
-                  {URGENCIES.map((u) => <option key={u.label} value={u.label}>{u.label}</option>)}
-                </select>
-              ) : <UrgencyFlag urgency={task.urgency} />}
+                <>
+                  <select value={task.urgency} onChange={(e) => changeUrgency(e.target.value)} style={{ borderColor: C.hairline, background: C.panel }} className="border px-2 py-1 text-xs outline-none">
+                    {SELECTABLE_URGENCIES.map((u) => <option key={u.label} value={u.label}>{u.label}</option>)}
+                  </select>
+                  {isOverdueUrgent(task) && <div className="font-mono text-[9px] uppercase tracking-wide mt-1" style={{ color: C.veryUrgent }}>Muy urgente — venció</div>}
+                </>
+              ) : <UrgencyFlag urgency={effectiveUrgency(task)} />}
             </div>
           </div>
 
@@ -1497,7 +1533,10 @@ function TaskDetail({ task, onClose, onUpdate, onDelete, onFinalize, onDeliver, 
 
           {!isColaborativo && (
             <div>
-              <div className="font-mono text-[10px] uppercase tracking-widest mb-2" style={{ color: C.inkSoft }}>Estado</div>
+              <div className="font-mono text-[10px] uppercase tracking-widest mb-2 flex items-center gap-2 flex-wrap" style={{ color: C.inkSoft }}>
+                Estado
+                {isOverdueUrgent(task) && <span className="normal-case tracking-normal" style={{ color: C.veryUrgent }}>Marca entregado y avisa para que te finalicen</span>}
+              </div>
               <div className="flex flex-wrap gap-1.5">
                 {ASSIGNEE_STATUSES.map((s) => { const Icon = STATUS_ICON[s]; const active = task.status === s;
                   return <button key={s} disabled={isFinalized || viewerIsGerente} onClick={() => setStatus(s)} style={{ borderColor: active ? C.spine : C.hairline, background: active ? C.spine : "transparent", color: active ? C.paper : C.inkSoft }} className="border px-2.5 py-1.5 text-xs flex items-center gap-1.5 disabled:opacity-50"><Icon size={13} /> {s}</button>; })}
