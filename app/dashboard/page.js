@@ -1222,6 +1222,8 @@ function TaskDetail({ task, onClose, onUpdate, onDelete, onFinalize, onDeliver, 
   const [categoryDraft, setCategoryDraft] = useState(task.category || "");
   const [newCategoryDraft, setNewCategoryDraft] = useState("");
   const [showAttachments, setShowAttachments] = useState(false);
+  const [showAddTeam, setShowAddTeam] = useState(false);
+  const [newTeamIds, setNewTeamIds] = useState([]);
   const assignee = profiles.find((p) => p.id === task.assigned_to_id);
 
   const isColaborativo = task.task_type === "colaborativo";
@@ -1229,13 +1231,15 @@ function TaskDetail({ task, onClose, onUpdate, onDelete, onFinalize, onDeliver, 
   const isAssignee = task.assigned_to_id === profile.id;
   const isRequester = task.requested_by_id === profile.id;
   const isResponsible = !!task.responsible_id && task.responsible_id === profile.id;
+  const isAdmin = profile.role === "admin";
   const isFinalized = task.status === "Finalizado";
   const isDelivered = task.status === "Entregado";
   const canEditUrgency = isColaborativo ? isRequester : isAssignee;
   const teamProfiles = profiles.filter((p) => (task.team_member_ids || []).includes(p.id));
   const showSubtasks = isColaborativo || task.task_type === "individual";
   const allSubtasksDelivered = isColaborativo && subtasks.length > 0 && subtasks.every((s) => s.status === "Entregado");
-  const canFinalize = !viewerIsGerente && (isColaborativo ? ((isRequester || isResponsible) && allSubtasksDelivered && !isFinalized) : (isRequester && isDelivered && !isFinalized));
+  const canFinalize = !viewerIsGerente && !isFinalized && (isAdmin || (isColaborativo ? (isRequester || isResponsible) && allSubtasksDelivered : isRequester && isDelivered));
+  const canEditDeadline = (isRequester || isAdmin) && !isFinalized && !viewerIsGerente;
   const canRemind = isRequester || isResponsible || viewerIsGerente; // el gerente sí puede mandar recordatorio de correo/whatsapp aunque esté en modo lectura
   const reminderRecipient = isColaborativo ? teamProfiles.find((p) => p.id === reminderTargetId) : assignee;
   const latestSubtaskDeadline = subtasks.reduce((max, s) => (s.deadline && (!max || s.deadline > max) ? s.deadline : max), null);
@@ -1268,7 +1272,10 @@ function TaskDetail({ task, onClose, onUpdate, onDelete, onFinalize, onDeliver, 
   const setStatus = (s) => {
     if (isFinalized || viewerIsGerente) return;
     if (s === "Entregado") { onDeliver(task); return; }
-    onUpdate(task, { status: s }, `${profile.name} cambió el estado a "${s}"`);
+    // Si el pendiente deja de estar "Entregado", se libera el aviso al solicitante
+    // para que se pueda volver a mandar cuando se re-entregue (hubo cambios).
+    const patch = task.notify_requester ? { status: s, notify_requester: false } : { status: s };
+    onUpdate(task, patch, `${profile.name} cambió el estado a "${s}"`);
   };
 
   const changeUrgency = (u) => {
@@ -1276,12 +1283,24 @@ function TaskDetail({ task, onClose, onUpdate, onDelete, onFinalize, onDeliver, 
     onUpdate(task, { urgency: u }, `${profile.name} cambió la urgencia a "${u}"`);
   };
   const changeDeadline = (d) => {
-    if (isFinalized || !isRequester || viewerIsGerente) return;
+    if (!canEditDeadline) return;
     if (showSubtasks && d) {
       if (d < todayISO()) return;
       if (latestSubtaskDeadline && d < latestSubtaskDeadline) return;
     }
     onUpdate(task, { deadline: d }, `${profile.name} cambió el deadline a ${fmtDate(d)}`);
+  };
+  const toggleNewTeamId = (id) => setNewTeamIds((prev) => prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]);
+  const convertToColaborativo = async () => {
+    if (isFinalized || viewerIsGerente || newTeamIds.length === 0) return;
+    const finalTeam = Array.from(new Set([task.assigned_to_id, ...newTeamIds].filter(Boolean)));
+    const addedNames = newTeamIds.map((id) => profiles.find((p) => p.id === id)?.name).filter(Boolean).join(", ");
+    await onUpdate(task, { task_type: "colaborativo", team_member_ids: finalTeam, assigned_to_id: null, assigned_to_name: "" }, `${profile.name} convirtió el pendiente a Colaborativo y agregó a ${addedNames} al equipo`);
+    for (const id of newTeamIds) {
+      if (id !== profile.id) await notify(id, task.id, `Te agregaron al equipo del pendiente colaborativo "${task.title}"`);
+    }
+    setNewTeamIds([]);
+    setShowAddTeam(false);
   };
   const saveCategory = async () => {
     const val = newCategoryDraft.trim() || categoryDraft;
@@ -1301,7 +1320,7 @@ function TaskDetail({ task, onClose, onUpdate, onDelete, onFinalize, onDeliver, 
     if (isFinalized || viewerIsGerente) return;
     const p = profiles.find((x) => x.id === delegateId);
     if (!p) return;
-    await onUpdate(task, { assigned_to_id: p.id, assigned_to_name: p.name }, `${profile.name} ${isPersonalSolo ? "asignó a" : "delegó a"} ${p.name}`);
+    await onUpdate(task, { assigned_to_id: p.id, assigned_to_name: p.name, notify_requester: false }, `${profile.name} ${isPersonalSolo ? "asignó a" : "delegó a"} ${p.name}`);
     if (p.id !== profile.id) await notify(p.id, task.id, `Te ${isPersonalSolo ? "asignaron" : "delegaron"} "${task.title}"`);
     setDelegateId("");
   };
@@ -1429,7 +1448,15 @@ function TaskDetail({ task, onClose, onUpdate, onDelete, onFinalize, onDeliver, 
                 {isColaborativo ? (
                   <div><div className="font-mono text-[10px] uppercase tracking-widest mb-0.5" style={{ color: C.inkSoft }}>Equipo</div><div style={{ color: C.ink }} className="text-xs leading-relaxed">{teamProfiles.map((p) => p.name).join(", ") || "—"}</div></div>
                 ) : (
-                  <div><div className="font-mono text-[10px] uppercase tracking-widest mb-0.5" style={{ color: C.inkSoft }}>Asignado a</div><div style={{ color: C.ink }}>{task.assigned_to_name}</div></div>
+                  <div>
+                    <div className="font-mono text-[10px] uppercase tracking-widest mb-0.5 flex items-center gap-1" style={{ color: C.inkSoft }}>
+                      Asignado a
+                      {task.task_type === "individual" && isRequester && !isFinalized && !viewerIsGerente && (
+                        <button type="button" onClick={() => setShowAddTeam((v) => !v)} title="Agregar más personas (pasa a Colaborativo)" style={{ borderColor: C.signal, color: C.signal }} className="border rounded-full w-3.5 h-3.5 flex items-center justify-center leading-none"><Plus size={9} /></button>
+                      )}
+                    </div>
+                    <div style={{ color: C.ink }}>{task.assigned_to_name}</div>
+                  </div>
                 )}
               </>
             )}
@@ -1437,7 +1464,7 @@ function TaskDetail({ task, onClose, onUpdate, onDelete, onFinalize, onDeliver, 
             <div></div>
             <div>
               <div className="font-mono text-[10px] uppercase tracking-widest mb-0.5" style={{ color: C.inkSoft }}>Deadline{showSubtasks ? " general" : ""}</div>
-              {isRequester && !isFinalized && !viewerIsGerente ? (
+              {canEditDeadline ? (
                 <input type="date" value={task.deadline || ""} min={showSubtasks ? minGeneralDeadline : undefined} onChange={(e) => changeDeadline(e.target.value)} style={{ borderColor: C.hairline, background: C.panel }} className="border px-2 py-1 text-xs outline-none" />
               ) : <div style={{ color: C.ink }}>{fmtDate(task.deadline)}</div>}
             </div>
@@ -1450,6 +1477,23 @@ function TaskDetail({ task, onClose, onUpdate, onDelete, onFinalize, onDeliver, 
               ) : <UrgencyFlag urgency={task.urgency} />}
             </div>
           </div>
+
+          {showAddTeam && (
+            <div style={{ borderColor: C.hairline }} className="border p-3 flex flex-col gap-2">
+              <p className="text-xs" style={{ color: C.ink }}>Agrega más personas del equipo — el pendiente pasará a ser <strong>Colaborativo</strong>.</p>
+              <div className="flex flex-wrap gap-1.5">
+                {assignableProfiles.filter((p) => p.id !== task.assigned_to_id).map((p) => (
+                  <button key={p.id} type="button" onClick={() => toggleNewTeamId(p.id)}
+                    style={{ borderColor: newTeamIds.includes(p.id) ? C.signal : C.hairline, background: newTeamIds.includes(p.id) ? C.signal : "transparent", color: newTeamIds.includes(p.id) ? "#fff" : C.ink }}
+                    className="border px-2.5 py-1 text-xs">{p.name}</button>
+                ))}
+              </div>
+              <div className="flex justify-end gap-2">
+                <button type="button" onClick={() => { setShowAddTeam(false); setNewTeamIds([]); }} className="text-xs" style={{ color: C.inkSoft }}>Cancelar</button>
+                <button type="button" onClick={convertToColaborativo} disabled={newTeamIds.length === 0} style={{ background: C.spine, color: C.paper }} className="text-xs px-3 py-1.5 disabled:opacity-40">Convertir a Colaborativo</button>
+              </div>
+            </div>
+          )}
 
           {!isColaborativo && (
             <div>
@@ -1535,7 +1579,7 @@ function TaskDetail({ task, onClose, onUpdate, onDelete, onFinalize, onDeliver, 
               </div>
             )
           )}
-          {isColaborativo && (isRequester || isResponsible) && !isFinalized && !allSubtasksDelivered && (
+          {isColaborativo && !isAdmin && (isRequester || isResponsible) && !isFinalized && !allSubtasksDelivered && (
             <p className="text-[11px]" style={{ color: C.inkSoft }}>Se podrá finalizar cuando todas las subtareas queden en "Entregado".</p>
           )}
 
@@ -1571,10 +1615,15 @@ function TaskDetail({ task, onClose, onUpdate, onDelete, onFinalize, onDeliver, 
             <div className="font-mono text-[10px] uppercase tracking-widest mb-2" style={{ color: C.inkSoft }}>Recordatorios</div>
             <div className="flex flex-col gap-1.5 text-sm mb-3" style={{ color: C.ink }}>
               {!isPersonalSolo && !viewerIsGerente && isDelivered && isAssignee && (
-                <label className="flex items-center gap-2 cursor-pointer">
-                  <input type="checkbox" checked={!!task.notify_requester} disabled={!!task.notify_requester || isFinalized} onChange={toggleNotifyRequester} />
-                  Avisar al solicitante (una sola vez)
-                </label>
+                <button
+                  type="button"
+                  disabled={!!task.notify_requester || isFinalized}
+                  onClick={toggleNotifyRequester}
+                  style={task.notify_requester ? { borderColor: C.hairline, color: C.inkSoft, background: C.panel } : { borderColor: C.signal, color: C.signal }}
+                  className="border px-2.5 py-1.5 text-xs flex items-center gap-1.5 self-start disabled:cursor-default"
+                >
+                  {task.notify_requester ? <><CheckCircle2 size={13} /> Avisado</> : <><Bell size={13} /> Avisar al solicitante</>}
+                </button>
               )}
               {viewerIsGerente && (
                 <label className="flex items-center gap-2 cursor-pointer">

@@ -1,10 +1,5 @@
 import { createClient } from "@supabase/supabase-js";
 
-const supabaseAdmin = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL,
-  process.env.SUPABASE_SERVICE_ROLE_KEY
-);
-
 // Vercel Cron llama esto una vez al día (ver vercel.json).
 // Por cada plantilla de "pendiente de frecuencia" cuyo día de la semana
 // sea hoy, crea un pendiente Individual nuevo con el deadline calculado.
@@ -13,6 +8,11 @@ export async function GET(req) {
   if (process.env.CRON_SECRET && auth !== `Bearer ${process.env.CRON_SECRET}`) {
     return Response.json({ ok: false, error: "No autorizado" }, { status: 401 });
   }
+
+  const supabaseAdmin = createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL,
+    process.env.SUPABASE_SERVICE_ROLE_KEY
+  );
 
   const now = new Date();
   const weekday = now.getDay(); // 0=domingo ... 6=sábado
