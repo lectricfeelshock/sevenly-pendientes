@@ -1,19 +1,18 @@
 import webpush from "web-push";
 import { createClient } from "@supabase/supabase-js";
 
-webpush.setVapidDetails(
-  "mailto:notificaciones@sevenly.app",
-  process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY,
-  process.env.VAPID_PRIVATE_KEY
-);
-
-const supabaseAdmin = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL,
-  process.env.SUPABASE_SERVICE_ROLE_KEY
-);
-
 export async function POST(req) {
   try {
+    webpush.setVapidDetails(
+      "mailto:notificaciones@sevenly.app",
+      process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY,
+      process.env.VAPID_PRIVATE_KEY
+    );
+    const supabaseAdmin = createClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL,
+      process.env.SUPABASE_SERVICE_ROLE_KEY
+    );
+
     const { userId, title, body, url } = await req.json();
     if (!userId) return Response.json({ ok: false, error: "Falta userId" }, { status: 400 });
 
