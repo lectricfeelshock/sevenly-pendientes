@@ -1357,7 +1357,6 @@ function TaskDetail({ task, onClose, onUpdate, onDelete, onFinalize, onDeliver, 
   const isResponsible = (!!task.responsible_id && task.responsible_id === profile.id) || (task.co_requester_ids || []).includes(profile.id);
   const isAnyRequester = isRequester || isResponsible;
   const isAdmin = profile.role === "admin";
-  const isGerenteRole = profile.role === "gerente" || profile.role === "admin";
   const isFinalized = task.status === "Finalizado";
   const isDelivered = task.status === "Entregado";
   const canEditUrgency = isColaborativo ? isAnyRequester : isAssignee;
@@ -1367,9 +1366,6 @@ function TaskDetail({ task, onClose, onUpdate, onDelete, onFinalize, onDeliver, 
   const hasSubtasks = subtasks.length > 0;
   const allSubtasksDelivered = hasSubtasks && subtasks.every((s) => s.status === "Entregado");
   const canFinalize = !viewerIsGerente && !isFinalized && (isAdmin || (isColaborativo ? isAnyRequester && allSubtasksDelivered : isRequester && (hasSubtasks ? allSubtasksDelivered : isDelivered)));
-  // El estado general de un Colaborativo se mueve solo (según subtareas); a mano
-  // solo lo pueden mover los solicitantes, el rol gerente y el rol admin.
-  const canEditGeneralStatus = isColaborativo && !isFinalized && !viewerIsGerente && (isAnyRequester || isGerenteRole);
   const canEditDeadline = (isAnyRequester || isAdmin) && !isFinalized && !viewerIsGerente;
   const canRemind = isAnyRequester || viewerIsGerente; // el gerente sí puede mandar recordatorio de correo/whatsapp aunque esté en modo lectura
   const reminderRecipient = isColaborativo ? teamProfiles.find((p) => p.id === reminderTargetId) : assignee;
@@ -1409,17 +1405,6 @@ function TaskDetail({ task, onClose, onUpdate, onDelete, onFinalize, onDeliver, 
     if (task.notify_requester) patch.notify_requester = false;
     if (task.overdue_notified) patch.overdue_notified = false;
     onUpdate(task, patch, `${profile.name} cambió el estado a "${s}"`);
-  };
-
-  // Mueve a mano el estado general de un Colaborativo (solo solicitantes/gerente/admin).
-  // "Entregado" no se puede forzar a mano: solo llega solo cuando todas las subtareas
-  // quedan "Entregado".
-  const setGeneralStatus = (s) => {
-    if (!canEditGeneralStatus || s === "Entregado") return;
-    const patch = { status: s };
-    if (task.notify_requester) patch.notify_requester = false;
-    if (task.overdue_notified) patch.overdue_notified = false;
-    onUpdate(task, patch, `${profile.name} movió el estado general a "${s}"`);
   };
 
   const changeUrgency = (u) => {
@@ -1659,27 +1644,16 @@ function TaskDetail({ task, onClose, onUpdate, onDelete, onFinalize, onDeliver, 
             </div>
           )}
 
-          {!isColaborativo && task.task_type === "individual" && hasSubtasks && (
+          {(isColaborativo || (task.task_type === "individual" && hasSubtasks)) && (
             <div>
               <div className="font-mono text-[10px] uppercase tracking-widest mb-2" style={{ color: C.inkSoft }}>Estado general</div>
               <div className="flex items-center gap-1.5">
                 {(() => { const Icon = STATUS_ICON[isFinalized ? "Finalizado" : task.status]; return <Icon size={14} style={{ color: isFinalized ? C.signal : C.inkSoft }} />; })()}
                 <span className="text-sm" style={{ color: C.ink }}>{isFinalized ? "Finalizado" : task.status}</span>
               </div>
-              <p className="text-[11px] mt-1.5" style={{ color: C.inkSoft }}>Se mueve solo según el estado de las subtareas.</p>
-            </div>
-          )}
-
-          {isColaborativo && (
-            <div>
-              <div className="font-mono text-[10px] uppercase tracking-widest mb-2" style={{ color: C.inkSoft }}>Estado general</div>
-              <div className="flex flex-wrap gap-1.5">
-                {ASSIGNEE_STATUSES.filter((s) => s !== "Entregado").map((s) => { const Icon = STATUS_ICON[s]; const active = task.status === s;
-                  return <button key={s} disabled={!canEditGeneralStatus} onClick={() => setGeneralStatus(s)} style={{ borderColor: active ? C.spine : C.hairline, background: active ? C.spine : "transparent", color: active ? C.paper : C.inkSoft }} className="border px-2.5 py-1.5 text-xs flex items-center gap-1.5 disabled:opacity-50 disabled:cursor-not-allowed"><Icon size={13} /> {s}</button>; })}
-                {(task.status === "Entregado" || isFinalized) && (() => { const Icon = STATUS_ICON[isFinalized ? "Finalizado" : "Entregado"];
-                  return <span style={{ borderColor: C.signal, color: C.signal }} className="border px-2.5 py-1.5 text-xs flex items-center gap-1.5"><Icon size={13} /> {isFinalized ? "Finalizado" : "Entregado"}</span>; })()}
-              </div>
-              <p className="text-[11px] mt-1.5" style={{ color: C.inkSoft }}>{canEditGeneralStatus ? "Se mueve solo según las subtareas del equipo — como solicitante también puedes moverlo a mano." : "Se mueve automáticamente según las subtareas del equipo."}</p>
+              <p className="text-[11px] mt-1.5" style={{ color: C.inkSoft }}>
+                {isColaborativo ? "Se mueve automáticamente según las subtareas del equipo — nadie lo mueve a mano." : "Se mueve solo según el estado de las subtareas."}
+              </p>
             </div>
           )}
 
