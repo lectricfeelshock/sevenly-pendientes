@@ -359,12 +359,13 @@ export default function Dashboard() {
 
     const assignee = profiles.find((p) => p.id === form.assignedToId);
     const requester = profiles.find((p) => p.id === form.requestedById);
-    const teamNames = (form.teamMemberIds || []).map((id) => profiles.find((p) => p.id === id)?.name).filter(Boolean);
+    const responsible = profiles.find((p) => p.id === form.responsibleId);
 
     const { data, error } = await supabase.from("tasks").insert({
       title: form.title, description: form.description, category: form.category,
       task_type: form.taskType || "individual",
       requested_by: requester ? requester.name : profile.name, requested_by_id: form.requestedById || profile.id,
+      responsible_id: form.responsibleId || null, responsible_name: responsible ? responsible.name : null,
       deadline: form.deadline || null, urgency: form.urgency || "Media",
       assigned_to_id: form.assignedToId || null, assigned_to_name: assignee ? assignee.name : "",
       team_member_ids: form.teamMemberIds || [],
@@ -378,6 +379,7 @@ export default function Dashboard() {
       }
       if (assignee && assignee.id !== profile.id) await notify(assignee.id, data.id, `Te asignaron "${data.title}"`);
       if (form.taskType === "colaborativo") {
+        if (responsible && responsible.id !== profile.id) await notify(responsible.id, data.id, `Te asignaron como responsable del pendiente colaborativo "${data.title}"`);
         for (const id of form.teamMemberIds || []) {
           if (id !== profile.id) await notify(id, data.id, `Te agregaron al equipo del pendiente colaborativo "${data.title}"`);
         }
@@ -390,6 +392,15 @@ export default function Dashboard() {
             deadline: st.deadline || null,
           });
           if (st.assignedToId !== profile.id) await notify(st.assignedToId, data.id, `Te asignaron la subtarea "${st.title}" dentro de "${data.title}"`);
+        }
+      } else if (form.taskType === "individual") {
+        for (const st of form.subtasks || []) {
+          if (!st.title.trim() || !form.assignedToId) continue;
+          await supabase.from("subtasks").insert({
+            task_id: data.id, title: st.title, description: st.description,
+            assigned_to_id: form.assignedToId, assigned_to_name: assignee ? assignee.name : "",
+            deadline: st.deadline || null,
+          });
         }
       }
     }
@@ -510,10 +521,11 @@ export default function Dashboard() {
     (t.task_type === "colaborativo" && (t.team_member_ids || []).includes(id)) ||
     subtasks.some((s) => s.task_id === t.id && s.assigned_to_id === id);
 
+  const isRequesterOf = (t, id) => t.requested_by_id === id || t.responsible_id === id;
   let base = tasks;
-  if (primaryTab === "requests") base = tasks.filter((t) => t.requested_by_id === effectiveId);
+  if (primaryTab === "requests") base = tasks.filter((t) => isRequesterOf(t, effectiveId));
   else if (primaryTab === "mine") base = tasks.filter((t) => isAssignedTo(t, effectiveId));
-  else if (primaryTab === "all") base = tasks.filter((t) => t.requested_by_id === effectiveId || isAssignedTo(t, effectiveId));
+  else if (primaryTab === "all") base = tasks.filter((t) => isRequesterOf(t, effectiveId) || isAssignedTo(t, effectiveId));
 
   const filtered = base.filter((t) => {
     if (statusFilter !== "Todos" && t.status !== statusFilter) return false;
@@ -665,7 +677,7 @@ function TaskRow({ task, onOpen, unreadComments = 0 }) {
           {Array.from({ length: task.remind_assignee_count || 0 }).map((_, i) => <Bell key={i} size={11} style={{ color: C.amber, flexShrink: 0 }} />)}
         </div>
         <div className="flex items-center gap-3 mt-1 flex-wrap">
-          <span className="font-mono text-[11px]" style={{ color: C.inkSoft }}>solicita {task.requested_by}</span>
+          <span className="font-mono text-[11px]" style={{ color: C.inkSoft }}>solicita {task.requested_by}{task.responsible_name ? ` + ${task.responsible_name}` : ""}</span>
           {task.task_type === "colaborativo" ? (
             <span className="font-mono text-[11px]" style={{ color: C.inkSoft }}>→ equipo ({(task.team_member_ids || []).length})</span>
           ) : (
@@ -693,8 +705,9 @@ function NewTaskForm({ onClose, onCreate, onCreatePopup, profiles, profile, isAd
   const [deadlineOffsetDays, setDeadlineOffsetDays] = useState(1);
   const [showConsejo, setShowConsejo] = useState(false);
 
-  // Colaborativo: equipo + subtareas
+  // Colaborativo: equipo + responsable + subtareas
   const [teamMemberIds, setTeamMemberIds] = useState([]);
+  const [responsibleId, setResponsibleId] = useState("");
   const [subtaskRows, setSubtaskRows] = useState([]);
 
   // Campos del Pop Up
@@ -709,12 +722,29 @@ function NewTaskForm({ onClose, onCreate, onCreatePopup, profiles, profile, isAd
   const individualAssignable = profiles.filter((p) => p.id !== profile.id);
 
   const toggleTeamMember = (id) => {
-    setTeamMemberIds((prev) => prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]);
-    setSubtaskRows((rows) => rows.map((r) => (r.assignedToId && !teamMemberIds.includes(r.assignedToId) ? r : r)));
+    const removing = teamMemberIds.includes(id);
+    setTeamMemberIds((prev) => removing ? prev.filter((x) => x !== id) : [...prev, id]);
+    if (removing) {
+      setSubtaskRows((rows) => rows.map((r) => (r.assignedToId === id ? { ...r, assignedToId: "" } : r)));
+      if (responsibleId === id) setResponsibleId("");
+    }
   };
   const addSubtaskRow = () => setSubtaskRows((rows) => [...rows, { title: "", description: "", assignedToId: "", deadline: "" }]);
   const updateSubtaskRow = (i, field, value) => setSubtaskRows((rows) => rows.map((r, idx) => idx === i ? { ...r, [field]: value } : r));
   const removeSubtaskRow = (i) => setSubtaskRows((rows) => rows.filter((_, idx) => idx !== i));
+
+  // Reglas de deadline (individual y colaborativo): nunca antes de hoy, y el
+  // deadline general nunca antes que el deadline más lejano de las subtareas.
+  const usesDeadlineRules = taskType === "individual" || taskType === "colaborativo";
+  const todayStr = todayISO();
+  const subtaskDeadlines = usesDeadlineRules ? subtaskRows.map((r) => r.deadline).filter(Boolean) : [];
+  const maxSubtaskDeadline = subtaskDeadlines.length ? subtaskDeadlines.reduce((a, b) => (a > b ? a : b)) : null;
+  const minGeneralDeadline = maxSubtaskDeadline && maxSubtaskDeadline > todayStr ? maxSubtaskDeadline : todayStr;
+  const deadlineError = !usesDeadlineRules ? "" :
+    deadline && deadline < todayStr ? "El deadline general no puede ser antes de hoy." :
+    subtaskDeadlines.some((d) => d < todayStr) ? "El deadline de una subtarea no puede ser antes de hoy." :
+    (deadline && maxSubtaskDeadline && deadline < maxSubtaskDeadline) ? "El deadline general no puede ser antes que el de alguna subtarea." :
+    "";
 
   const submit = () => {
     if (!title.trim()) return;
@@ -724,13 +754,13 @@ function NewTaskForm({ onClose, onCreate, onCreatePopup, profiles, profile, isAd
         onCreate({ title, description, category: finalCategory, taskType, frequency: true, weekday: Number(weekday), deadlineOffsetDays: Number(deadlineOffsetDays), assignedToId });
         return;
       }
-      if (!assignedToId) return;
-      onCreate({ title, description, category: finalCategory, taskType, requestedById: profile.id, deadline, urgency, assignedToId });
+      if (!assignedToId || deadlineError) return;
+      onCreate({ title, description, category: finalCategory, taskType, requestedById: profile.id, deadline, urgency, assignedToId, subtasks: subtaskRows });
     } else if (taskType === "personal") {
       onCreate({ title, description, category: finalCategory, taskType, requestedById: profile.id, deadline, urgency, assignedToId: profile.id });
     } else if (taskType === "colaborativo") {
-      if (teamMemberIds.length === 0) return;
-      onCreate({ title, description, category: finalCategory, taskType, requestedById: profile.id, deadline, urgency, teamMemberIds, subtasks: subtaskRows });
+      if (teamMemberIds.length < 2 || !responsibleId || deadlineError) return;
+      onCreate({ title, description, category: finalCategory, taskType, requestedById: profile.id, responsibleId, deadline, urgency, teamMemberIds, subtasks: subtaskRows });
     }
   };
 
@@ -850,6 +880,27 @@ function NewTaskForm({ onClose, onCreate, onCreatePopup, profiles, profile, isAd
                       {individualAssignable.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
                     </select></div>
                 </div>
+                {!frequency && (
+                  <div>
+                    <div className="flex items-center justify-between">
+                      <label className="font-mono text-[10px] uppercase tracking-widest" style={{ color: C.inkSoft }}>Subtareas</label>
+                      <button type="button" onClick={addSubtaskRow} disabled={!assignedToId} style={{ color: C.signal }} className="text-xs flex items-center gap-1 disabled:opacity-40"><Plus size={12} /> Agregar subtarea</button>
+                    </div>
+                    <div className="flex flex-col gap-2 mt-2">
+                      {subtaskRows.map((row, i) => (
+                        <div key={i} style={{ borderColor: C.hairline }} className="border p-2.5 flex flex-col gap-1.5">
+                          <div className="flex gap-1.5">
+                            <input value={row.title} onChange={(e) => updateSubtaskRow(i, "title", e.target.value)} placeholder="Título de la subtarea" style={{ borderColor: C.hairline, background: C.panel }} className="flex-1 border px-2 py-1.5 text-xs outline-none" />
+                            <button type="button" onClick={() => removeSubtaskRow(i)}><X size={14} style={{ color: C.inkSoft }} /></button>
+                          </div>
+                          <textarea value={row.description} onChange={(e) => updateSubtaskRow(i, "description", e.target.value)} placeholder="Descripción (opcional)" rows={2} style={{ borderColor: C.hairline, background: C.panel }} className="border px-2 py-1.5 text-xs outline-none resize-y" />
+                          <input type="date" value={row.deadline} min={todayStr} max={deadline || undefined} onChange={(e) => updateSubtaskRow(i, "deadline", e.target.value)} style={{ borderColor: C.hairline, background: C.panel }} className="border px-2 py-1.5 text-xs outline-none" />
+                        </div>
+                      ))}
+                      {subtaskRows.length === 0 && <p className="text-[11px]" style={{ color: C.inkSoft }}>Sin subtarea con deadline propio, hereda el deadline general de abajo. Se asignarán a {assignedToId ? (individualAssignable.find((p) => p.id === assignedToId)?.name || "la persona asignada") : "la persona que asignes"}.</p>}
+                    </div>
+                  </div>
+                )}
                 <label className="flex items-center gap-2 text-sm" style={{ color: C.ink }}>
                   <input type="checkbox" checked={frequency} onChange={(e) => setFrequency(e.target.checked)} />
                   Pendiente de frecuencia <span className="text-[11px]" style={{ color: C.inkSoft }}>(se repite cada semana)</span>
@@ -868,12 +919,13 @@ function NewTaskForm({ onClose, onCreate, onCreatePopup, profiles, profile, isAd
                   </div>
                 ) : (
                   <div className="grid grid-cols-2 gap-3">
-                    <div><label className="font-mono text-[10px] uppercase tracking-widest" style={{ color: C.inkSoft }}>Deadline</label>
-                      <input type="date" value={deadline} onChange={(e) => setDeadline(e.target.value)} style={{ borderColor: C.hairline, background: C.panel }} className="w-full border px-3 py-2 text-sm mt-1 outline-none" /></div>
+                    <div><label className="font-mono text-[10px] uppercase tracking-widest" style={{ color: C.inkSoft }}>Deadline general</label>
+                      <input type="date" value={deadline} min={minGeneralDeadline} onChange={(e) => setDeadline(e.target.value)} style={{ borderColor: C.hairline, background: C.panel }} className="w-full border px-3 py-2 text-sm mt-1 outline-none" /></div>
                     <div><label className="font-mono text-[10px] uppercase tracking-widest" style={{ color: C.inkSoft }}>Urgencia</label>
                       <select value={urgency} onChange={(e) => setUrgency(e.target.value)} style={{ borderColor: C.hairline, background: C.panel }} className="w-full border px-3 py-2 text-sm mt-1 outline-none">
                         {URGENCIES.map((u) => <option key={u.label} value={u.label}>{u.label}</option>)}
                       </select></div>
+                    {deadlineError && <p className="col-span-2 text-[11px]" style={{ color: C.urgent }}>{deadlineError}</p>}
                   </div>
                 )}
                 {showConsejo && (
@@ -900,8 +952,16 @@ function NewTaskForm({ onClose, onCreate, onCreatePopup, profiles, profile, isAd
 
             {taskType === "colaborativo" && (
               <>
-                <div><label className="font-mono text-[10px] uppercase tracking-widest" style={{ color: C.inkSoft }}>Solicita</label>
-                  <div style={{ borderColor: C.hairline, background: C.panel, color: C.inkSoft }} className="w-full border px-3 py-2 text-sm mt-1">{profile.name} (tú)</div></div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div><label className="font-mono text-[10px] uppercase tracking-widest" style={{ color: C.inkSoft }}>Solicita</label>
+                    <div style={{ borderColor: C.hairline, background: C.panel, color: C.inkSoft }} className="w-full border px-3 py-2 text-sm mt-1">{profile.name} (tú)</div></div>
+                  <div><label className="font-mono text-[10px] uppercase tracking-widest" style={{ color: C.inkSoft }}>Responsable</label>
+                    <select value={responsibleId} onChange={(e) => setResponsibleId(e.target.value)} disabled={teamMemberIds.length === 0} style={{ borderColor: C.hairline, background: C.panel }} className="w-full border px-3 py-2 text-sm mt-1 outline-none disabled:opacity-50">
+                      <option value="">{teamMemberIds.length === 0 ? "Elige primero el equipo..." : "Elegir persona del equipo..."}</option>
+                      {profiles.filter((p) => teamMemberIds.includes(p.id) && p.id !== profile.id).map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
+                    </select></div>
+                </div>
+                <p className="text-[11px] -mt-2" style={{ color: C.inkSoft }}>El responsable queda junto a ti en "Solicita": también podrá finalizar el pendiente y enviar recordatorios por correo y WhatsApp.</p>
                 <div>
                   <label className="font-mono text-[10px] uppercase tracking-widest" style={{ color: C.inkSoft }}>Equipo de trabajo</label>
                   <div className="flex flex-wrap gap-1.5 mt-1.5">
@@ -911,6 +971,7 @@ function NewTaskForm({ onClose, onCreate, onCreatePopup, profiles, profile, isAd
                         className="border px-2.5 py-1 text-xs">{p.name}</button>
                     ))}
                   </div>
+                  {teamMemberIds.length < 2 && <p className="text-[11px] mt-1.5" style={{ color: C.urgent }}>Selecciona al menos 2 personas del equipo.</p>}
                 </div>
                 <div>
                   <div className="flex items-center justify-between">
@@ -930,7 +991,7 @@ function NewTaskForm({ onClose, onCreate, onCreatePopup, profiles, profile, isAd
                             <option value="">Asignar a...</option>
                             {profiles.filter((p) => teamMemberIds.includes(p.id)).map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
                           </select>
-                          <input type="date" value={row.deadline} onChange={(e) => updateSubtaskRow(i, "deadline", e.target.value)} style={{ borderColor: C.hairline, background: C.panel }} className="border px-2 py-1.5 text-xs outline-none" />
+                          <input type="date" value={row.deadline} min={todayStr} max={deadline || undefined} onChange={(e) => updateSubtaskRow(i, "deadline", e.target.value)} style={{ borderColor: C.hairline, background: C.panel }} className="border px-2 py-1.5 text-xs outline-none" />
                         </div>
                       </div>
                     ))}
@@ -939,11 +1000,12 @@ function NewTaskForm({ onClose, onCreate, onCreatePopup, profiles, profile, isAd
                 </div>
                 <div className="grid grid-cols-2 gap-3">
                   <div><label className="font-mono text-[10px] uppercase tracking-widest" style={{ color: C.inkSoft }}>Deadline general</label>
-                    <input type="date" value={deadline} onChange={(e) => setDeadline(e.target.value)} style={{ borderColor: C.hairline, background: C.panel }} className="w-full border px-3 py-2 text-sm mt-1 outline-none" /></div>
+                    <input type="date" value={deadline} min={minGeneralDeadline} onChange={(e) => setDeadline(e.target.value)} style={{ borderColor: C.hairline, background: C.panel }} className="w-full border px-3 py-2 text-sm mt-1 outline-none" /></div>
                   <div><label className="font-mono text-[10px] uppercase tracking-widest" style={{ color: C.inkSoft }}>Urgencia</label>
                     <select value={urgency} onChange={(e) => setUrgency(e.target.value)} style={{ borderColor: C.hairline, background: C.panel }} className="w-full border px-3 py-2 text-sm mt-1 outline-none">
                       {URGENCIES.map((u) => <option key={u.label} value={u.label}>{u.label}</option>)}
                     </select></div>
+                  {deadlineError && <p className="col-span-2 text-[11px]" style={{ color: C.urgent }}>{deadlineError}</p>}
                 </div>
               </>
             )}
@@ -955,7 +1017,7 @@ function NewTaskForm({ onClose, onCreate, onCreatePopup, profiles, profile, isAd
           {mode === "popup" && isAdmin ? (
             <button onClick={submitPopup} disabled={popupSaving || !!popupImageError} style={{ background: C.spine, color: C.paper, opacity: popupSaving ? 0.6 : 1 }} className="px-4 py-2 text-sm">{popupSaving ? "Programando..." : "Programar"}</button>
           ) : (
-            <button onClick={submit} style={{ background: C.spine, color: C.paper }} className="px-4 py-2 text-sm">Crear pendiente</button>
+            <button onClick={submit} disabled={usesDeadlineRules && !!deadlineError} style={{ background: C.spine, color: C.paper, opacity: usesDeadlineRules && deadlineError ? 0.5 : 1 }} className="px-4 py-2 text-sm disabled:cursor-not-allowed">Crear pendiente</button>
           )}
         </div>
       </div>
@@ -1166,14 +1228,22 @@ function TaskDetail({ task, onClose, onUpdate, onDelete, onFinalize, onDeliver, 
   const isPersonalSolo = task.task_type === "personal" && task.assigned_to_id === task.requested_by_id;
   const isAssignee = task.assigned_to_id === profile.id;
   const isRequester = task.requested_by_id === profile.id;
+  const isResponsible = !!task.responsible_id && task.responsible_id === profile.id;
   const isFinalized = task.status === "Finalizado";
   const isDelivered = task.status === "Entregado";
   const canEditUrgency = isColaborativo ? isRequester : isAssignee;
   const teamProfiles = profiles.filter((p) => (task.team_member_ids || []).includes(p.id));
+  const showSubtasks = isColaborativo || task.task_type === "individual";
   const allSubtasksDelivered = isColaborativo && subtasks.length > 0 && subtasks.every((s) => s.status === "Entregado");
-  const canFinalize = !viewerIsGerente && (isColaborativo ? (isRequester && allSubtasksDelivered && !isFinalized) : (isRequester && isDelivered && !isFinalized));
-  const canRemind = isRequester || viewerIsGerente; // el gerente sí puede mandar recordatorio de correo/whatsapp aunque esté en modo lectura
+  const canFinalize = !viewerIsGerente && (isColaborativo ? ((isRequester || isResponsible) && allSubtasksDelivered && !isFinalized) : (isRequester && isDelivered && !isFinalized));
+  const canRemind = isRequester || isResponsible || viewerIsGerente; // el gerente sí puede mandar recordatorio de correo/whatsapp aunque esté en modo lectura
   const reminderRecipient = isColaborativo ? teamProfiles.find((p) => p.id === reminderTargetId) : assignee;
+  const latestSubtaskDeadline = subtasks.reduce((max, s) => (s.deadline && (!max || s.deadline > max) ? s.deadline : max), null);
+  const minGeneralDeadline = latestSubtaskDeadline && latestSubtaskDeadline > todayISO() ? latestSubtaskDeadline : todayISO();
+  const subtaskDeadlineError = !newSubtask.deadline ? "" :
+    newSubtask.deadline < todayISO() ? "La fecha no puede ser antes de hoy." :
+    (task.deadline && newSubtask.deadline > task.deadline) ? "No puede ser después del deadline general." :
+    "";
 
   const loadExtras = useCallback(async () => {
     const { data: c } = await supabase.from("task_comments").select("*").eq("task_id", task.id).order("created_at");
@@ -1207,6 +1277,10 @@ function TaskDetail({ task, onClose, onUpdate, onDelete, onFinalize, onDeliver, 
   };
   const changeDeadline = (d) => {
     if (isFinalized || !isRequester || viewerIsGerente) return;
+    if (showSubtasks && d) {
+      if (d < todayISO()) return;
+      if (latestSubtaskDeadline && d < latestSubtaskDeadline) return;
+    }
     onUpdate(task, { deadline: d }, `${profile.name} cambió el deadline a ${fmtDate(d)}`);
   };
   const saveCategory = async () => {
@@ -1256,7 +1330,7 @@ function TaskDetail({ task, onClose, onUpdate, onDelete, onFinalize, onDeliver, 
     await notify(task.requested_by_id, task.id, `"${task.title}" fue entregado`);
   };
   const bumpRemindAssignee = async () => {
-    if (!isRequester || viewerIsGerente) return;
+    if (!(isRequester || isResponsible) || viewerIsGerente) return;
     if (isColaborativo) {
       if (!reminderRecipient) return;
       await notify(reminderRecipient.id, task.id, `Te resaltaron "${task.title}"`);
@@ -1286,15 +1360,16 @@ function TaskDetail({ task, onClose, onUpdate, onDelete, onFinalize, onDeliver, 
   };
 
   const submitNewSubtask = async () => {
-    if (!newSubtask.title.trim() || !newSubtask.assignedToId) return;
-    await onAddSubtask(task.id, newSubtask);
+    const targetAssignedToId = isColaborativo ? newSubtask.assignedToId : task.assigned_to_id;
+    if (!newSubtask.title.trim() || !targetAssignedToId || subtaskDeadlineError) return;
+    await onAddSubtask(task.id, { ...newSubtask, assignedToId: targetAssignedToId });
     setNewSubtask({ title: "", description: "", assignedToId: "", deadline: "" });
     setShowAddSubtask(false);
   };
 
   const downloadHistory = () => {
     const lines = [
-      `Pendiente: ${task.title}`, `Categoría: ${task.category}`, `Solicita: ${task.requested_by}`,
+      `Pendiente: ${task.title}`, `Categoría: ${task.category}`, `Solicita: ${task.requested_by}${isColaborativo && task.responsible_name ? " + " + task.responsible_name : ""}`,
       isColaborativo ? `Equipo: ${teamProfiles.map((p) => p.name).join(", ")}` : `Asignado a: ${task.assigned_to_name}`,
       `Deadline: ${fmtDate(task.deadline)}`, `Urgencia: ${task.urgency}`,
       `Estado final: ${task.status}`, "", "--- Historial ---",
@@ -1350,7 +1425,7 @@ function TaskDetail({ task, onClose, onUpdate, onDelete, onFinalize, onDeliver, 
               <div className="col-span-2"><div className="font-mono text-[10px] uppercase tracking-widest mb-0.5" style={{ color: C.inkSoft }}>Tipo</div><div style={{ color: C.ink }}>Pendiente personal (solo tuyo)</div></div>
             ) : (
               <>
-                <div><div className="font-mono text-[10px] uppercase tracking-widest mb-0.5" style={{ color: C.inkSoft }}>Solicita</div><div style={{ color: C.ink }}>{task.requested_by}</div></div>
+                <div><div className="font-mono text-[10px] uppercase tracking-widest mb-0.5" style={{ color: C.inkSoft }}>Solicita</div><div style={{ color: C.ink }}>{task.requested_by}{isColaborativo && task.responsible_name ? ` + ${task.responsible_name}` : ""}</div></div>
                 {isColaborativo ? (
                   <div><div className="font-mono text-[10px] uppercase tracking-widest mb-0.5" style={{ color: C.inkSoft }}>Equipo</div><div style={{ color: C.ink }} className="text-xs leading-relaxed">{teamProfiles.map((p) => p.name).join(", ") || "—"}</div></div>
                 ) : (
@@ -1361,9 +1436,9 @@ function TaskDetail({ task, onClose, onUpdate, onDelete, onFinalize, onDeliver, 
             <div><div className="font-mono text-[10px] uppercase tracking-widest mb-0.5" style={{ color: C.inkSoft }}>Fecha de solicitud</div><div style={{ color: C.ink }}>{fmtDate(task.request_date)}</div></div>
             <div></div>
             <div>
-              <div className="font-mono text-[10px] uppercase tracking-widest mb-0.5" style={{ color: C.inkSoft }}>Deadline{isColaborativo ? " general" : ""}</div>
+              <div className="font-mono text-[10px] uppercase tracking-widest mb-0.5" style={{ color: C.inkSoft }}>Deadline{showSubtasks ? " general" : ""}</div>
               {isRequester && !isFinalized && !viewerIsGerente ? (
-                <input type="date" value={task.deadline || ""} onChange={(e) => changeDeadline(e.target.value)} style={{ borderColor: C.hairline, background: C.panel }} className="border px-2 py-1 text-xs outline-none" />
+                <input type="date" value={task.deadline || ""} min={showSubtasks ? minGeneralDeadline : undefined} onChange={(e) => changeDeadline(e.target.value)} style={{ borderColor: C.hairline, background: C.panel }} className="border px-2 py-1 text-xs outline-none" />
               ) : <div style={{ color: C.ink }}>{fmtDate(task.deadline)}</div>}
             </div>
             <div>
@@ -1387,7 +1462,7 @@ function TaskDetail({ task, onClose, onUpdate, onDelete, onFinalize, onDeliver, 
             </div>
           )}
 
-          {isColaborativo && (
+          {showSubtasks && (
             <div style={{ borderColor: C.hairline }} className="border-t pt-4">
               <div className="flex items-center justify-between mb-2">
                 <div className="flex items-center gap-1.5">
@@ -1402,13 +1477,18 @@ function TaskDetail({ task, onClose, onUpdate, onDelete, onFinalize, onDeliver, 
                   <input value={newSubtask.title} onChange={(e) => setNewSubtask((s) => ({ ...s, title: e.target.value }))} placeholder="Título" style={{ borderColor: C.hairline, background: C.panel }} className="border px-2 py-1.5 text-xs outline-none" />
                   <textarea value={newSubtask.description} onChange={(e) => setNewSubtask((s) => ({ ...s, description: e.target.value }))} placeholder="Descripción (opcional)" rows={2} style={{ borderColor: C.hairline, background: C.panel }} className="border px-2 py-1.5 text-xs outline-none resize-y" />
                   <div className="grid grid-cols-2 gap-1.5">
-                    <select value={newSubtask.assignedToId} onChange={(e) => setNewSubtask((s) => ({ ...s, assignedToId: e.target.value }))} style={{ borderColor: C.hairline, background: C.panel }} className="border px-2 py-1.5 text-xs outline-none">
-                      <option value="">Asignar a...</option>
-                      {teamProfiles.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
-                    </select>
-                    <input type="date" value={newSubtask.deadline} onChange={(e) => setNewSubtask((s) => ({ ...s, deadline: e.target.value }))} style={{ borderColor: C.hairline, background: C.panel }} className="border px-2 py-1.5 text-xs outline-none" />
+                    {isColaborativo ? (
+                      <select value={newSubtask.assignedToId} onChange={(e) => setNewSubtask((s) => ({ ...s, assignedToId: e.target.value }))} style={{ borderColor: C.hairline, background: C.panel }} className="border px-2 py-1.5 text-xs outline-none">
+                        <option value="">Asignar a...</option>
+                        {teamProfiles.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
+                      </select>
+                    ) : (
+                      <div style={{ borderColor: C.hairline, background: C.panel, color: C.inkSoft }} className="border px-2 py-1.5 text-xs flex items-center truncate">{task.assigned_to_name}</div>
+                    )}
+                    <input type="date" value={newSubtask.deadline} min={todayISO()} max={task.deadline || undefined} onChange={(e) => setNewSubtask((s) => ({ ...s, deadline: e.target.value }))} style={{ borderColor: C.hairline, background: C.panel }} className="border px-2 py-1.5 text-xs outline-none" />
                   </div>
-                  <button onClick={submitNewSubtask} style={{ background: C.spine, color: C.paper }} className="px-3 py-1.5 text-xs">Agregar subtarea</button>
+                  {subtaskDeadlineError && <p className="text-[11px]" style={{ color: C.urgent }}>{subtaskDeadlineError}</p>}
+                  <button onClick={submitNewSubtask} disabled={!!subtaskDeadlineError} style={{ background: C.spine, color: C.paper }} className="px-3 py-1.5 text-xs disabled:opacity-50">Agregar subtarea</button>
                 </div>
               )}
               <div className="flex flex-col gap-1.5">
@@ -1455,7 +1535,7 @@ function TaskDetail({ task, onClose, onUpdate, onDelete, onFinalize, onDeliver, 
               </div>
             )
           )}
-          {isColaborativo && isRequester && !isFinalized && !allSubtasksDelivered && (
+          {isColaborativo && (isRequester || isResponsible) && !isFinalized && !allSubtasksDelivered && (
             <p className="text-[11px]" style={{ color: C.inkSoft }}>Se podrá finalizar cuando todas las subtareas queden en "Entregado".</p>
           )}
 
@@ -1526,7 +1606,7 @@ function TaskDetail({ task, onClose, onUpdate, onDelete, onFinalize, onDeliver, 
                   <button disabled={isFinalized || (task.remind_assignee_count || 0) >= 3 || task.remind_assignee_last_date === todayISO()} onClick={bumpRemindAssignee} style={{ borderColor: C.hairline, color: C.ink }} className="border px-2 py-1 text-xs disabled:opacity-40">Resaltar</button>
                 </div>
               )}
-              {!isPersonalSolo && isColaborativo && isRequester && !viewerIsGerente && (
+              {!isPersonalSolo && isColaborativo && (isRequester || isResponsible) && !viewerIsGerente && (
                 <div className="flex items-center justify-end">
                   <button disabled={isFinalized || !reminderRecipient} onClick={bumpRemindAssignee} style={{ borderColor: C.hairline, color: C.ink }} className="border px-2 py-1 text-xs disabled:opacity-40">Resaltar</button>
                 </div>
