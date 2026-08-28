@@ -174,7 +174,10 @@ function EmailField({ setInfo, setError, setEditing, saving, setSaving }) {
   const save = async () => {
     if (!val.trim() || !val.includes("@")) { setError("Escribe un correo válido."); return; }
     setSaving(true); setError("");
-    const { error } = await supabase.auth.updateUser({ email: val.trim() });
+    const { error } = await supabase.auth.updateUser(
+      { email: val.trim() },
+      { emailRedirectTo: `${window.location.origin}/perfil` }
+    );
     setSaving(false);
     if (error) { setError(error.message || "No se pudo actualizar el correo."); return; }
     setInfo("Te enviamos un correo de confirmación a la dirección nueva. Sigue usando tu correo actual para iniciar sesión hasta que confirmes el cambio.");
