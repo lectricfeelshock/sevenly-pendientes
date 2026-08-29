@@ -123,7 +123,7 @@ const POPUP_TASK_FIELDS = [
   { key: "generalStatus", label: "Estado general", needsSubtasks: true },
   { key: "requestedDate", label: "Fecha de solicitud" },
   { key: "deadline", label: "Fecha de deadline" },
-  { key: "deliveredDate", label: "Fecha de entregado" },
+  { key: "deliveredDate", label: "Fecha de entregado", deliveredOnly: true },
   { key: "subtasksList", label: "Subtareas", needsSubtasks: true },
   { key: "finalize", label: "Botón para finalizar pendiente" },
 ];
@@ -132,6 +132,7 @@ function applicablePopupFields(task, subsForTask) {
   return POPUP_TASK_FIELDS.filter((f) => {
     if (f.colaborativoOnly && task.task_type !== "colaborativo") return false;
     if (f.needsSubtasks && subsForTask.length === 0) return false;
+    if (f.deliveredOnly && !DONE_STATUSES.includes(task.status)) return false;
     return true;
   });
 }
