@@ -7,7 +7,7 @@ import {
   ChevronRight, ChevronDown, Trash2, CheckCircle2, Circle,
   PauseCircle, PlayCircle, Send, LogOut, History, Mail, Users,
   User, TrendingUp, BookOpen, Download, Lock, CheckCheck, BellRing,
-  Image as ImageIcon, Megaphone, Settings, Eye, Pencil, Paperclip,
+  Image as ImageIcon, Megaphone, Settings, Eye, Pencil, Paperclip, Link2,
 } from "lucide-react";
 
 const C = {
@@ -89,6 +89,12 @@ function popupStoragePath(url) {
   return decodeURIComponent(url.split(marker)[1]);
 }
 
+function taskBelongsToMember(t, id, subtasks) {
+  return t.assigned_to_id === id ||
+    (t.task_type === "colaborativo" && (t.team_member_ids || []).includes(id)) ||
+    subtasks.some((s) => s.task_id === t.id && s.assigned_to_id === id);
+}
+
 function getPopupMedia(url) {
   if (!url) return null;
   const clean = url.split("?")[0].toLowerCase();
@@ -104,6 +110,53 @@ function PopupMediaPreview({ url, maxHeight }) {
   }
   // eslint-disable-next-line @next/next/no-img-element
   return <img src={media.src} alt="" className="w-full object-cover" style={{ maxHeight }} />;
+}
+
+const POPUP_TASK_LIMIT = 10;
+
+function PopupTaskPicker({ profiles, tasks, subtasks, selectedIds, onToggle }) {
+  const [openId, setOpenId] = useState(null);
+  const atLimit = selectedIds.length >= POPUP_TASK_LIMIT;
+
+  return (
+    <div>
+      <div className="flex items-center justify-between">
+        <label className="font-mono text-[10px] uppercase tracking-widest flex items-center gap-1.5" style={{ color: C.inkSoft }}><Link2 size={12} /> Referenciar pendientes (opcional)</label>
+        <span className="font-mono text-[10px]" style={{ color: atLimit ? C.urgent : C.inkSoft }}>{selectedIds.length}/{POPUP_TASK_LIMIT}</span>
+      </div>
+      <div style={{ borderColor: C.hairline }} className="border mt-1.5 max-h-56 overflow-y-auto">
+        {profiles.map((p) => {
+          const memberTasks = tasks.filter((t) => taskBelongsToMember(t, p.id, subtasks));
+          const open = openId === p.id;
+          const pickedHere = memberTasks.filter((t) => selectedIds.includes(t.id)).length;
+          return (
+            <div key={p.id} style={{ borderColor: C.hairline }} className="border-b last:border-b-0">
+              <button type="button" onClick={() => setOpenId(open ? null : p.id)} className="w-full text-left px-2.5 py-2 flex items-center justify-between">
+                <span className="text-xs" style={{ color: C.ink }}>{p.name}{pickedHere > 0 && <span className="ml-1.5" style={{ color: C.signal }}>({pickedHere})</span>}</span>
+                <span className="flex items-center gap-1.5"><span className="font-mono text-[10px]" style={{ color: C.inkSoft }}>{memberTasks.length}</span><ChevronDown size={12} style={{ color: C.inkSoft, transform: open ? "rotate(180deg)" : "none" }} /></span>
+              </button>
+              {open && (
+                <div className="px-2.5 pb-2 flex flex-col gap-1">
+                  {memberTasks.length === 0 && <div className="text-[11px]" style={{ color: C.inkSoft }}>Sin pendientes.</div>}
+                  {memberTasks.map((t) => {
+                    const checked = selectedIds.includes(t.id);
+                    const disabled = !checked && atLimit;
+                    return (
+                      <label key={t.id} className="flex items-start gap-2 text-xs" style={{ color: disabled ? C.inkSoft : C.ink, opacity: disabled ? 0.5 : 1 }}>
+                        <input type="checkbox" checked={checked} disabled={disabled} onChange={() => onToggle(t.id)} className="mt-0.5" />
+                        <span>{t.title} <span className="font-mono text-[10px]" style={{ color: C.inkSoft }}>· {t.status}</span></span>
+                      </label>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </div>
+      <p className="text-[11px] mt-1" style={{ color: C.inkSoft }}>Salen como avisos clickeables en el pop up — máximo {POPUP_TASK_LIMIT}.</p>
+    </div>
+  );
 }
 
 const URL_MATCH_REGEX = /https?:\/\/[^\s]+/g;
@@ -488,7 +541,7 @@ export default function Dashboard() {
       title: form.title, description: form.description, image_url: imageUrl,
       scheduled_date: form.scheduledDate, scheduled_time: form.scheduledTime,
       target_user_ids: form.targetUserIds || [], replicate_notification: !!form.replicateNotification, only_notification: !!form.onlyNotification,
-      created_by: profile.id,
+      related_task_ids: form.taskIds || [], created_by: profile.id,
     });
     setShowNew(false);
     return { uploadError };
@@ -692,7 +745,7 @@ export default function Dashboard() {
       )}
 
       {primaryTab === "popups" && isAdmin ? (
-        <PopupsAdminPanel profile={profile} profiles={assignableProfiles} />
+        <PopupsAdminPanel profile={profile} profiles={assignableProfiles} tasks={tasks} subtasks={subtasks} />
       ) : (
       <>
       <div style={{ borderColor: C.hairline }} className="border-b px-5 py-2.5 flex flex-wrap items-center gap-2">
@@ -728,8 +781,8 @@ export default function Dashboard() {
       </>
       )}
 
-      {showNew && <NewTaskForm onClose={() => setShowNew(false)} onCreate={createTask} onCreatePopup={createPopup} profiles={assignableProfiles} profile={profile} isAdmin={isAdmin} />}
-      {popupQueue[0] && <PopupModal popup={popupQueue[0]} onClose={dismissPopup} />}
+      {showNew && <NewTaskForm onClose={() => setShowNew(false)} onCreate={createTask} onCreatePopup={createPopup} profiles={assignableProfiles} profile={profile} isAdmin={isAdmin} tasks={tasks} subtasks={subtasks} />}
+      {popupQueue[0] && <PopupModal popup={popupQueue[0]} onClose={dismissPopup} tasks={tasks} onOpenTask={(taskId) => { const t = tasks.find((x) => x.id === taskId); if (t) { dismissPopup(); setSelected(t); } }} />}
       {selected && <TaskDetail task={selected} onClose={() => setSelected(null)} onUpdate={updateTask} onDelete={deleteTask} onFinalize={finalizeTask} onDeliver={deliverTask} profiles={profiles} assignableProfiles={assignableProfiles} profile={profile} notify={notify} subtasks={subtasks.filter((s) => s.task_id === selected.id)} onAddSubtask={addSubtask} onUpdateSubtaskStatus={updateSubtaskStatus} viewerIsGerente={!!viewingAs && !isAdmin} onCommentsRead={reloadMyCommentReads} />}
       {showTeam && <TeamPanel onClose={() => setShowTeam(false)} profiles={assignableProfiles} tasks={tasks} />}
       {showActivity && <ActivityPanel onClose={() => setShowActivity(false)} profile={profile} router={router} />}
@@ -780,7 +833,7 @@ function TaskRow({ task, onOpen, unreadComments = 0 }) {
   );
 }
 
-function NewTaskForm({ onClose, onCreate, onCreatePopup, profiles, profile, isAdmin }) {
+function NewTaskForm({ onClose, onCreate, onCreatePopup, profiles, profile, isAdmin, tasks, subtasks }) {
   const [mode, setMode] = useState("pendiente"); // "pendiente" | "popup" (solo admins ven el selector)
   const [taskType, setTaskType] = useState("individual"); // individual | personal | colaborativo
   const [title, setTitle] = useState(""), [description, setDescription] = useState("");
@@ -810,8 +863,10 @@ function NewTaskForm({ onClose, onCreate, onCreatePopup, profiles, profile, isAd
   const [popupTime, setPopupTime] = useState(""), [popupTargetIds, setPopupTargetIds] = useState([]);
   const [replicateNotification, setReplicateNotification] = useState(false), [onlyNotification, setOnlyNotification] = useState(false);
   const [popupImageError, setPopupImageError] = useState(""), [popupSaving, setPopupSaving] = useState(false);
+  const [popupTaskIds, setPopupTaskIds] = useState([]);
 
   const togglePopupTarget = (id) => setPopupTargetIds((prev) => prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]);
+  const togglePopupTask = (id) => setPopupTaskIds((prev) => prev.includes(id) ? prev.filter((x) => x !== id) : prev.length >= POPUP_TASK_LIMIT ? prev : [...prev, id]);
 
   const individualAssignable = profiles.filter((p) => p.id !== profile.id);
 
@@ -891,7 +946,7 @@ function NewTaskForm({ onClose, onCreate, onCreatePopup, profiles, profile, isAd
     setPopupSaving(true);
     const result = await onCreatePopup({
       title: popupTitle, description: popupDesc, scheduledDate: popupDate, scheduledTime: popupTime || null,
-      targetUserIds: popupTargetIds, replicateNotification, onlyNotification,
+      targetUserIds: popupTargetIds, replicateNotification, onlyNotification, taskIds: popupTaskIds,
       imageFile: onlyNotification ? null : popupImage,
     });
     setPopupSaving(false);
@@ -933,6 +988,7 @@ function NewTaskForm({ onClose, onCreate, onCreatePopup, profiles, profile, isAd
               </div>
               <p className="text-[11px] mt-1" style={{ color: C.inkSoft }}>Sin nadie seleccionado = le sale a todo el equipo.</p>
             </div>
+            <PopupTaskPicker profiles={profiles} tasks={tasks} subtasks={subtasks} selectedIds={popupTaskIds} onToggle={togglePopupTask} />
             {!onlyNotification && (
               <div>
                 <label className="font-mono text-[10px] uppercase tracking-widest flex items-center gap-1.5" style={{ color: C.inkSoft }}><ImageIcon size={12} /> Imagen, GIF o video (opcional)</label>
@@ -1184,7 +1240,7 @@ function NewTaskForm({ onClose, onCreate, onCreatePopup, profiles, profile, isAd
   );
 }
 
-function PopupsAdminPanel({ profile, profiles }) {
+function PopupsAdminPanel({ profile, profiles, tasks, subtasks }) {
   const [popups, setPopups] = useState([]);
   const [loading, setLoading] = useState(true);
   const [editing, setEditing] = useState(null); // popup object or null
@@ -1217,17 +1273,19 @@ function PopupsAdminPanel({ profile, profiles }) {
           );
         })}
       </div>
-      {editing && <PopupEditForm popup={editing} profiles={profiles} onClose={() => setEditing(null)} onSaved={() => { setEditing(null); load(); }} />}
+      {editing && <PopupEditForm popup={editing} profiles={profiles} tasks={tasks} subtasks={subtasks} onClose={() => setEditing(null)} onSaved={() => { setEditing(null); load(); }} />}
     </div>
   );
 }
 
-function PopupEditForm({ popup, profiles, onClose, onSaved }) {
+function PopupEditForm({ popup, profiles, tasks, subtasks, onClose, onSaved }) {
   const [title, setTitle] = useState(popup.title || "");
   const [description, setDescription] = useState(popup.description || "");
   const [scheduledDate, setScheduledDate] = useState(popup.scheduled_date || todayISO());
   const [scheduledTime, setScheduledTime] = useState(popup.scheduled_time ? popup.scheduled_time.slice(0, 5) : "");
   const [targetUserIds, setTargetUserIds] = useState(popup.target_user_ids || []);
+  const [taskIds, setTaskIds] = useState(popup.related_task_ids || []);
+  const toggleTask = (id) => setTaskIds((prev) => prev.includes(id) ? prev.filter((x) => x !== id) : prev.length >= POPUP_TASK_LIMIT ? prev : [...prev, id]);
   const [replicateNotification, setReplicateNotification] = useState(!!popup.replicate_notification);
   const [onlyNotification, setOnlyNotification] = useState(!!popup.only_notification);
   const [imageFile, setImageFile] = useState(null);
@@ -1277,6 +1335,7 @@ function PopupEditForm({ popup, profiles, onClose, onSaved }) {
       title: title.trim(), description, image_url: imageUrl,
       scheduled_date: scheduledDate, scheduled_time: scheduledTime || null,
       target_user_ids: targetUserIds, replicate_notification: replicateNotification, only_notification: onlyNotification,
+      related_task_ids: taskIds,
     }).eq("id", popup.id);
     // Ya reemplazado por el nuevo archivo/link — borra el viejo del bucket para no dejar basura.
     if (replacingMedia && !uploadError && oldPath) await supabase.storage.from("popups").remove([oldPath]);
@@ -1318,6 +1377,7 @@ function PopupEditForm({ popup, profiles, onClose, onSaved }) {
             </div>
             <p className="text-[11px] mt-1" style={{ color: C.inkSoft }}>Sin nadie seleccionado = le sale a todo el equipo.</p>
           </div>
+          <PopupTaskPicker profiles={profiles} tasks={tasks} subtasks={subtasks} selectedIds={taskIds} onToggle={toggleTask} />
           {popup.image_url && !imageFile && !onlyNotification && (
             <PopupMediaPreview url={popup.image_url} maxHeight={160} />
           )}
@@ -1358,7 +1418,8 @@ function PopupEditForm({ popup, profiles, onClose, onSaved }) {
   );
 }
 
-function PopupModal({ popup, onClose }) {
+function PopupModal({ popup, onClose, tasks, onOpenTask }) {
+  const relatedTasks = (popup.related_task_ids || []).map((id) => tasks.find((t) => t.id === id)).filter(Boolean);
   return (
     <div className="fixed inset-0 z-[60] flex items-center justify-center p-4" style={{ background: "rgba(20,24,31,0.7)" }}>
       <div style={{ background: C.paper, borderColor: C.hairline }} className="w-full max-w-sm border relative overflow-hidden">
@@ -1372,6 +1433,17 @@ function PopupModal({ popup, onClose }) {
           </div>
           <h2 style={{ color: C.ink, fontFamily: "Georgia, serif" }} className="text-lg mb-2">{popup.title}</h2>
           {popup.description && <p className="text-sm whitespace-pre-wrap break-words" style={{ color: C.ink }}>{renderWithLinks(popup.description, C.signal)}</p>}
+          {relatedTasks.length > 0 && (
+            <div className="mt-3 flex flex-col gap-1.5">
+              <div className="font-mono text-[10px] uppercase tracking-widest" style={{ color: C.inkSoft }}>Pendientes relacionados</div>
+              {relatedTasks.map((t) => (
+                <button key={t.id} onClick={() => onOpenTask(t.id)} style={{ borderColor: C.hairline }} className="border px-2.5 py-1.5 text-left flex items-center justify-between gap-2">
+                  <span className="text-xs truncate" style={{ color: C.ink }}>{t.title}</span>
+                  <ChevronRight size={12} style={{ color: C.inkSoft, flexShrink: 0 }} />
+                </button>
+              ))}
+            </div>
+          )}
           <button onClick={onClose} style={{ background: C.spine, color: C.paper }} className="mt-4 px-4 py-2 text-sm w-full">Entendido</button>
         </div>
       </div>
