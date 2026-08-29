@@ -106,6 +106,15 @@ c. **A los 4 días hábiles de entregado** (hábiles = lunes a viernes, sin
    "Descargar historial" que se ve en ese mismo desglose (hoy bloqueado
    hasta finalizar). Este pop up se puede cerrar/ignorar sin hacer nada.
 
+   Este pop up se debe **programar con 2 días hábiles de anticipación**
+   (o sea, en cuanto se sabe que va a hacer falta, no el mismo día que
+   sale) para que aparezca en el apartado de Popups del admin (punto 3 —
+   en "Programados") por si lo quiere revisar o editar antes de que
+   salga. Si en esos últimos 2 días hábiles antes de la fecha programada
+   el solicitante finaliza todos los pendientes que iban a aparecer en
+   ese pop up, el pop up se cancela y se elimina automáticamente —
+   incluso del apartado de Popups del admin.
+
 d. **Auto-finalizado a los 7 días de entregado**: como el pop up del
    punto (c) se puede ignorar, que a los 7 días de entregado sin que el
    solicitante lo finalice, el pendiente se finalice automáticamente y
