@@ -83,6 +83,12 @@ function daysUntil(d) {
   return Math.round((dt - now) / 86400000);
 }
 function todayISO() { return new Date().toISOString().slice(0, 10); }
+function popupStoragePath(url) {
+  const marker = "/storage/v1/object/public/popups/";
+  if (!url || !url.includes(marker)) return null;
+  return decodeURIComponent(url.split(marker)[1]);
+}
+
 function getPopupMedia(url) {
   if (!url) return null;
   const clean = url.split("?")[0].toLowerCase();
@@ -1317,6 +1323,8 @@ function PopupEditForm({ popup, profiles, onClose, onSaved }) {
   const save = async () => {
     if (!title.trim() || !scheduledDate || saving) return;
     setSaving(true);
+    const oldPath = popupStoragePath(popup.image_url);
+    const replacingMedia = (mediaMode === "link" && mediaLink.trim()) || (mediaMode === "file" && imageFile);
     let imageUrl = popup.image_url || null;
     let uploadError = null;
     if (mediaMode === "link" && mediaLink.trim()) {
@@ -1337,6 +1345,8 @@ function PopupEditForm({ popup, profiles, onClose, onSaved }) {
       scheduled_date: scheduledDate, scheduled_time: scheduledTime || null,
       target_user_ids: targetUserIds, replicate_notification: replicateNotification, only_notification: onlyNotification,
     }).eq("id", popup.id);
+    // Ya reemplazado por el nuevo archivo/link — borra el viejo del bucket para no dejar basura.
+    if (replacingMedia && !uploadError && oldPath) await supabase.storage.from("popups").remove([oldPath]);
     setSaving(false);
     if (uploadError) alert(`Se guardaron los demás cambios, pero el archivo no se pudo subir (${uploadError}). Revisa en Supabase que el bucket "popups" permita ese tipo de archivo y tamaño.`);
     onSaved();
@@ -1345,6 +1355,8 @@ function PopupEditForm({ popup, profiles, onClose, onSaved }) {
   const remove = async () => {
     if (!confirm("¿Borrar este pop up? Ya no le saldrá a nadie.")) return;
     setDeleting(true);
+    const path = popupStoragePath(popup.image_url);
+    if (path) await supabase.storage.from("popups").remove([path]);
     await supabase.from("popups").delete().eq("id", popup.id);
     setDeleting(false);
     onSaved();
