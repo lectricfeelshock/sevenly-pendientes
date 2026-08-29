@@ -135,6 +135,13 @@ e. **Cómo cuentan estos pendientes rezagados**: si un pendiente se
    regresó a "En progreso" y se volvió a entregar, ya no cuenta como
    rezagado).
 
+### 5. Cambiar el engrane de "Mi actividad" por un botón "Ver perfil"
+En la ventana de "Mi actividad" (`ActivityPanel`), donde hoy está el
+ícono de engrane junto al nombre para ir al perfil, quitar el engrane y
+poner en su lugar un botón que diga "Ver perfil". Debe llevar al mismo
+lugar de siempre (`/perfil`), solo cambia de ícono+link a un botón con
+texto.
+
 ## Historial (aplicadas)
 
 <!-- Aquí se van moviendo las solicitudes ya aplicadas, con fecha y commit. -->
