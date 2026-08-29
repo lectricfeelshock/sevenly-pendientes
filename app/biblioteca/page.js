@@ -2,7 +2,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabaseClient";
-import { ArrowLeft, Plus, ExternalLink, X, Trash2, Pencil, BookOpen, Tag } from "lucide-react";
+import { ArrowLeft, Plus, ExternalLink, X, Trash2, Pencil, BookOpen, Tag, Play } from "lucide-react";
 
 const C = {
   paper: "#F6F4EE", panel: "#FFFFFF", ink: "#1C1F26", inkSoft: "#5B5F6B",
@@ -12,6 +12,41 @@ const C = {
 function isNewResource(createdAt) {
   if (!createdAt) return false;
   return new Date(createdAt).toDateString() === new Date().toDateString();
+}
+
+function getVideoEmbed(url) {
+  if (!url) return null;
+  try {
+    const u = new URL(url);
+    const host = u.hostname.replace(/^www\./, "");
+
+    if (host === "youtube.com" || host === "m.youtube.com" || host === "youtu.be") {
+      let id = null;
+      if (host === "youtu.be") id = u.pathname.slice(1);
+      else if (u.pathname.startsWith("/shorts/")) id = u.pathname.split("/")[2];
+      else if (u.pathname.startsWith("/embed/")) id = u.pathname.split("/")[2];
+      else id = u.searchParams.get("v");
+      if (!id) return null;
+      return { type: "youtube", embedUrl: `https://www.youtube.com/embed/${id}`, thumbnail: `https://img.youtube.com/vi/${id}/hqdefault.jpg` };
+    }
+
+    if (host === "drive.google.com") {
+      const match = u.pathname.match(/\/file\/d\/([^/]+)/);
+      const id = match ? match[1] : u.searchParams.get("id");
+      if (!id) return null;
+      return { type: "drive", embedUrl: `https://drive.google.com/file/d/${id}/preview`, thumbnail: null };
+    }
+
+    if (host === "vimeo.com" || host === "player.vimeo.com") {
+      const match = u.pathname.match(/(\d+)/);
+      if (!match) return null;
+      return { type: "vimeo", embedUrl: `https://player.vimeo.com/video/${match[1]}`, thumbnail: null };
+    }
+
+    return null;
+  } catch {
+    return null;
+  }
 }
 
 export default function BibliotecaPage() {
@@ -113,26 +148,36 @@ export default function BibliotecaPage() {
         {resources.length === 0 && <p className="text-sm" style={{ color: C.inkSoft }}>Todavía no hay recursos agregados{isAdmin ? " — dale a \"Agregar recurso\" para el primero." : "."}</p>}
         {resources.length > 0 && filteredResources.length === 0 && <p className="text-sm" style={{ color: C.inkSoft }}>Nada con esas etiquetas todavía.</p>}
         <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-          {filteredResources.map((r) => (
-            <button key={r.id} onClick={() => setSelected(r)} style={{ borderColor: C.hairline, background: C.panel }} className="border p-4 text-left flex flex-col gap-2 aspect-square justify-between hover:brightness-[0.98]">
-              <div className="flex items-center justify-between">
-                <BookOpen size={20} style={{ color: C.signal }} />
-                {isNewResource(r.created_at) && (
-                  <span className="font-mono text-[9px] uppercase tracking-wider px-1.5 py-0.5" style={{ background: C.urgentSoft, color: C.urgent, border: `1px solid ${C.urgent}` }}>Nuevo</span>
-                )}
-              </div>
-              <div>
-                <span style={{ color: C.ink, fontFamily: "Georgia, serif" }} className="text-base leading-tight block mb-1.5">{r.title}</span>
-                {r.tags && r.tags.length > 0 && (
-                  <div className="flex flex-wrap gap-1">
-                    {r.tags.slice(0, 3).map((tag) => (
-                      <span key={tag} className="font-mono text-[9px] uppercase tracking-wider px-1.5 py-0.5" style={{ background: C.paper, color: C.inkSoft, border: `1px solid ${C.hairline}` }}>{tag}</span>
-                    ))}
-                  </div>
-                )}
-              </div>
-            </button>
-          ))}
+          {filteredResources.map((r) => {
+            const embed = getVideoEmbed(r.url);
+            return (
+              <button key={r.id} onClick={() => setSelected(r)} style={{ borderColor: C.hairline, background: C.panel, backgroundImage: embed?.thumbnail ? `url(${embed.thumbnail})` : undefined, backgroundSize: "cover", backgroundPosition: "center" }} className="relative border p-4 text-left flex flex-col gap-2 aspect-square justify-between hover:brightness-[0.98] overflow-hidden">
+                {embed?.thumbnail && <div className="absolute inset-0" style={{ background: "linear-gradient(to top, rgba(20,24,31,0.75), rgba(20,24,31,0.15))" }} />}
+                <div className="relative flex items-center justify-between">
+                  {embed ? (
+                    <span className="flex items-center justify-center rounded-full" style={{ background: C.spine, width: 26, height: 26 }}>
+                      <Play size={12} style={{ color: C.paper }} fill={C.paper} />
+                    </span>
+                  ) : (
+                    <BookOpen size={20} style={{ color: embed?.thumbnail ? C.paper : C.signal }} />
+                  )}
+                  {isNewResource(r.created_at) && (
+                    <span className="font-mono text-[9px] uppercase tracking-wider px-1.5 py-0.5" style={{ background: C.urgentSoft, color: C.urgent, border: `1px solid ${C.urgent}` }}>Nuevo</span>
+                  )}
+                </div>
+                <div className="relative">
+                  <span style={{ color: embed?.thumbnail ? C.paper : C.ink, fontFamily: "Georgia, serif" }} className="text-base leading-tight block mb-1.5">{r.title}</span>
+                  {r.tags && r.tags.length > 0 && (
+                    <div className="flex flex-wrap gap-1">
+                      {r.tags.slice(0, 3).map((tag) => (
+                        <span key={tag} className="font-mono text-[9px] uppercase tracking-wider px-1.5 py-0.5" style={{ background: embed?.thumbnail ? "rgba(255,255,255,0.15)" : C.paper, color: embed?.thumbnail ? C.paper : C.inkSoft, border: `1px solid ${embed?.thumbnail ? "rgba(255,255,255,0.4)" : C.hairline}` }}>{tag}</span>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </button>
+            );
+          })}
         </div>
       </div>
 
@@ -151,6 +196,21 @@ export default function BibliotecaPage() {
                 ))}
               </div>
             )}
+            {(() => {
+              const embed = getVideoEmbed(selected.url);
+              if (!embed) return null;
+              return (
+                <div className="w-full mb-3" style={{ aspectRatio: "16/9" }}>
+                  <iframe
+                    src={embed.embedUrl}
+                    className="w-full h-full border-0"
+                    style={{ borderColor: C.hairline }}
+                    allow="autoplay; encrypted-media; picture-in-picture; fullscreen"
+                    allowFullScreen
+                  />
+                </div>
+              );
+            })()}
             <a href={selected.url} target="_blank" rel="noopener noreferrer" style={{ background: C.spine, color: C.paper }} className="px-4 py-2 text-sm flex items-center justify-center gap-2 mb-3">
               <ExternalLink size={14} /> Abrir link
             </a>
@@ -206,8 +266,9 @@ function ResourceForm({ initial, onClose, onSave }) {
             <textarea value={description} onChange={(e) => setDescription(e.target.value)} rows={2} placeholder='Ej. "Aquí podrás encontrar fotos y videos de stock"' style={{ borderColor: C.hairline, background: C.panel }} className="w-full border px-3 py-2 text-sm mt-1 outline-none" />
           </div>
           <div>
-            <label className="font-mono text-[10px] uppercase tracking-widest" style={{ color: C.inkSoft }}>Link (SharePoint/OneDrive)</label>
+            <label className="font-mono text-[10px] uppercase tracking-widest" style={{ color: C.inkSoft }}>Link (SharePoint/OneDrive/YouTube/Drive/Vimeo)</label>
             <input value={url} onChange={(e) => setUrl(e.target.value)} placeholder="https://..." style={{ borderColor: C.hairline, background: C.panel }} className="w-full border px-3 py-2 text-sm mt-1 outline-none" />
+            <p className="text-[11px] mt-1" style={{ color: C.inkSoft }}>Los links de YouTube, Google Drive o Vimeo se muestran como video, el resto como link normal.</p>
           </div>
           <div>
             <label className="font-mono text-[10px] uppercase tracking-widest" style={{ color: C.inkSoft }}>Etiquetas</label>
