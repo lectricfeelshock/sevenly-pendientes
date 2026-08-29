@@ -114,24 +114,47 @@ function PopupMediaPreview({ url, maxHeight }) {
 
 const POPUP_TASK_LIMIT = 10;
 
-function PopupTaskPicker({ profiles, tasks, subtasks, selectedIds, onToggle }) {
-  const [openId, setOpenId] = useState(null);
-  const atLimit = selectedIds.length >= POPUP_TASK_LIMIT;
+const POPUP_TASK_FIELDS = [
+  { key: "requester", label: "Solicitante/s" },
+  { key: "assignee", label: "Asignado" },
+  { key: "team", label: "Equipo de trabajo", colaborativoOnly: true },
+  { key: "description", label: "Descripción" },
+  { key: "status", label: "Estado" },
+  { key: "generalStatus", label: "Estado general", needsSubtasks: true },
+  { key: "requestedDate", label: "Fecha de solicitud" },
+  { key: "deadline", label: "Fecha de deadline" },
+  { key: "deliveredDate", label: "Fecha de entregado" },
+  { key: "subtasksList", label: "Subtareas", needsSubtasks: true },
+  { key: "finalize", label: "Botón para finalizar pendiente" },
+];
+
+function applicablePopupFields(task, subsForTask) {
+  return POPUP_TASK_FIELDS.filter((f) => {
+    if (f.colaborativoOnly && task.task_type !== "colaborativo") return false;
+    if (f.needsSubtasks && subsForTask.length === 0) return false;
+    return true;
+  });
+}
+
+function PopupTaskPicker({ profiles, tasks, subtasks, selected, onToggleTask, onToggleField, onApplyToAll }) {
+  const [openMember, setOpenMember] = useState(null);
+  const [openFieldsFor, setOpenFieldsFor] = useState(null);
+  const atLimit = selected.length >= POPUP_TASK_LIMIT;
 
   return (
     <div>
       <div className="flex items-center justify-between">
         <label className="font-mono text-[10px] uppercase tracking-widest flex items-center gap-1.5" style={{ color: C.inkSoft }}><Link2 size={12} /> Referenciar pendientes (opcional)</label>
-        <span className="font-mono text-[10px]" style={{ color: atLimit ? C.urgent : C.inkSoft }}>{selectedIds.length}/{POPUP_TASK_LIMIT}</span>
+        <span className="font-mono text-[10px]" style={{ color: atLimit ? C.urgent : C.inkSoft }}>{selected.length}/{POPUP_TASK_LIMIT}</span>
       </div>
-      <div style={{ borderColor: C.hairline }} className="border mt-1.5 max-h-56 overflow-y-auto">
+      <div style={{ borderColor: C.hairline }} className="border mt-1.5 max-h-72 overflow-y-auto">
         {profiles.map((p) => {
           const memberTasks = tasks.filter((t) => taskBelongsToMember(t, p.id, subtasks));
-          const open = openId === p.id;
-          const pickedHere = memberTasks.filter((t) => selectedIds.includes(t.id)).length;
+          const open = openMember === p.id;
+          const pickedHere = memberTasks.filter((t) => selected.some((s) => s.id === t.id)).length;
           return (
             <div key={p.id} style={{ borderColor: C.hairline }} className="border-b last:border-b-0">
-              <button type="button" onClick={() => setOpenId(open ? null : p.id)} className="w-full text-left px-2.5 py-2 flex items-center justify-between">
+              <button type="button" onClick={() => setOpenMember(open ? null : p.id)} className="w-full text-left px-2.5 py-2 flex items-center justify-between">
                 <span className="text-xs" style={{ color: C.ink }}>{p.name}{pickedHere > 0 && <span className="ml-1.5" style={{ color: C.signal }}>({pickedHere})</span>}</span>
                 <span className="flex items-center gap-1.5"><span className="font-mono text-[10px]" style={{ color: C.inkSoft }}>{memberTasks.length}</span><ChevronDown size={12} style={{ color: C.inkSoft, transform: open ? "rotate(180deg)" : "none" }} /></span>
               </button>
@@ -139,13 +162,34 @@ function PopupTaskPicker({ profiles, tasks, subtasks, selectedIds, onToggle }) {
                 <div className="px-2.5 pb-2 flex flex-col gap-1">
                   {memberTasks.length === 0 && <div className="text-[11px]" style={{ color: C.inkSoft }}>Sin pendientes.</div>}
                   {memberTasks.map((t) => {
-                    const checked = selectedIds.includes(t.id);
+                    const entry = selected.find((s) => s.id === t.id);
+                    const checked = !!entry;
                     const disabled = !checked && atLimit;
+                    const subsForTask = subtasks.filter((s) => s.task_id === t.id);
+                    const fieldsAvailable = applicablePopupFields(t, subsForTask);
+                    const fieldsOpen = openFieldsFor === t.id;
                     return (
-                      <label key={t.id} className="flex items-start gap-2 text-xs" style={{ color: disabled ? C.inkSoft : C.ink, opacity: disabled ? 0.5 : 1 }}>
-                        <input type="checkbox" checked={checked} disabled={disabled} onChange={() => onToggle(t.id)} className="mt-0.5" />
-                        <span>{t.title} <span className="font-mono text-[10px]" style={{ color: C.inkSoft }}>· {t.status}</span></span>
-                      </label>
+                      <div key={t.id}>
+                        <div className="flex items-start gap-2 text-xs" style={{ color: disabled ? C.inkSoft : C.ink, opacity: disabled ? 0.5 : 1 }}>
+                          <input type="checkbox" checked={checked} disabled={disabled} onChange={() => onToggleTask(t.id)} className="mt-0.5" />
+                          <span className="flex-1">{t.title} <span className="font-mono text-[10px]" style={{ color: C.inkSoft }}>· {t.status}</span></span>
+                          {checked && (
+                            <button type="button" onClick={() => setOpenFieldsFor(fieldsOpen ? null : t.id)} title="Elegir qué mostrar">
+                              <Eye size={13} style={{ color: fieldsOpen ? C.signal : C.inkSoft }} />
+                            </button>
+                          )}
+                        </div>
+                        {checked && fieldsOpen && (
+                          <div style={{ borderColor: C.hairline, background: C.panel }} className="border ml-5 mt-1 mb-1 p-2 flex flex-col gap-1">
+                            {fieldsAvailable.map((f) => (
+                              <label key={f.key} className="flex items-center gap-1.5 text-[11px]" style={{ color: C.ink }}>
+                                <input type="checkbox" checked={entry.fields.includes(f.key)} onChange={() => onToggleField(t.id, f.key)} />
+                                {f.label}
+                              </label>
+                            ))}
+                          </div>
+                        )}
+                      </div>
                     );
                   })}
                 </div>
@@ -154,7 +198,10 @@ function PopupTaskPicker({ profiles, tasks, subtasks, selectedIds, onToggle }) {
           );
         })}
       </div>
-      <p className="text-[11px] mt-1" style={{ color: C.inkSoft }}>Salen como avisos clickeables en el pop up — máximo {POPUP_TASK_LIMIT}.</p>
+      {selected.length > 1 && (
+        <button type="button" onClick={onApplyToAll} style={{ borderColor: C.hairline, color: C.ink }} className="border px-2.5 py-1.5 text-xs mt-1.5">Aplicar lo del primero a todos</button>
+      )}
+      <p className="text-[11px] mt-1" style={{ color: C.inkSoft }}>Salen como pendientes desplegables dentro del pop up — máximo {POPUP_TASK_LIMIT}. El ojo elige qué mostrar de cada uno.</p>
     </div>
   );
 }
@@ -541,7 +588,7 @@ export default function Dashboard() {
       title: form.title, description: form.description, image_url: imageUrl,
       scheduled_date: form.scheduledDate, scheduled_time: form.scheduledTime,
       target_user_ids: form.targetUserIds || [], replicate_notification: !!form.replicateNotification, only_notification: !!form.onlyNotification,
-      related_task_ids: form.taskIds || [], created_by: profile.id,
+      related_tasks: form.relatedTasks || [], created_by: profile.id,
     });
     setShowNew(false);
     return { uploadError };
@@ -570,7 +617,7 @@ export default function Dashboard() {
   };
 
   const finalizeTask = async (task) => {
-    await supabase.from("tasks").update({ status: "Finalizado" }).eq("id", task.id);
+    await supabase.from("tasks").update({ status: "Finalizado", finalized_at: new Date().toISOString() }).eq("id", task.id);
     await addHistory(task.id, `${profile.name} finalizó el pendiente`);
     await notifyFollowers(task, `${profile.name} finalizó "${task.title}"`);
     await supabase.from("finalized_log").insert({ user_id: task.assigned_to_id || task.requested_by_id, task_title: task.title });
@@ -578,7 +625,7 @@ export default function Dashboard() {
   };
 
   const deliverTask = async (task) => {
-    await supabase.from("tasks").update({ status: "Entregado" }).eq("id", task.id);
+    await supabase.from("tasks").update({ status: "Entregado", delivered_at: new Date().toISOString() }).eq("id", task.id);
     await addHistory(task.id, `${profile.name} marcó como entregado`);
     await notifyFollowers(task, `${profile.name} marcó como entregado "${task.title}"`);
     await refreshSelected(task.id);
@@ -622,7 +669,8 @@ export default function Dashboard() {
   };
 
   const updateSubtaskStatus = async (subtask, status) => {
-    await supabase.from("subtasks").update({ status }).eq("id", subtask.id);
+    const patch = status === "Entregado" ? { status, delivered_at: new Date().toISOString() } : { status };
+    await supabase.from("subtasks").update(patch).eq("id", subtask.id);
     if (status === "Entregado") {
       const task = tasks.find((t) => t.id === subtask.task_id);
       if (task && task.requested_by_id && task.requested_by_id !== profile.id) {
@@ -782,7 +830,7 @@ export default function Dashboard() {
       )}
 
       {showNew && <NewTaskForm onClose={() => setShowNew(false)} onCreate={createTask} onCreatePopup={createPopup} profiles={assignableProfiles} profile={profile} isAdmin={isAdmin} tasks={tasks} subtasks={subtasks} />}
-      {popupQueue[0] && <PopupModal popup={popupQueue[0]} onClose={dismissPopup} tasks={tasks} onOpenTask={(taskId) => { const t = tasks.find((x) => x.id === taskId); if (t) { dismissPopup(); setSelected(t); } }} />}
+      {popupQueue[0] && <PopupModal popup={popupQueue[0]} onClose={dismissPopup} tasks={tasks} subtasks={subtasks} profiles={profiles} onFinalizeTask={finalizeTask} />}
       {selected && <TaskDetail task={selected} onClose={() => setSelected(null)} onUpdate={updateTask} onDelete={deleteTask} onFinalize={finalizeTask} onDeliver={deliverTask} profiles={profiles} assignableProfiles={assignableProfiles} profile={profile} notify={notify} subtasks={subtasks.filter((s) => s.task_id === selected.id)} onAddSubtask={addSubtask} onUpdateSubtaskStatus={updateSubtaskStatus} viewerIsGerente={!!viewingAs && !isAdmin} onCommentsRead={reloadMyCommentReads} />}
       {showTeam && <TeamPanel onClose={() => setShowTeam(false)} profiles={assignableProfiles} tasks={tasks} />}
       {showActivity && <ActivityPanel onClose={() => setShowActivity(false)} profile={profile} router={router} />}
@@ -863,10 +911,22 @@ function NewTaskForm({ onClose, onCreate, onCreatePopup, profiles, profile, isAd
   const [popupTime, setPopupTime] = useState(""), [popupTargetIds, setPopupTargetIds] = useState([]);
   const [replicateNotification, setReplicateNotification] = useState(false), [onlyNotification, setOnlyNotification] = useState(false);
   const [popupImageError, setPopupImageError] = useState(""), [popupSaving, setPopupSaving] = useState(false);
-  const [popupTaskIds, setPopupTaskIds] = useState([]);
+  const [popupTasks, setPopupTasks] = useState([]); // [{ id, fields: string[] }]
 
   const togglePopupTarget = (id) => setPopupTargetIds((prev) => prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]);
-  const togglePopupTask = (id) => setPopupTaskIds((prev) => prev.includes(id) ? prev.filter((x) => x !== id) : prev.length >= POPUP_TASK_LIMIT ? prev : [...prev, id]);
+  const togglePopupTask = (id) => setPopupTasks((prev) => prev.some((s) => s.id === id) ? prev.filter((s) => s.id !== id) : prev.length >= POPUP_TASK_LIMIT ? prev : [...prev, { id, fields: [] }]);
+  const togglePopupTaskField = (id, key) => setPopupTasks((prev) => prev.map((s) => s.id === id ? { ...s, fields: s.fields.includes(key) ? s.fields.filter((k) => k !== key) : [...s.fields, key] } : s));
+  const applyPopupFieldsToAll = () => setPopupTasks((prev) => {
+    if (prev.length < 2) return prev;
+    const base = prev[0].fields;
+    return prev.map((s, i) => {
+      if (i === 0) return s;
+      const t = tasks.find((x) => x.id === s.id);
+      const subsForTask = subtasks.filter((x) => x.task_id === s.id);
+      const allowed = new Set(applicablePopupFields(t, subsForTask).map((f) => f.key));
+      return { ...s, fields: base.filter((k) => allowed.has(k)) };
+    });
+  });
 
   const individualAssignable = profiles.filter((p) => p.id !== profile.id);
 
@@ -946,7 +1006,7 @@ function NewTaskForm({ onClose, onCreate, onCreatePopup, profiles, profile, isAd
     setPopupSaving(true);
     const result = await onCreatePopup({
       title: popupTitle, description: popupDesc, scheduledDate: popupDate, scheduledTime: popupTime || null,
-      targetUserIds: popupTargetIds, replicateNotification, onlyNotification, taskIds: popupTaskIds,
+      targetUserIds: popupTargetIds, replicateNotification, onlyNotification, relatedTasks: popupTasks,
       imageFile: onlyNotification ? null : popupImage,
     });
     setPopupSaving(false);
@@ -988,7 +1048,7 @@ function NewTaskForm({ onClose, onCreate, onCreatePopup, profiles, profile, isAd
               </div>
               <p className="text-[11px] mt-1" style={{ color: C.inkSoft }}>Sin nadie seleccionado = le sale a todo el equipo.</p>
             </div>
-            <PopupTaskPicker profiles={profiles} tasks={tasks} subtasks={subtasks} selectedIds={popupTaskIds} onToggle={togglePopupTask} />
+            <PopupTaskPicker profiles={profiles} tasks={tasks} subtasks={subtasks} selected={popupTasks} onToggleTask={togglePopupTask} onToggleField={togglePopupTaskField} onApplyToAll={applyPopupFieldsToAll} />
             {!onlyNotification && (
               <div>
                 <label className="font-mono text-[10px] uppercase tracking-widest flex items-center gap-1.5" style={{ color: C.inkSoft }}><ImageIcon size={12} /> Imagen, GIF o video (opcional)</label>
@@ -1284,8 +1344,20 @@ function PopupEditForm({ popup, profiles, tasks, subtasks, onClose, onSaved }) {
   const [scheduledDate, setScheduledDate] = useState(popup.scheduled_date || todayISO());
   const [scheduledTime, setScheduledTime] = useState(popup.scheduled_time ? popup.scheduled_time.slice(0, 5) : "");
   const [targetUserIds, setTargetUserIds] = useState(popup.target_user_ids || []);
-  const [taskIds, setTaskIds] = useState(popup.related_task_ids || []);
-  const toggleTask = (id) => setTaskIds((prev) => prev.includes(id) ? prev.filter((x) => x !== id) : prev.length >= POPUP_TASK_LIMIT ? prev : [...prev, id]);
+  const [popupTasks, setPopupTasks] = useState(popup.related_tasks || []); // [{ id, fields: string[] }]
+  const toggleTask = (id) => setPopupTasks((prev) => prev.some((s) => s.id === id) ? prev.filter((s) => s.id !== id) : prev.length >= POPUP_TASK_LIMIT ? prev : [...prev, { id, fields: [] }]);
+  const toggleTaskField = (id, key) => setPopupTasks((prev) => prev.map((s) => s.id === id ? { ...s, fields: s.fields.includes(key) ? s.fields.filter((k) => k !== key) : [...s.fields, key] } : s));
+  const applyFieldsToAll = () => setPopupTasks((prev) => {
+    if (prev.length < 2) return prev;
+    const base = prev[0].fields;
+    return prev.map((s, i) => {
+      if (i === 0) return s;
+      const t = tasks.find((x) => x.id === s.id);
+      const subsForTask = subtasks.filter((x) => x.task_id === s.id);
+      const allowed = new Set(applicablePopupFields(t, subsForTask).map((f) => f.key));
+      return { ...s, fields: base.filter((k) => allowed.has(k)) };
+    });
+  });
   const [replicateNotification, setReplicateNotification] = useState(!!popup.replicate_notification);
   const [onlyNotification, setOnlyNotification] = useState(!!popup.only_notification);
   const [imageFile, setImageFile] = useState(null);
@@ -1335,7 +1407,7 @@ function PopupEditForm({ popup, profiles, tasks, subtasks, onClose, onSaved }) {
       title: title.trim(), description, image_url: imageUrl,
       scheduled_date: scheduledDate, scheduled_time: scheduledTime || null,
       target_user_ids: targetUserIds, replicate_notification: replicateNotification, only_notification: onlyNotification,
-      related_task_ids: taskIds,
+      related_tasks: popupTasks,
     }).eq("id", popup.id);
     // Ya reemplazado por el nuevo archivo/link — borra el viejo del bucket para no dejar basura.
     if (replacingMedia && !uploadError && oldPath) await supabase.storage.from("popups").remove([oldPath]);
@@ -1377,7 +1449,7 @@ function PopupEditForm({ popup, profiles, tasks, subtasks, onClose, onSaved }) {
             </div>
             <p className="text-[11px] mt-1" style={{ color: C.inkSoft }}>Sin nadie seleccionado = le sale a todo el equipo.</p>
           </div>
-          <PopupTaskPicker profiles={profiles} tasks={tasks} subtasks={subtasks} selectedIds={taskIds} onToggle={toggleTask} />
+          <PopupTaskPicker profiles={profiles} tasks={tasks} subtasks={subtasks} selected={popupTasks} onToggleTask={toggleTask} onToggleField={toggleTaskField} onApplyToAll={applyFieldsToAll} />
           {popup.image_url && !imageFile && !onlyNotification && (
             <PopupMediaPreview url={popup.image_url} maxHeight={160} />
           )}
@@ -1418,11 +1490,117 @@ function PopupEditForm({ popup, profiles, tasks, subtasks, onClose, onSaved }) {
   );
 }
 
-function PopupModal({ popup, onClose, tasks, onOpenTask }) {
-  const relatedTasks = (popup.related_task_ids || []).map((id) => tasks.find((t) => t.id === id)).filter(Boolean);
+function canFinalizeInPopup(task, subsForTask) {
+  if (task.status === "Finalizado") return false;
+  if (subsForTask.length > 0) return subsForTask.every((s) => s.status === "Entregado");
+  return task.status === "Entregado";
+}
+
+function PopupTaskBreakdown({ task, fields, profiles, subtasks, onFinalizeTask }) {
+  const [busy, setBusy] = useState(false);
+  const [justFinalized, setJustFinalized] = useState(false);
+  const subsForTask = subtasks.filter((s) => s.task_id === task.id);
+  const hasSubtasks = subsForTask.length > 0;
+  const isColaborativo = task.task_type === "colaborativo";
+  const coRequesterNames = (task.co_requester_names || []).length > 0 ? task.co_requester_names : (task.responsible_name ? [task.responsible_name] : []);
+  const teamNames = profiles.filter((p) => (task.team_member_ids || []).includes(p.id)).map((p) => p.name);
+  const deliveredCount = subsForTask.filter((s) => s.status === "Entregado").length;
+  const canFinalize = fields.includes("finalize") && canFinalizeInPopup(task, subsForTask);
+  const isFinalized = task.status === "Finalizado" || justFinalized;
+  const showDownload = fields.includes("finalize") && isFinalized;
+  const fmtDateTime = (iso) => iso ? new Date(iso).toLocaleDateString("es-MX", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" }) : null;
+
+  const handleFinalize = async () => {
+    setBusy(true);
+    await onFinalizeTask(task);
+    setJustFinalized(true);
+    setBusy(false);
+  };
+
+  const handleDownload = async () => {
+    const { data: history } = await supabase.from("task_history").select("*").eq("task_id", task.id).order("created_at", { ascending: false });
+    const { data: comments } = await supabase.from("task_comments").select("*").eq("task_id", task.id).order("created_at");
+    const lines = [
+      `Pendiente: ${task.title}`, `Categoría: ${task.category}`,
+      `Solicita: ${task.requested_by}${coRequesterNames.length ? " + " + coRequesterNames.join(", ") : ""}`,
+      isColaborativo ? `Equipo: ${teamNames.join(", ")}` : `Asignado a: ${task.assigned_to_name}`,
+      `Deadline: ${fmtDate(task.deadline)}`, `Estado final: ${task.status}`, "", "--- Historial ---",
+      ...(history || []).slice().reverse().map((h) => `[${new Date(h.created_at).toLocaleString("es-MX")}] ${h.text}`),
+      "", "--- Comentarios ---",
+      ...(comments || []).map((c) => `[${new Date(c.created_at).toLocaleString("es-MX")}] ${c.author_name}: ${c.text}`),
+    ];
+    const blob = new Blob([lines.join("\n")], { type: "text/plain" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url; a.download = `${task.title.replace(/[^a-z0-9]/gi, "_")}.txt`;
+    a.click(); URL.revokeObjectURL(url);
+  };
+
+  return (
+    <div style={{ borderColor: C.hairline, background: C.panel }} className="border-t px-3 py-2.5 flex flex-col gap-2.5 text-xs">
+      {fields.includes("requester") && (
+        <div><div className="font-mono text-[10px] uppercase tracking-widest" style={{ color: C.inkSoft }}>Solicitante/s</div><div style={{ color: C.ink }}>{task.requested_by}{coRequesterNames.length ? ` + ${coRequesterNames.join(", ")}` : ""}</div></div>
+      )}
+      {fields.includes("assignee") && !isColaborativo && (
+        <div><div className="font-mono text-[10px] uppercase tracking-widest" style={{ color: C.inkSoft }}>Asignado</div><div style={{ color: C.ink }}>{task.assigned_to_name || "—"}</div></div>
+      )}
+      {fields.includes("team") && isColaborativo && (
+        <div><div className="font-mono text-[10px] uppercase tracking-widest" style={{ color: C.inkSoft }}>Equipo de trabajo</div><div style={{ color: C.ink }}>{teamNames.join(", ") || "—"}</div></div>
+      )}
+      {fields.includes("description") && task.description && (
+        <div><div className="font-mono text-[10px] uppercase tracking-widest" style={{ color: C.inkSoft }}>Descripción</div><div style={{ color: C.ink }} className="whitespace-pre-wrap break-words">{renderWithLinks(task.description, C.signal)}</div></div>
+      )}
+      {fields.includes("status") && (
+        <div><div className="font-mono text-[10px] uppercase tracking-widest" style={{ color: C.inkSoft }}>Estado</div><div style={{ color: C.ink }}>{task.status}</div></div>
+      )}
+      {fields.includes("generalStatus") && hasSubtasks && (
+        <div><div className="font-mono text-[10px] uppercase tracking-widest" style={{ color: C.inkSoft }}>Estado general</div><div style={{ color: C.ink }}>{task.status} ({deliveredCount}/{subsForTask.length} subtareas entregadas)</div></div>
+      )}
+      {fields.includes("requestedDate") && (
+        <div><div className="font-mono text-[10px] uppercase tracking-widest" style={{ color: C.inkSoft }}>Fecha de solicitud</div><div style={{ color: C.ink }}>{fmtDate((task.created_at || "").slice(0, 10))}</div></div>
+      )}
+      {fields.includes("deadline") && (
+        <div><div className="font-mono text-[10px] uppercase tracking-widest" style={{ color: C.inkSoft }}>Fecha de deadline</div><div style={{ color: C.ink }}>{fmtDate(task.deadline)}</div></div>
+      )}
+      {fields.includes("deliveredDate") && (
+        <div>
+          <div className="font-mono text-[10px] uppercase tracking-widest" style={{ color: C.inkSoft }}>Fecha de entregado</div>
+          {hasSubtasks ? (
+            <div className="flex flex-col gap-0.5 mt-0.5">
+              {subsForTask.map((s) => <div key={s.id} style={{ color: C.ink }}>{s.title}: {fmtDateTime(s.delivered_at) || "aún no entregada"}</div>)}
+            </div>
+          ) : (
+            <div style={{ color: C.ink }}>{fmtDateTime(task.delivered_at) || "aún no entregado"}</div>
+          )}
+        </div>
+      )}
+      {fields.includes("subtasksList") && hasSubtasks && (
+        <div>
+          <div className="font-mono text-[10px] uppercase tracking-widest" style={{ color: C.inkSoft }}>Subtareas ({deliveredCount}/{subsForTask.length})</div>
+          <div className="flex flex-col gap-0.5 mt-0.5">
+            {subsForTask.map((s) => <div key={s.id} style={{ color: C.ink }}>{s.title} — {s.assigned_to_name} · {s.status}</div>)}
+          </div>
+        </div>
+      )}
+      {canFinalize && (
+        <button onClick={handleFinalize} disabled={busy} style={{ background: C.signal, color: "#fff" }} className="px-3 py-1.5 text-xs disabled:opacity-60">{busy ? "Finalizando..." : "Finalizar pendiente"}</button>
+      )}
+      {showDownload && (
+        <button onClick={handleDownload} style={{ borderColor: C.hairline, color: C.ink }} className="border px-3 py-1.5 text-xs flex items-center justify-center gap-1.5"><Download size={12} /> Descargar historial</button>
+      )}
+    </div>
+  );
+}
+
+function PopupModal({ popup, onClose, tasks, subtasks, profiles, onFinalizeTask }) {
+  const [openTaskId, setOpenTaskId] = useState(null);
+  const relatedEntries = (popup.related_tasks || [])
+    .map((entry) => ({ entry, task: tasks.find((t) => t.id === entry.id) }))
+    .filter((x) => x.task);
+
   return (
     <div className="fixed inset-0 z-[60] flex items-center justify-center p-4" style={{ background: "rgba(20,24,31,0.7)" }}>
-      <div style={{ background: C.paper, borderColor: C.hairline }} className="w-full max-w-sm border relative overflow-hidden">
+      <div style={{ background: C.paper, borderColor: C.hairline }} className="w-full max-w-sm border relative overflow-hidden max-h-[90vh] overflow-y-auto">
         <button onClick={onClose} style={{ background: C.paper }} className="absolute top-3 right-3 z-10 p-1 rounded-full">
           <X size={18} style={{ color: C.inkSoft }} />
         </button>
@@ -1433,15 +1611,23 @@ function PopupModal({ popup, onClose, tasks, onOpenTask }) {
           </div>
           <h2 style={{ color: C.ink, fontFamily: "Georgia, serif" }} className="text-lg mb-2">{popup.title}</h2>
           {popup.description && <p className="text-sm whitespace-pre-wrap break-words" style={{ color: C.ink }}>{renderWithLinks(popup.description, C.signal)}</p>}
-          {relatedTasks.length > 0 && (
+          {relatedEntries.length > 0 && (
             <div className="mt-3 flex flex-col gap-1.5">
               <div className="font-mono text-[10px] uppercase tracking-widest" style={{ color: C.inkSoft }}>Pendientes relacionados</div>
-              {relatedTasks.map((t) => (
-                <button key={t.id} onClick={() => onOpenTask(t.id)} style={{ borderColor: C.hairline }} className="border px-2.5 py-1.5 text-left flex items-center justify-between gap-2">
-                  <span className="text-xs truncate" style={{ color: C.ink }}>{t.title}</span>
-                  <ChevronRight size={12} style={{ color: C.inkSoft, flexShrink: 0 }} />
-                </button>
-              ))}
+              {relatedEntries.map(({ entry, task }) => {
+                const open = openTaskId === task.id;
+                return (
+                  <div key={task.id} style={{ borderColor: C.hairline }} className="border">
+                    <button onClick={() => setOpenTaskId(open ? null : task.id)} className="w-full px-2.5 py-1.5 text-left flex items-center justify-between gap-2">
+                      <span className="text-xs truncate" style={{ color: C.ink }}>{task.title}</span>
+                      <ChevronDown size={12} style={{ color: C.inkSoft, flexShrink: 0, transform: open ? "rotate(180deg)" : "none" }} />
+                    </button>
+                    {open && (entry.fields || []).length > 0 && (
+                      <PopupTaskBreakdown task={task} fields={entry.fields} profiles={profiles} subtasks={subtasks} onFinalizeTask={onFinalizeTask} />
+                    )}
+                  </div>
+                );
+              })}
             </div>
           )}
           <button onClick={onClose} style={{ background: C.spine, color: C.paper }} className="mt-4 px-4 py-2 text-sm w-full">Entendido</button>
