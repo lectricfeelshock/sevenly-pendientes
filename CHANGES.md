@@ -58,6 +58,73 @@ g. **Buscador (lupa) dentro de Biblioteca**, que busque solo por:
 h. **La lupa del dashboard** (solicitud #1) también debe poder
    encontrar estos recursos de Biblioteca entre sus resultados.
 
+### 3. Pestañas en Popups del admin: Nuevos / Programados / Historial
+Dentro del apartado "Popups" del dashboard de admin, agregar 3 filtros
+(pestañas):
+
+- **Nuevos**: popups que todavía se pueden editar y aún no tienen fecha
+  de programación — sobre todo los que se le piden a Claude para
+  anunciar algo o alguna actualización, listos para que el admin los
+  revise y programe después.
+- **Programados**: popups que ya tienen fecha/hora asignada pero aún no
+  han salido.
+- **Historial**: popups que ya salieron (ya se mostraron a la gente).
+
+### 4. Recordatorios y mecánica de "finalizar pendiente" para el solicitante
+Varias piezas relacionadas con lo que pasa después de que le dan
+"Entregado" a un pendiente, para que los solicitantes no se olviden de
+finalizarlo. Aplica a todos los solicitantes (no solo admin).
+
+a. **Notificación del botón "Avisar a solicitante"** (en el desglose del
+   pendiente): que la notificación diga, título: `Te entregaron un
+   pendiente`; descripción: `(Nombre del que mandó el aviso) ya entregó
+   su pendiente, revísalo y dale finalizado. Al finalizar pendientes
+   podrá sumarle al registro personal de (nombre del que mandó el
+   aviso)`.
+
+b. **Si nadie le dio clic a "Avisar a solicitante"**, y el pendiente
+   sigue sin finalizarse, que le llegue una notificación al solicitante
+   a las 10 am del día siguiente — título: `¿Pudiste revisarlo?`;
+   descripción: `Tienes un pendiente entregado. Si ya todo ok,
+   finalízalo`. Esta misma notificación de las 10 am también le debe
+   llegar a quien sí le avisaron pero que aún no ha finalizado. Al darle
+   clic a cualquiera de las dos notificaciones (la de "Te entregaron un
+   pendiente" o la de "¿Pudiste revisarlo?"), debe abrir directo ese
+   pendiente sin finalizar.
+
+c. **A los 4 días hábiles de entregado** (hábiles = lunes a viernes, sin
+   contar sábado ni domingo) sin finalizarse, mostrarle al solicitante un
+   pop up — título: `¿Ya los pudiste revisar?`; descripción: `Tienes
+   estos pendientes sin finalizar, Recuerda que finalizarlos ayuda a
+   llevar el control del progreso de tu equipo de trabajo.` — seguido de
+   la lista de sus pendientes entregados sin finalizar. Cada uno de la
+   lista se puede abrir en un desglose con: título, descripción,
+   asignado (o el equipo completo si fue colaborativo), cuándo se
+   solicitó, cuándo se entregó (si tuvo subtareas — incluidos los
+   colaborativos — mostrar cuándo se entregó cada subtarea), y un botón
+   "Finalizar pendiente". Al finalizarlo se desbloquea el botón
+   "Descargar historial" que se ve en ese mismo desglose (hoy bloqueado
+   hasta finalizar). Este pop up se puede cerrar/ignorar sin hacer nada.
+
+d. **Auto-finalizado a los 7 días de entregado**: como el pop up del
+   punto (c) se puede ignorar, que a los 7 días de entregado sin que el
+   solicitante lo finalice, el pendiente se finalice automáticamente y
+   se elimine. *(Ojo: confirmar qué significa exactamente "se elimine"
+   aquí — si es borrar el registro del pendiente por completo, o solo
+   quitarlo de la lista de pendientes por finalizar/de los recordatorios
+   — antes de implementarlo, para no perder historial por accidente.)*
+
+e. **Cómo cuentan estos pendientes rezagados**: si un pendiente se
+   entrega un día pero el solicitante lo finaliza hasta después, debe
+   sumar a "Mi actividad" de quien lo entregó el día en que el
+   solicitante por fin lo finaliza (no el día que se entregó). Pero al
+   descargar la lista/reporte de finalizados, ese pendiente debe
+   aparecer con la fecha en que originalmente se entregó (no la fecha en
+   que se finalizó), con una etiqueta `Rezagado`. Esto solo aplica si el
+   pendiente se quedó en "Entregado" todo ese tiempo (si en el camino
+   regresó a "En progreso" y se volvió a entregar, ya no cuenta como
+   rezagado).
+
 ## Historial (aplicadas)
 
 <!-- Aquí se van moviendo las solicitudes ya aplicadas, con fecha y commit. -->
