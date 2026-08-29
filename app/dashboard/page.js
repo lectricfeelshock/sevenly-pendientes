@@ -1558,7 +1558,7 @@ function PopupTaskBreakdown({ task, fields, profiles, subtasks, onFinalizeTask }
         <div><div className="font-mono text-[10px] uppercase tracking-widest" style={{ color: C.inkSoft }}>Estado general</div><div style={{ color: C.ink }}>{task.status} ({deliveredCount}/{subsForTask.length} subtareas entregadas)</div></div>
       )}
       {fields.includes("requestedDate") && (
-        <div><div className="font-mono text-[10px] uppercase tracking-widest" style={{ color: C.inkSoft }}>Fecha de solicitud</div><div style={{ color: C.ink }}>{fmtDate((task.created_at || "").slice(0, 10))}</div></div>
+        <div><div className="font-mono text-[10px] uppercase tracking-widest" style={{ color: C.inkSoft }}>Fecha de solicitud</div><div style={{ color: C.ink }}>{fmtDate(task.request_date)}</div></div>
       )}
       {fields.includes("deadline") && (
         <div><div className="font-mono text-[10px] uppercase tracking-widest" style={{ color: C.inkSoft }}>Fecha de deadline</div><div style={{ color: C.ink }}>{fmtDate(task.deadline)}</div></div>
