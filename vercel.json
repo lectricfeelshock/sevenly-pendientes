@@ -2,7 +2,6 @@
   "crons": [
     { "path": "/api/cleanup-notifications", "schedule": "0 9 * * *" },
     { "path": "/api/generate-recurring", "schedule": "0 8 * * *" },
-    { "path": "/api/cleanup-watching", "schedule": "0 10 * * *" },
-    { "path": "/api/cleanup-popups", "schedule": "0 9 * * *" }
+    { "path": "/api/cleanup-watching", "schedule": "0 10 * * *" }
   ]
 }
