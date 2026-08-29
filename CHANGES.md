@@ -69,6 +69,7 @@ Dentro del apartado "Popups" del dashboard de admin, agregar 3 filtros
 - **Programados**: popups que ya tienen fecha/hora asignada pero aún no
   han salido.
 - **Historial**: popups que ya salieron (ya se mostraron a la gente).
+  Estos se borran automáticamente pasando 3 días desde que salieron.
 
 ### 4. Recordatorios y mecánica de "finalizar pendiente" para el solicitante
 Varias piezas relacionadas con lo que pasa después de que le dan
