@@ -83,6 +83,10 @@ function daysUntil(d) {
   return Math.round((dt - now) / 86400000);
 }
 function todayISO() { return new Date().toISOString().slice(0, 10); }
+function isVideoUrl(url) {
+  if (!url) return false;
+  return /\.(mp4|webm|mov|m4v)$/i.test(url.split("?")[0]);
+}
 
 const URL_MATCH_REGEX = /https?:\/\/[^\s]+/g;
 const URL_SPLIT_REGEX = /(https?:\/\/[^\s]+)/;
@@ -450,6 +454,7 @@ export default function Dashboard() {
 
   const createPopup = async (form) => {
     let imageUrl = null;
+    let uploadError = null;
     if (form.imageFile) {
       const ext = (form.imageFile.name.split(".").pop() || "jpg").toLowerCase();
       const path = `${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`;
@@ -457,6 +462,8 @@ export default function Dashboard() {
       if (!upErr) {
         const { data: pub } = supabase.storage.from("popups").getPublicUrl(path);
         imageUrl = pub.publicUrl;
+      } else {
+        uploadError = upErr.message;
       }
     }
     await supabase.from("popups").insert({
@@ -466,6 +473,7 @@ export default function Dashboard() {
       created_by: profile.id,
     });
     setShowNew(false);
+    return { uploadError };
   };
 
   const refreshSelected = async (id) => {
@@ -845,11 +853,17 @@ function NewTaskForm({ onClose, onCreate, onCreatePopup, profiles, profile, isAd
   const handlePopupImage = (e) => {
     const file = e.target.files?.[0] || null;
     setPopupImageError("");
-    if (file && file.size > 2 * 1024 * 1024) {
-      setPopupImageError("La imagen pesa más de 2 MB — comprímela antes de subirla (recomendado: menos de 400 KB).");
-      setPopupImage(null);
-      e.target.value = "";
-      return;
+    if (file) {
+      const isVideo = file.type.startsWith("video/");
+      const maxSize = isVideo ? 15 * 1024 * 1024 : 3 * 1024 * 1024;
+      if (file.size > maxSize) {
+        setPopupImageError(isVideo
+          ? "El video pesa más de 15 MB — comprímelo o acórtalo antes de subirlo (recomendado: menos de 8 MB, 10-15 segundos)."
+          : "El archivo pesa más de 3 MB — comprímelo antes de subirlo (recomendado: menos de 400 KB).");
+        setPopupImage(null);
+        e.target.value = "";
+        return;
+      }
     }
     setPopupImage(file);
   };
@@ -857,8 +871,9 @@ function NewTaskForm({ onClose, onCreate, onCreatePopup, profiles, profile, isAd
   const submitPopup = async () => {
     if (!popupTitle.trim() || !popupDate || popupSaving) return;
     setPopupSaving(true);
-    await onCreatePopup({ title: popupTitle, description: popupDesc, scheduledDate: popupDate, scheduledTime: popupTime || null, targetUserIds: popupTargetIds, replicateNotification, onlyNotification, imageFile: onlyNotification ? null : popupImage });
+    const result = await onCreatePopup({ title: popupTitle, description: popupDesc, scheduledDate: popupDate, scheduledTime: popupTime || null, targetUserIds: popupTargetIds, replicateNotification, onlyNotification, imageFile: onlyNotification ? null : popupImage });
     setPopupSaving(false);
+    if (result?.uploadError) alert(`El pop up se creó, pero el archivo no se pudo subir (${result.uploadError}). Revisa en Supabase que el bucket "popups" permita ese tipo de archivo y tamaño.`);
   };
 
   return (
@@ -898,9 +913,9 @@ function NewTaskForm({ onClose, onCreate, onCreatePopup, profiles, profile, isAd
             </div>
             {!onlyNotification && (
               <div>
-                <label className="font-mono text-[10px] uppercase tracking-widest flex items-center gap-1.5" style={{ color: C.inkSoft }}><ImageIcon size={12} /> Imagen (opcional)</label>
-                <input type="file" accept="image/*" onChange={handlePopupImage} className="text-sm mt-1.5 block" />
-                <p className="text-[11px] mt-1" style={{ color: C.inkSoft }}>Recomendado: 800×450px (horizontal, 16:9), formato JPG o WebP, menos de 400 KB — así carga rápido en celular.</p>
+                <label className="font-mono text-[10px] uppercase tracking-widest flex items-center gap-1.5" style={{ color: C.inkSoft }}><ImageIcon size={12} /> Imagen, GIF o video (opcional)</label>
+                <input type="file" accept="image/*,video/mp4,video/webm,video/quicktime" onChange={handlePopupImage} className="text-sm mt-1.5 block" />
+                <p className="text-[11px] mt-1" style={{ color: C.inkSoft }}>Imagen: 800×450px (16:9), JPG/WebP, menos de 400 KB. Video/GIF: cortos (10-15 seg) y menos de 8 MB — se reproducen solos, sin sonido, al abrir el pop up.</p>
                 {popupImageError && <p className="text-[11px] mt-1" style={{ color: C.urgent }}>{popupImageError}</p>}
                 {popupImage && !popupImageError && <p className="text-[11px] mt-1" style={{ color: C.signal }}>Lista: {popupImage.name}</p>}
               </div>
@@ -1203,11 +1218,17 @@ function PopupEditForm({ popup, profiles, onClose, onSaved }) {
   const handleImage = (e) => {
     const file = e.target.files?.[0] || null;
     setImageError("");
-    if (file && file.size > 2 * 1024 * 1024) {
-      setImageError("La imagen pesa más de 2 MB — comprímela antes de subirla.");
-      setImageFile(null);
-      e.target.value = "";
-      return;
+    if (file) {
+      const isVideo = file.type.startsWith("video/");
+      const maxSize = isVideo ? 15 * 1024 * 1024 : 3 * 1024 * 1024;
+      if (file.size > maxSize) {
+        setImageError(isVideo
+          ? "El video pesa más de 15 MB — comprímelo o acórtalo antes de subirlo."
+          : "El archivo pesa más de 3 MB — comprímelo antes de subirlo.");
+        setImageFile(null);
+        e.target.value = "";
+        return;
+      }
     }
     setImageFile(file);
   };
@@ -1216,6 +1237,7 @@ function PopupEditForm({ popup, profiles, onClose, onSaved }) {
     if (!title.trim() || !scheduledDate || saving) return;
     setSaving(true);
     let imageUrl = popup.image_url || null;
+    let uploadError = null;
     if (imageFile) {
       const ext = (imageFile.name.split(".").pop() || "jpg").toLowerCase();
       const path = `${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`;
@@ -1223,6 +1245,8 @@ function PopupEditForm({ popup, profiles, onClose, onSaved }) {
       if (!upErr) {
         const { data: pub } = supabase.storage.from("popups").getPublicUrl(path);
         imageUrl = pub.publicUrl;
+      } else {
+        uploadError = upErr.message;
       }
     }
     await supabase.from("popups").update({
@@ -1231,6 +1255,7 @@ function PopupEditForm({ popup, profiles, onClose, onSaved }) {
       target_user_ids: targetUserIds, replicate_notification: replicateNotification, only_notification: onlyNotification,
     }).eq("id", popup.id);
     setSaving(false);
+    if (uploadError) alert(`Se guardaron los demás cambios, pero el archivo no se pudo subir (${uploadError}). Revisa en Supabase que el bucket "popups" permita ese tipo de archivo y tamaño.`);
     onSaved();
   };
 
@@ -1266,14 +1291,18 @@ function PopupEditForm({ popup, profiles, onClose, onSaved }) {
             <p className="text-[11px] mt-1" style={{ color: C.inkSoft }}>Sin nadie seleccionado = le sale a todo el equipo.</p>
           </div>
           {popup.image_url && !imageFile && !onlyNotification && (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img src={popup.image_url} alt="" className="w-full object-cover" style={{ maxHeight: 160 }} />
+            isVideoUrl(popup.image_url) ? (
+              <video src={popup.image_url} autoPlay loop muted playsInline className="w-full object-cover" style={{ maxHeight: 160 }} />
+            ) : (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img src={popup.image_url} alt="" className="w-full object-cover" style={{ maxHeight: 160 }} />
+            )
           )}
           {!onlyNotification && (
             <div>
-              <label className="font-mono text-[10px] uppercase tracking-widest flex items-center gap-1.5" style={{ color: C.inkSoft }}><ImageIcon size={12} /> Reemplazar imagen (opcional)</label>
-              <input type="file" accept="image/*" onChange={handleImage} className="text-sm mt-1.5 block" />
-              <p className="text-[11px] mt-1" style={{ color: C.inkSoft }}>Recomendado: 800×450px, JPG o WebP, menos de 400 KB.</p>
+              <label className="font-mono text-[10px] uppercase tracking-widest flex items-center gap-1.5" style={{ color: C.inkSoft }}><ImageIcon size={12} /> Reemplazar imagen, GIF o video (opcional)</label>
+              <input type="file" accept="image/*,video/mp4,video/webm,video/quicktime" onChange={handleImage} className="text-sm mt-1.5 block" />
+              <p className="text-[11px] mt-1" style={{ color: C.inkSoft }}>Imagen: 800×450px, JPG/WebP, menos de 400 KB. Video/GIF: menos de 8 MB.</p>
               {imageError && <p className="text-[11px] mt-1" style={{ color: C.urgent }}>{imageError}</p>}
             </div>
           )}
@@ -1314,8 +1343,12 @@ function PopupModal({ popup, onClose }) {
           <X size={18} style={{ color: C.inkSoft }} />
         </button>
         {popup.image_url && (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img src={popup.image_url} alt="" className="w-full object-cover" style={{ maxHeight: 220 }} />
+          isVideoUrl(popup.image_url) ? (
+            <video src={popup.image_url} autoPlay loop muted playsInline className="w-full object-cover" style={{ maxHeight: 220 }} />
+          ) : (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img src={popup.image_url} alt="" className="w-full object-cover" style={{ maxHeight: 220 }} />
+          )
         )}
         <div className="p-5">
           <div className="flex items-center gap-1.5 mb-2 font-mono text-[10px] uppercase tracking-widest" style={{ color: C.inkSoft }}>
