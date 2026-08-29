@@ -93,41 +93,6 @@ function getPopupMedia(url) {
   if (!url) return null;
   const clean = url.split("?")[0].toLowerCase();
   if (/\.(mp4|webm|mov|m4v)$/.test(clean)) return { kind: "video", src: url };
-  if (/\.(gif|png|jpe?g|webp|avif)$/.test(clean)) return { kind: "image", src: url };
-
-  let u;
-  try { u = new URL(url); } catch { return { kind: "image", src: url }; }
-  const host = u.hostname.replace(/^www\./, "");
-
-  if (host === "youtube.com" || host === "m.youtube.com" || host === "youtu.be") {
-    let id = null;
-    if (host === "youtu.be") id = u.pathname.slice(1);
-    else if (u.pathname.startsWith("/shorts/")) id = u.pathname.split("/")[2];
-    else if (u.pathname.startsWith("/embed/")) id = u.pathname.split("/")[2];
-    else id = u.searchParams.get("v");
-    if (!id) return { kind: "image", src: url };
-    return { kind: "youtube", embedUrl: `https://www.youtube.com/embed/${id}?autoplay=1&mute=1&loop=1&playlist=${id}` };
-  }
-
-  if (host === "vimeo.com" || host === "player.vimeo.com") {
-    const match = u.pathname.match(/(\d+)/);
-    if (!match) return { kind: "image", src: url };
-    return { kind: "vimeo", embedUrl: `https://player.vimeo.com/video/${match[1]}?autoplay=1&muted=1&loop=1` };
-  }
-
-  if (host === "drive.google.com") {
-    const match = u.pathname.match(/\/file\/d\/([^/]+)/);
-    const id = match ? match[1] : u.searchParams.get("id");
-    if (!id) return { kind: "image", src: url };
-    return { kind: "drive", embedUrl: `https://drive.google.com/file/d/${id}/preview` };
-  }
-
-  if (host.endsWith("giphy.com")) {
-    const slugMatch = u.pathname.match(/-([a-zA-Z0-9]+)$/);
-    if (host === "giphy.com" && slugMatch) return { kind: "image", src: `https://media.giphy.com/media/${slugMatch[1]}/giphy.gif` };
-    return { kind: "image", src: url };
-  }
-
   return { kind: "image", src: url };
 }
 
@@ -136,13 +101,6 @@ function PopupMediaPreview({ url, maxHeight }) {
   if (!media) return null;
   if (media.kind === "video") {
     return <video src={media.src} autoPlay loop muted playsInline className="w-full object-cover" style={{ maxHeight }} />;
-  }
-  if (media.kind === "youtube" || media.kind === "vimeo" || media.kind === "drive") {
-    return (
-      <div className="w-full" style={{ aspectRatio: "16/9", maxHeight }}>
-        <iframe src={media.embedUrl} className="w-full h-full border-0" allow="autoplay; encrypted-media; picture-in-picture; fullscreen" allowFullScreen />
-      </div>
-    );
   }
   // eslint-disable-next-line @next/next/no-img-element
   return <img src={media.src} alt="" className="w-full object-cover" style={{ maxHeight }} />;
@@ -515,9 +473,7 @@ export default function Dashboard() {
   const createPopup = async (form) => {
     let imageUrl = null;
     let uploadError = null;
-    if (form.mediaLink) {
-      imageUrl = form.mediaLink;
-    } else if (form.imageFile) {
+    if (form.imageFile) {
       const ext = (form.imageFile.name.split(".").pop() || "jpg").toLowerCase();
       const path = `${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`;
       const { error: upErr } = await supabase.storage.from("popups").upload(path, form.imageFile, { cacheControl: "3600", upsert: false });
@@ -854,8 +810,6 @@ function NewTaskForm({ onClose, onCreate, onCreatePopup, profiles, profile, isAd
   const [popupTime, setPopupTime] = useState(""), [popupTargetIds, setPopupTargetIds] = useState([]);
   const [replicateNotification, setReplicateNotification] = useState(false), [onlyNotification, setOnlyNotification] = useState(false);
   const [popupImageError, setPopupImageError] = useState(""), [popupSaving, setPopupSaving] = useState(false);
-  const [popupMediaMode, setPopupMediaMode] = useState("file"); // "file" | "link"
-  const [popupMediaLink, setPopupMediaLink] = useState("");
 
   const togglePopupTarget = (id) => setPopupTargetIds((prev) => prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]);
 
@@ -938,8 +892,7 @@ function NewTaskForm({ onClose, onCreate, onCreatePopup, profiles, profile, isAd
     const result = await onCreatePopup({
       title: popupTitle, description: popupDesc, scheduledDate: popupDate, scheduledTime: popupTime || null,
       targetUserIds: popupTargetIds, replicateNotification, onlyNotification,
-      imageFile: !onlyNotification && popupMediaMode === "file" ? popupImage : null,
-      mediaLink: !onlyNotification && popupMediaMode === "link" ? popupMediaLink.trim() : null,
+      imageFile: onlyNotification ? null : popupImage,
     });
     setPopupSaving(false);
     if (result?.uploadError) alert(`El pop up se creó, pero el archivo no se pudo subir (${result.uploadError}). Revisa en Supabase que el bucket "popups" permita ese tipo de archivo y tamaño.`);
@@ -983,26 +936,10 @@ function NewTaskForm({ onClose, onCreate, onCreatePopup, profiles, profile, isAd
             {!onlyNotification && (
               <div>
                 <label className="font-mono text-[10px] uppercase tracking-widest flex items-center gap-1.5" style={{ color: C.inkSoft }}><ImageIcon size={12} /> Imagen, GIF o video (opcional)</label>
-                <div className="flex items-center gap-1.5 mt-1.5">
-                  {[["file", "Subir archivo"], ["link", "Pegar link"]].map(([key, label]) => (
-                    <button key={key} type="button" onClick={() => setPopupMediaMode(key)}
-                      style={{ borderColor: popupMediaMode === key ? C.signal : C.hairline, background: popupMediaMode === key ? C.signal : "transparent", color: popupMediaMode === key ? "#fff" : C.ink }}
-                      className="border px-2.5 py-1 text-xs">{label}</button>
-                  ))}
-                </div>
-                {popupMediaMode === "file" ? (
-                  <>
-                    <input type="file" accept="image/*,video/mp4,video/webm,video/quicktime" onChange={handlePopupImage} className="text-sm mt-1.5 block" />
-                    <p className="text-[11px] mt-1" style={{ color: C.inkSoft }}>Imagen: 800×450px (16:9), JPG/WebP, menos de 400 KB. Video/GIF: cortos (10-15 seg) y menos de 8 MB — se reproducen solos, sin sonido, al abrir el pop up.</p>
-                    {popupImageError && <p className="text-[11px] mt-1" style={{ color: C.urgent }}>{popupImageError}</p>}
-                    {popupImage && !popupImageError && <p className="text-[11px] mt-1" style={{ color: C.signal }}>Lista: {popupImage.name}</p>}
-                  </>
-                ) : (
-                  <>
-                    <input value={popupMediaLink} onChange={(e) => setPopupMediaLink(e.target.value)} placeholder="https://..." style={{ borderColor: C.hairline, background: C.panel }} className="w-full border px-3 py-2 text-sm mt-1.5 outline-none" />
-                    <p className="text-[11px] mt-1" style={{ color: C.inkSoft }}>Links de YouTube, Vimeo o un archivo directo de video/GIF se reproducen solos y sin sonido al abrir el pop up. Google Drive no siempre reproduce automático (a veces el usuario tiene que darle play).</p>
-                  </>
-                )}
+                <input type="file" accept="image/*,video/mp4,video/webm,video/quicktime" onChange={handlePopupImage} className="text-sm mt-1.5 block" />
+                <p className="text-[11px] mt-1" style={{ color: C.inkSoft }}>Imagen: 800×450px (16:9), JPG/WebP, menos de 400 KB. Video/GIF: cortos (10-15 seg) y menos de 8 MB — se reproducen solos, sin sonido, al abrir el pop up.</p>
+                {popupImageError && <p className="text-[11px] mt-1" style={{ color: C.urgent }}>{popupImageError}</p>}
+                {popupImage && !popupImageError && <p className="text-[11px] mt-1" style={{ color: C.signal }}>Lista: {popupImage.name}</p>}
               </div>
             )}
             <div className="flex flex-col gap-1.5">
@@ -1297,8 +1234,6 @@ function PopupEditForm({ popup, profiles, onClose, onSaved }) {
   const [imageError, setImageError] = useState("");
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState(false);
-  const [mediaMode, setMediaMode] = useState("file"); // "file" | "link"
-  const [mediaLink, setMediaLink] = useState("");
 
   const toggleTarget = (id) => setTargetUserIds((prev) => prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]);
 
@@ -1324,12 +1259,10 @@ function PopupEditForm({ popup, profiles, onClose, onSaved }) {
     if (!title.trim() || !scheduledDate || saving) return;
     setSaving(true);
     const oldPath = popupStoragePath(popup.image_url);
-    const replacingMedia = (mediaMode === "link" && mediaLink.trim()) || (mediaMode === "file" && imageFile);
+    const replacingMedia = !!imageFile;
     let imageUrl = popup.image_url || null;
     let uploadError = null;
-    if (mediaMode === "link" && mediaLink.trim()) {
-      imageUrl = mediaLink.trim();
-    } else if (mediaMode === "file" && imageFile) {
+    if (imageFile) {
       const ext = (imageFile.name.split(".").pop() || "jpg").toLowerCase();
       const path = `${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`;
       const { error: upErr } = await supabase.storage.from("popups").upload(path, imageFile, { cacheControl: "3600", upsert: false });
@@ -1385,31 +1318,15 @@ function PopupEditForm({ popup, profiles, onClose, onSaved }) {
             </div>
             <p className="text-[11px] mt-1" style={{ color: C.inkSoft }}>Sin nadie seleccionado = le sale a todo el equipo.</p>
           </div>
-          {popup.image_url && !imageFile && !mediaLink.trim() && !onlyNotification && (
+          {popup.image_url && !imageFile && !onlyNotification && (
             <PopupMediaPreview url={popup.image_url} maxHeight={160} />
           )}
           {!onlyNotification && (
             <div>
               <label className="font-mono text-[10px] uppercase tracking-widest flex items-center gap-1.5" style={{ color: C.inkSoft }}><ImageIcon size={12} /> Reemplazar imagen, GIF o video (opcional)</label>
-              <div className="flex items-center gap-1.5 mt-1.5">
-                {[["file", "Subir archivo"], ["link", "Pegar link"]].map(([key, label]) => (
-                  <button key={key} type="button" onClick={() => setMediaMode(key)}
-                    style={{ borderColor: mediaMode === key ? C.signal : C.hairline, background: mediaMode === key ? C.signal : "transparent", color: mediaMode === key ? "#fff" : C.ink }}
-                    className="border px-2.5 py-1 text-xs">{label}</button>
-                ))}
-              </div>
-              {mediaMode === "file" ? (
-                <>
-                  <input type="file" accept="image/*,video/mp4,video/webm,video/quicktime" onChange={handleImage} className="text-sm mt-1.5 block" />
-                  <p className="text-[11px] mt-1" style={{ color: C.inkSoft }}>Imagen: 800×450px, JPG/WebP, menos de 400 KB. Video/GIF: menos de 8 MB.</p>
-                  {imageError && <p className="text-[11px] mt-1" style={{ color: C.urgent }}>{imageError}</p>}
-                </>
-              ) : (
-                <>
-                  <input value={mediaLink} onChange={(e) => setMediaLink(e.target.value)} placeholder="https://..." style={{ borderColor: C.hairline, background: C.panel }} className="w-full border px-3 py-2 text-sm mt-1.5 outline-none" />
-                  <p className="text-[11px] mt-1" style={{ color: C.inkSoft }}>YouTube, Vimeo o un link directo a video/GIF se reproducen solos. Google Drive no siempre reproduce automático.</p>
-                </>
-              )}
+              <input type="file" accept="image/*,video/mp4,video/webm,video/quicktime" onChange={handleImage} className="text-sm mt-1.5 block" />
+              <p className="text-[11px] mt-1" style={{ color: C.inkSoft }}>Imagen: 800×450px, JPG/WebP, menos de 400 KB. Video/GIF: menos de 8 MB.</p>
+              {imageError && <p className="text-[11px] mt-1" style={{ color: C.urgent }}>{imageError}</p>}
             </div>
           )}
           <div className="flex flex-col gap-1.5">
@@ -1454,7 +1371,7 @@ function PopupModal({ popup, onClose }) {
             <Megaphone size={12} /> Aviso
           </div>
           <h2 style={{ color: C.ink, fontFamily: "Georgia, serif" }} className="text-lg mb-2">{popup.title}</h2>
-          {popup.description && <p className="text-sm whitespace-pre-wrap" style={{ color: C.ink }}>{popup.description}</p>}
+          {popup.description && <p className="text-sm whitespace-pre-wrap break-words" style={{ color: C.ink }}>{renderWithLinks(popup.description, C.signal)}</p>}
           <button onClick={onClose} style={{ background: C.spine, color: C.paper }} className="mt-4 px-4 py-2 text-sm w-full">Entendido</button>
         </div>
       </div>
@@ -2039,10 +1956,10 @@ function NotificationsPanel({ onClose, notifications, onOpenTask, pushSupported,
         <div className="p-2">
           {notifications.length === 0 && <div className="text-xs px-2 py-4" style={{ color: C.inkSoft }}>Sin notificaciones todavía.</div>}
           {notifications.map((n) => (
-            <button key={n.id} onClick={() => n.task_id && onOpenTask(n.task_id)} style={{ background: n.read ? "transparent" : C.signalSoft }} className="w-full text-left px-3 py-2.5 flex flex-col gap-0.5">
-              <span className="text-sm" style={{ color: C.ink }}>{n.message}</span>
+            <div key={n.id} role={n.task_id ? "button" : undefined} onClick={() => n.task_id && onOpenTask(n.task_id)} style={{ background: n.read ? "transparent" : C.signalSoft, cursor: n.task_id ? "pointer" : "default" }} className="w-full text-left px-3 py-2.5 flex flex-col gap-0.5">
+              <span className="text-sm break-words" style={{ color: C.ink }}>{renderWithLinks(n.message, C.signal)}</span>
               <span className="font-mono text-[10px]" style={{ color: C.inkSoft }}>{new Date(n.created_at).toLocaleDateString("es-MX", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" })}</span>
-            </button>
+            </div>
           ))}
         </div>
       </div>

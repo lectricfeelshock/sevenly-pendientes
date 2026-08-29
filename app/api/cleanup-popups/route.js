@@ -4,12 +4,12 @@ const BUCKET_MARKER = "/storage/v1/object/public/popups/";
 
 // Vercel Cron llama este endpoint una vez al día (ver vercel.json).
 // Los pop ups solo se muestran el día exacto de "scheduled_date" (ver
-// app/dashboard/page.js), así que un día después ya nadie los va a ver.
-// Borra el archivo del bucket "popups" (imagen/gif/video subido) para
-// no dejar storage ocupado con archivos que ya no tienen uso. La fila
-// del pop up se conserva (queda el título/descripción como historial),
-// solo se limpia el archivo. Links externos (YouTube/Drive/etc.) no
-// ocupan nuestro storage, así que se dejan tal cual.
+// app/dashboard/page.js), así que días después ya nadie los va a ver.
+// Se da un margen de 3 días (por si alguien no abre la app justo ese
+// día) y luego se borra el archivo del bucket "popups" (imagen/gif/
+// video subido) para no dejar storage ocupado con archivos que ya no
+// tienen uso. La fila del pop up se conserva (queda el título/
+// descripción como historial), solo se limpia el archivo.
 export async function GET(req) {
   const auth = req.headers.get("authorization");
   if (process.env.CRON_SECRET && auth !== `Bearer ${process.env.CRON_SECRET}`) {
@@ -21,7 +21,7 @@ export async function GET(req) {
     process.env.SUPABASE_SERVICE_ROLE_KEY
   );
 
-  const cutoff = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+  const cutoff = new Date(Date.now() - 3 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
   const { data: expired, error: selErr } = await supabaseAdmin
     .from("popups")
     .select("id, image_url")
