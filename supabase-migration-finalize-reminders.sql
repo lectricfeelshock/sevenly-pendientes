@@ -27,9 +27,9 @@ alter table popups add column if not exists auto_generated boolean not null defa
 -- el solicitante finaliza antes de que salga.
 alter table tasks add column if not exists finalize_reminder_popup_id uuid references popups(id) on delete set null;
 
--- ---------- Registro de finalizados: cuándo se entregó y si quedó "rezagado" ----------
--- rezagado = se finalizó en un día distinto al que se entregó (el solicitante
--- se tardó en revisarlo). El reporte descargable usa delivered_at en vez de
--- finalized_at para esos casos, con la etiqueta "Rezagado".
+-- ---------- Registro de finalizados: cuándo se entregó ----------
+-- CHANGES.md #4e: un pendiente finalizado cuenta con la fecha en que se
+-- ENTREGÓ, no la que se finalizó — tanto en "Mi actividad" (si esa fecha
+-- sigue dentro de la semana visible) como en el reporte descargable
+-- (siempre, sin importar cuánto haya tardado en finalizarse).
 alter table finalized_log add column if not exists delivered_at timestamptz;
-alter table finalized_log add column if not exists is_delayed boolean not null default false;

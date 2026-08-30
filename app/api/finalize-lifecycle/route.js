@@ -63,8 +63,7 @@ export async function GET(req) {
   const { data: overdue } = await supabaseAdmin.from("tasks").select("*").eq("status", "Entregado").lte("delivered_at", sevenDaysAgo);
   let autoFinalized = 0;
   for (const t of overdue || []) {
-    const isDelayed = !t.delivered_at || t.delivered_at.slice(0, 10) !== todayISO;
-    await supabaseAdmin.from("finalized_log").insert({ user_id: t.assigned_to_id || t.requested_by_id, task_title: t.title, delivered_at: t.delivered_at, is_delayed: isDelayed });
+    await supabaseAdmin.from("finalized_log").insert({ user_id: t.assigned_to_id || t.requested_by_id, task_title: t.title, delivered_at: t.delivered_at });
     await supabaseAdmin.from("tasks").delete().eq("id", t.id);
     autoFinalized++;
   }

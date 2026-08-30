@@ -124,16 +124,19 @@ d. **Auto-finalizado a los 7 días de entregado**: como el pop up del
    mano). El registro en "Mi actividad" del asignado se queda igual, vía
    `finalized_log`.
 
-e. **Cómo cuentan estos pendientes rezagados**: si un pendiente se
-   entrega un día pero el solicitante lo finaliza hasta después, debe
-   sumar a "Mi actividad" de quien lo entregó el día en que el
-   solicitante por fin lo finaliza (no el día que se entregó). Pero al
-   descargar la lista/reporte de finalizados, ese pendiente debe
-   aparecer con la fecha en que originalmente se entregó (no la fecha en
-   que se finalizó), con una etiqueta `Rezagado`. Esto solo aplica si el
-   pendiente se quedó en "Entregado" todo ese tiempo (si en el camino
-   regresó a "En progreso" y se volvió a entregar, ya no cuenta como
-   rezagado).
+e. **Con qué fecha cuenta un pendiente finalizado** (sin etiqueta de
+   "rezagado", solo la fecha): un pendiente finalizado siempre cuenta con
+   la fecha en la que se **entregó**, no la que se finalizó.
+   - En "Mi actividad": si entregué un pendiente el martes y me lo
+     finalizan el viernes de esa misma semana, en "Mi actividad" cuenta
+     como finalizado el martes (no el viernes) — el conteo de "hoy" no
+     se mueve por eso. Si para cuando se finaliza el pendiente ya no
+     cae dentro de la semana que se está mostrando (por ejemplo, lo
+     finalizan hasta la siguiente semana), ya no aparece en "Mi
+     actividad" en absoluto.
+   - En la lista/reporte descargable de finalizados: siempre aparece con
+     la fecha original de entrega, sin importar cuánto se haya tardado
+     en finalizarse — ahí si sigue apareciendo, nomás con esa fecha.
 
 f. **Auto-eliminado a los 4 días de finalizado a mano**: cuando el
    solicitante le da al botón de "Finalizar pendiente" él mismo, ese

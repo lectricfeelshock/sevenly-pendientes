@@ -646,8 +646,7 @@ export default function Dashboard() {
     await supabase.from("tasks").update({ status: "Finalizado", finalized_at: new Date().toISOString() }).eq("id", task.id);
     await addHistory(task.id, `${profile.name} finalizó el pendiente`);
     await notifyFollowers(task, `${profile.name} finalizó "${task.title}"`);
-    const isDelayed = !!task.delivered_at && task.delivered_at.slice(0, 10) !== todayISO();
-    await supabase.from("finalized_log").insert({ user_id: task.assigned_to_id || task.requested_by_id, task_title: task.title, delivered_at: task.delivered_at || null, is_delayed: isDelayed });
+    await supabase.from("finalized_log").insert({ user_id: task.assigned_to_id || task.requested_by_id, task_title: task.title, delivered_at: task.delivered_at || null });
     await refreshSelected(task.id);
   };
 
@@ -2368,25 +2367,21 @@ function ActivityPanel({ onClose, profile, router }) {
     })();
   }, [profile.id]);
   const today = todayISO();
+  // CHANGES.md #4e: un pendiente finalizado cuenta con la fecha en que se
+  // ENTREGÓ, no la que se finalizó — tanto aquí (y solo si esa fecha sigue
+  // dentro de esta ventana de 7 días) como en el reporte descargable.
   const days = Array.from({ length: 7 }).map((_, i) => {
     const dt = new Date(); dt.setDate(dt.getDate() - i);
     const iso = dt.toISOString().slice(0, 10);
-    const count = log.filter((l) => l.finalized_at.slice(0, 10) === iso).length;
+    const count = log.filter((l) => (l.delivered_at || l.finalized_at).slice(0, 10) === iso).length;
     return { iso, label: dt.toLocaleDateString("es-MX", { weekday: "short", day: "2-digit" }), count };
   });
   const todayCount = days[0].count;
 
   const downloadLog = () => {
-    // Rezagado (CHANGES.md #4e): se finalizó en un día distinto al que se
-    // entregó — se muestra con la fecha original de entrega, no la de
-    // finalizado, y con la etiqueta "Rezagado".
     const lines = [
       `Pendientes finalizados por ${profile.name}`, `Total histórico: ${log.length}`, "",
-      ...log.map((l) => {
-        const displayDate = l.is_delayed && l.delivered_at ? l.delivered_at : l.finalized_at;
-        const tag = l.is_delayed ? " · Rezagado" : "";
-        return `[${new Date(displayDate).toLocaleString("es-MX")}] ${l.task_title}${tag}`;
-      }),
+      ...log.map((l) => `[${new Date(l.delivered_at || l.finalized_at).toLocaleString("es-MX")}] ${l.task_title}`),
     ];
     const blob = new Blob([lines.join("\n")], { type: "text/plain" });
     const url = URL.createObjectURL(blob);
