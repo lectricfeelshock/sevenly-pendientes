@@ -3,8 +3,10 @@ import { createClient } from "@supabase/supabase-js";
 // CHANGES.md #4 (c, d, f) — corre una vez al día (ver vercel.json):
 //
 // 1. Auto-finaliza pendientes "Entregado" hace 7+ días sin que el
-//    solicitante los finalice.
-// 2. Borra pendientes "Finalizado" hace 4+ días (manual o auto-finalizado).
+//    solicitante los finalice, y los borra de inmediato (el registro en
+//    "Mi actividad" del asignado se queda, vía finalized_log).
+// 2. Borra pendientes que el solicitante finalizó a mano (con el botón
+//    "Finalizar pendiente") hace 4+ días.
 // 3. Revisa los pop ups de recordatorio que ya arma este mismo cron
 //    (auto_generated) y que aún no salen: si el solicitante ya finalizó
 //    todos los pendientes que traían, los cancela (los borra, incluso del
@@ -56,19 +58,18 @@ export async function GET(req) {
   const nowIso = new Date().toISOString();
   const todayISO = nowIso.slice(0, 10);
 
-  // 1) Auto-finalizado a los 7 días de entregado.
+  // 1) Auto-finalizado a los 7 días de entregado → se borra de inmediato.
   const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
   const { data: overdue } = await supabaseAdmin.from("tasks").select("*").eq("status", "Entregado").lte("delivered_at", sevenDaysAgo);
   let autoFinalized = 0;
   for (const t of overdue || []) {
-    await supabaseAdmin.from("tasks").update({ status: "Finalizado", finalized_at: nowIso, finalize_reminder_popup_id: null }).eq("id", t.id);
-    await supabaseAdmin.from("task_history").insert({ task_id: t.id, text: "Auto-finalizado a los 7 días de entregado sin que el solicitante lo finalizara" });
     const isDelayed = !t.delivered_at || t.delivered_at.slice(0, 10) !== todayISO;
     await supabaseAdmin.from("finalized_log").insert({ user_id: t.assigned_to_id || t.requested_by_id, task_title: t.title, delivered_at: t.delivered_at, is_delayed: isDelayed });
+    await supabaseAdmin.from("tasks").delete().eq("id", t.id);
     autoFinalized++;
   }
 
-  // 2) Auto-eliminado a los 4 días de finalizado.
+  // 2) Auto-eliminado a los 4 días de finalizado a mano.
   const fourDaysAgo = new Date(Date.now() - 4 * 24 * 60 * 60 * 1000).toISOString();
   const { data: staleFinalized } = await supabaseAdmin.from("tasks").select("id").eq("status", "Finalizado").lte("finalized_at", fourDaysAgo);
   const staleIds = (staleFinalized || []).map((t) => t.id);

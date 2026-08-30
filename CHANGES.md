@@ -119,10 +119,10 @@ c. **A los 4 días hábiles de entregado** (hábiles = lunes a viernes, sin
 d. **Auto-finalizado a los 7 días de entregado**: como el pop up del
    punto (c) se puede ignorar, que a los 7 días de entregado sin que el
    solicitante lo finalice, el pendiente se finalice automáticamente y
-   se elimine. *(Ojo: confirmar qué significa exactamente "se elimine"
-   aquí — si es borrar el registro del pendiente por completo, o solo
-   quitarlo de la lista de pendientes por finalizar/de los recordatorios
-   — antes de implementarlo, para no perder historial por accidente.)*
+   **se elimine de inmediato** (no espera los 4 días del punto f — ese
+   plazo es solo para cuando alguien le da al botón de finalizar a
+   mano). El registro en "Mi actividad" del asignado se queda igual, vía
+   `finalized_log`.
 
 e. **Cómo cuentan estos pendientes rezagados**: si un pendiente se
    entrega un día pero el solicitante lo finaliza hasta después, debe
@@ -135,13 +135,11 @@ e. **Cómo cuentan estos pendientes rezagados**: si un pendiente se
    regresó a "En progreso" y se volvió a entregar, ya no cuenta como
    rezagado).
 
-f. **Auto-eliminado a los 4 días de finalizado**: un pendiente ya
-   finalizado (con "Terminado y entregado", sea que lo haya finalizado
-   el solicitante a mano o por el auto-finalizado del punto (d)) se
-   elimina automáticamente a los 4 días de haberse finalizado. *(Esto
-   puede resolver la duda que dejé en el punto (d) sobre qué tan literal
-   era "se elimine" ahí — a confirmar juntos antes de implementar para
-   no duplicar o encimar las dos reglas de borrado.)*
+f. **Auto-eliminado a los 4 días de finalizado a mano**: cuando el
+   solicitante le da al botón de "Finalizar pendiente" él mismo, ese
+   pendiente se elimina automáticamente a los 4 días de haberse
+   finalizado (el auto-finalizado del punto (d) no pasa por aquí — ese
+   se borra de inmediato).
 
 ### 5. Cambiar el engrane de "Mi actividad" por un botón "Ver perfil"
 En la ventana de "Mi actividad" (`ActivityPanel`), donde hoy está el
