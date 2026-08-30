@@ -2,12 +2,14 @@ import { createClient } from "@supabase/supabase-js";
 import { sendPushToUser } from "@/lib/push";
 
 const TITLE = "¿Pudiste revisarlo?";
-const MESSAGE = "Tienes un pendiente entregado. Si ya todo ok, finalízalo";
 
-// Vercel Cron llama esto todos los días a las 10 am (hora CDMX, ver
-// vercel.json) — CHANGES.md #4b. Le avisa al solicitante (y co-solicitantes)
-// de cualquier pendiente que se entregó exactamente ayer y que sigue sin
-// finalizarse, haya o no usado el asignado el botón "Avisar al solicitante".
+// CHANGES.md #4b — el disparador principal de este recordatorio es del lado
+// del cliente (ver el useEffect correspondiente en app/dashboard/page.js):
+// corre en cualquier sesión con el dashboard abierto y por eso en la
+// práctica llega muy cerca de las 24h exactas desde que se entregó. Este
+// cron corre una vez al día como respaldo, por si nadie tuvo la app abierta
+// en esas 24h — usa la misma condición y la misma bandera
+// "delivery_reminder_sent" para nunca duplicar el aviso.
 export async function GET(req) {
   const auth = req.headers.get("authorization");
   if (process.env.CRON_SECRET && auth !== `Bearer ${process.env.CRON_SECRET}`) {
@@ -19,21 +21,43 @@ export async function GET(req) {
     process.env.SUPABASE_SERVICE_ROLE_KEY
   );
 
-  const yesterday = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
-  const { data: tasks, error } = await supabaseAdmin.from("tasks").select("*").eq("status", "Entregado");
+  const dayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+  const { data: tasks, error } = await supabaseAdmin.from("tasks").select("*")
+    .eq("status", "Entregado")
+    .eq("delivery_reminder_sent", false)
+    .lte("delivered_at", dayAgo);
   if (error) return Response.json({ ok: false, error: String(error) }, { status: 500 });
 
-  const dueTasks = (tasks || []).filter((t) => t.delivered_at && t.delivered_at.slice(0, 10) === yesterday);
+  const candidates = tasks || [];
+  if (candidates.length === 0) return Response.json({ ok: true, sent: 0 });
 
-  let sent = 0;
-  for (const t of dueTasks) {
+  const byRequester = new Map();
+  for (const t of candidates) {
     const targetIds = Array.from(new Set([t.requested_by_id, t.responsible_id, ...(t.co_requester_ids || [])].filter(Boolean)));
     for (const userId of targetIds) {
-      await supabaseAdmin.from("notifications").insert({ user_id: userId, task_id: t.id, title: TITLE, message: MESSAGE });
-      await sendPushToUser(supabaseAdmin, userId, { title: TITLE, body: MESSAGE, url: "/dashboard" });
-      sent++;
+      if (!byRequester.has(userId)) byRequester.set(userId, []);
+      byRequester.get(userId).push(t);
     }
   }
+
+  let sent = 0;
+  for (const [userId, list] of byRequester.entries()) {
+    if (list.length > 2) {
+      const message = `Tienes ${list.length} pendientes entregados sin finalizar`;
+      await supabaseAdmin.from("notifications").insert({ user_id: userId, task_id: null, title: TITLE, message, target: "requests:Entregado" });
+      await sendPushToUser(supabaseAdmin, userId, { title: TITLE, body: message, url: "/dashboard" });
+      sent++;
+    } else {
+      const message = "Tienes un pendiente entregado. Si ya todo ok, finalízalo";
+      for (const t of list) {
+        await supabaseAdmin.from("notifications").insert({ user_id: userId, task_id: t.id, title: TITLE, message });
+        await sendPushToUser(supabaseAdmin, userId, { title: TITLE, body: message, url: "/dashboard" });
+        sent++;
+      }
+    }
+  }
+
+  await supabaseAdmin.from("tasks").update({ delivery_reminder_sent: true }).in("id", candidates.map((t) => t.id));
 
   return Response.json({ ok: true, sent });
 }
