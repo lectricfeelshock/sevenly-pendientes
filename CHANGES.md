@@ -133,13 +133,22 @@ a. **Notificación del botón "Avisar a solicitante"** (en el desglose del
 
 b. **Si nadie le dio clic a "Avisar a solicitante"**, y el pendiente
    sigue sin finalizarse, que le llegue una notificación al solicitante
-   a las 10 am del día siguiente — título: `¿Pudiste revisarlo?`;
-   descripción: `Tienes un pendiente entregado. Si ya todo ok,
-   finalízalo`. Esta misma notificación de las 10 am también le debe
-   llegar a quien sí le avisaron pero que aún no ha finalizado. Al darle
-   clic a cualquiera de las dos notificaciones (la de "Te entregaron un
-   pendiente" o la de "¿Pudiste revisarlo?"), debe abrir directo ese
-   pendiente sin finalizar.
+   — título: `¿Pudiste revisarlo?`; descripción: `Tienes un pendiente
+   entregado. Si ya todo ok, finalízalo`. Esta misma notificación
+   también le debe llegar a quien sí le avisaron pero que aún no ha
+   finalizado. Al darle clic a cualquiera de las dos notificaciones (la
+   de "Te entregaron un pendiente" o la de "¿Pudiste revisarlo?"), debe
+   abrir directo ese pendiente sin finalizar.
+
+   _Ajustado 2026-08-30:_ no es a las 10 am del día siguiente — es
+   **exactamente 24 horas después de entregado** (si se entregó el
+   lunes a las 4 pm, la notificación llega el martes a las 4 pm), y es
+   **una sola vez por pendiente**, no se repite aunque siga sin
+   finalizarse. Si a la misma persona se le juntan más de 2 pendientes
+   así al mismo tiempo, se agrupan en una sola notificación: "Tienes X
+   pendientes entregados sin finalizar" — al darle clic, en vez de abrir
+   un pendiente puntual, abre el dashboard filtrado en "Mis solicitudes"
+   + "Entregado", para ver todos de un jalón.
 
 c. **A los 4 días hábiles de entregado** (hábiles = lunes a viernes, sin
    contar sábado ni domingo) sin finalizarse, mostrarle al solicitante un

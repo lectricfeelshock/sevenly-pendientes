@@ -454,6 +454,48 @@ export default function Dashboard() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [ready, tasks]);
 
+  // CHANGES.md #4b: avisa al solicitante (y co-solicitantes) exactamente 24h
+  // después de entregado un pendiente si sigue sin finalizarse — una sola vez
+  // por pendiente. Corre en cualquier sesión con el dashboard abierto (se
+  // reevalúa cada vez que "tasks" se actualiza, que es en tiempo real), así
+  // que en la práctica llega muy cerca de esa hora exacta mientras alguien
+  // del equipo tenga la app abierta; /api/reminder-10am corre una vez al día
+  // como respaldo por si nadie la tuvo abierta. Si a la misma persona se le
+  // juntan más de 2 pendientes al mismo tiempo, se agrupan en una sola
+  // notificación que al abrirse lleva al dashboard filtrado en "Mis
+  // solicitudes" + "Entregado".
+  useEffect(() => {
+    if (!ready) return;
+    (async () => {
+      const dayMs = 24 * 60 * 60 * 1000;
+      const now = Date.now();
+      const candidates = tasks.filter((t) =>
+        t.status === "Entregado" && t.delivered_at && !t.delivery_reminder_sent &&
+        now - new Date(t.delivered_at).getTime() >= dayMs
+      );
+      if (candidates.length === 0) return;
+      const byRequester = new Map();
+      for (const t of candidates) {
+        const targetIds = Array.from(new Set([t.requested_by_id, t.responsible_id, ...(t.co_requester_ids || [])].filter(Boolean)));
+        for (const userId of targetIds) {
+          if (!byRequester.has(userId)) byRequester.set(userId, []);
+          byRequester.get(userId).push(t);
+        }
+      }
+      for (const [userId, list] of byRequester.entries()) {
+        if (list.length > 2) {
+          await notify(userId, null, `Tienes ${list.length} pendientes entregados sin finalizar`, "¿Pudiste revisarlo?", "requests:Entregado");
+        } else {
+          for (const t of list) {
+            await notify(userId, t.id, "Tienes un pendiente entregado. Si ya todo ok, finalízalo", "¿Pudiste revisarlo?");
+          }
+        }
+      }
+      await supabase.from("tasks").update({ delivery_reminder_sent: true }).in("id", candidates.map((t) => t.id));
+    })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [ready, tasks]);
+
   useEffect(() => {
     if (!ready || !profile) return;
     if (!("serviceWorker" in navigator) || !("PushManager" in window)) { setPushSupported(false); return; }
@@ -525,8 +567,8 @@ export default function Dashboard() {
 
   const logout = async () => { await supabase.auth.signOut(); router.replace("/login"); };
   const addHistory = async (taskId, text) => { await supabase.from("task_history").insert({ task_id: taskId, text }); };
-  const notify = async (userId, taskId, message, title) => {
-    await supabase.from("notifications").insert({ user_id: userId, task_id: taskId, message, ...(title ? { title } : {}) });
+  const notify = async (userId, taskId, message, title, target) => {
+    await supabase.from("notifications").insert({ user_id: userId, task_id: taskId, message, ...(title ? { title } : {}), ...(target ? { target } : {}) });
     fetch("/api/send-push", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ userId, title: title || "Sevenly", body: message, url: "/dashboard" }) }).catch(() => {});
   };
 
@@ -651,7 +693,7 @@ export default function Dashboard() {
   };
 
   const deliverTask = async (task) => {
-    await supabase.from("tasks").update({ status: "Entregado", delivered_at: new Date().toISOString() }).eq("id", task.id);
+    await supabase.from("tasks").update({ status: "Entregado", delivered_at: new Date().toISOString(), delivery_reminder_sent: false }).eq("id", task.id);
     await addHistory(task.id, `${profile.name} marcó como entregado`);
     await notifyFollowers(task, `${profile.name} marcó como entregado "${task.title}"`);
     await refreshSelected(task.id);
@@ -667,7 +709,7 @@ export default function Dashboard() {
     if (!task || task.status === "Finalizado") return;
     const newStatus = computeGeneralStatus(subtasksForTask);
     if (!newStatus || newStatus === task.status) return;
-    const patch = newStatus === "Entregado" ? { status: newStatus, delivered_at: new Date().toISOString() } : { status: newStatus };
+    const patch = newStatus === "Entregado" ? { status: newStatus, delivered_at: new Date().toISOString(), delivery_reminder_sent: false } : { status: newStatus };
     await supabase.from("tasks").update(patch).eq("id", taskId);
     await addHistory(taskId, `Estado general actualizado automáticamente a "${newStatus}" según las subtareas`);
     if (newStatus === "Entregado") {
@@ -857,7 +899,7 @@ export default function Dashboard() {
       {selected && <TaskDetail task={selected} onClose={() => setSelected(null)} onUpdate={updateTask} onDelete={deleteTask} onFinalize={finalizeTask} onDeliver={deliverTask} profiles={profiles} assignableProfiles={assignableProfiles} profile={profile} notify={notify} subtasks={subtasks.filter((s) => s.task_id === selected.id)} onAddSubtask={addSubtask} onUpdateSubtaskStatus={updateSubtaskStatus} viewerIsGerente={!!viewingAs && !isAdmin} onCommentsRead={reloadMyCommentReads} />}
       {showTeam && <TeamPanel onClose={() => setShowTeam(false)} profiles={assignableProfiles} tasks={tasks} />}
       {showActivity && <ActivityPanel onClose={() => setShowActivity(false)} profile={profile} router={router} />}
-      {showNotifs && <NotificationsPanel onClose={() => setShowNotifs(false)} notifications={notifications} onOpenTask={(taskId) => { const t = tasks.find((x) => x.id === taskId); if (t) setSelected(t); setShowNotifs(false); }} pushSupported={pushSupported} pushEnabled={pushEnabled} onEnablePush={enablePush} />}
+      {showNotifs && <NotificationsPanel onClose={() => setShowNotifs(false)} notifications={notifications} onOpenTask={(taskId) => { const t = tasks.find((x) => x.id === taskId); if (t) setSelected(t); setShowNotifs(false); }} onOpenFilter={(target) => { if (target === "requests:Entregado") { setPrimaryTab("requests"); setStatusFilter("Entregado"); } setShowNotifs(false); }} pushSupported={pushSupported} pushEnabled={pushEnabled} onEnablePush={enablePush} />}
       {showSearch && <SearchModal onClose={() => setShowSearch(false)} tasks={myTasks} profiles={profiles} onOpenTask={(t) => { setSelected(t); setShowSearch(false); }} />}
     </div>
   );
@@ -1773,6 +1815,7 @@ function TaskDetail({ task, onClose, onUpdate, onDelete, onFinalize, onDeliver, 
     const patch = { status: s };
     if (task.notify_requester) patch.notify_requester = false;
     if (task.overdue_notified) patch.overdue_notified = false;
+    if (task.delivery_reminder_sent) patch.delivery_reminder_sent = false;
     onUpdate(task, patch, `${profile.name} cambió el estado a "${s}"`);
   };
 
@@ -2296,7 +2339,7 @@ function SearchModal({ onClose, tasks, profiles, onOpenTask }) {
   );
 }
 
-function NotificationsPanel({ onClose, notifications, onOpenTask, pushSupported, pushEnabled, onEnablePush }) {
+function NotificationsPanel({ onClose, notifications, onOpenTask, onOpenFilter, pushSupported, pushEnabled, onEnablePush }) {
   return (
     <div className="fixed inset-0 z-50 flex items-start justify-end p-4" style={{ background: "rgba(20,24,31,0.35)" }} onClick={onClose}>
       <div style={{ background: C.paper, borderColor: C.hairline }} className="border w-full max-w-sm mt-14 max-h-[70vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
@@ -2312,7 +2355,7 @@ function NotificationsPanel({ onClose, notifications, onOpenTask, pushSupported,
         <div className="p-2">
           {notifications.length === 0 && <div className="text-xs px-2 py-4" style={{ color: C.inkSoft }}>Sin notificaciones todavía.</div>}
           {notifications.map((n) => (
-            <div key={n.id} role={n.task_id ? "button" : undefined} onClick={() => n.task_id && onOpenTask(n.task_id)} style={{ background: n.read ? "transparent" : C.signalSoft, cursor: n.task_id ? "pointer" : "default" }} className="w-full text-left px-3 py-2.5 flex flex-col gap-0.5">
+            <div key={n.id} role={(n.task_id || n.target) ? "button" : undefined} onClick={() => { if (n.task_id) onOpenTask(n.task_id); else if (n.target) onOpenFilter(n.target); }} style={{ background: n.read ? "transparent" : C.signalSoft, cursor: (n.task_id || n.target) ? "pointer" : "default" }} className="w-full text-left px-3 py-2.5 flex flex-col gap-0.5">
               {n.title && <span className="text-sm font-medium break-words" style={{ color: C.ink }}>{n.title}</span>}
               <span className="text-sm break-words" style={{ color: n.title ? C.inkSoft : C.ink }}>{renderWithLinks(n.message, C.signal)}</span>
               <span className="font-mono text-[10px]" style={{ color: C.inkSoft }}>{new Date(n.created_at).toLocaleDateString("es-MX", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" })}</span>
