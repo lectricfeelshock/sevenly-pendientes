@@ -79,6 +79,77 @@ dashboard). Falta el manifest + service worker para que se pueda
 "instalar" la app en el celular como ícono, en vez de abrirla siempre
 desde el navegador.
 
+## Perfil dinámico de usuario (pedido explícito)
+
+Estas sí las pediste directamente: opciones de cómo podría verse `/perfil`
+como una tarjeta de perfil dinámica en vez del formulario de ajustes que es
+hoy. Ahora mismo `app/perfil/page.js` solo deja editar Nombre, Usuario,
+WhatsApp, Correo y Contraseña en una lista de filas — no hay una vista tipo
+"tarjeta" con puesto, descripción, cuentas o contacto a la vista. Inspirado
+en cómo lo resuelven Slack, Notion (directorio de equipo) y LinkedIn.
+
+### 12. Encabezado tipo tarjeta arriba del formulario actual
+Antes de la lista editable de campos, un bloque tipo portada: inicial del
+nombre en un círculo de color (no hace falta subir foto todavía), Nombre
+grande, `@usuario` debajo, y el puesto en cursiva debajo de eso. El
+formulario de "Cambiar" que ya existe se queda igual, solo se le pone
+encabezado visual arriba.
+
+### 13. Campos nuevos: puesto y descripción del puesto
+La tabla `profiles` hoy solo tiene `name`, `username`, `email`, `phone` y
+`role` (admin/gerente/miembro, usado en `app/dashboard/page.js` para
+permisos). Agregar dos columnas de texto libre — `job_title` ("Editor de
+video", "Community Manager") y `job_description` (2-3 líneas: qué hace esa
+persona en el equipo) — con su fila editable igual que las demás en
+`/perfil`. `role` seguiría siendo el campo técnico de permisos; `job_title`
+sería el que se muestra en la tarjeta.
+
+### 14. "En qué cuentas estás" calculado automáticamente, no capturado a mano
+En vez de un campo que hay que actualizar manualmente (y que se desactualiza),
+calcularlo de los pendientes reales: agrupar `tasks` donde
+`assigned_to_id =` ese usuario por `category` (las mismas categorías de
+`DEFAULT_CATEGORIES` en `app/dashboard/page.js` — Video, Diseño, Guiones,
+Briefs, o las que el equipo haya usado) de los últimos ~30 días, y mostrarlas
+como chips: "Video · 4 pendientes", "Diseño · 2 pendientes". Se ve siempre
+al día sin que nadie tenga que ir a actualizarlo.
+
+### 15. Si "cuentas" son clientes y no categorías, aclarar esa palabra primero
+Ojo: en el código actual "cuenta" no existe como concepto — lo más cercano
+es `category` (Video/Diseño/Guiones/Briefs), que son tipos de trabajo, no
+clientes. Si con "en qué cuentas estás" te refieres a qué **clientes o
+marcas** lleva cada quien (y eso todavía no vive en ningún lado del
+esquema), sería una tabla nueva `accounts` + `profile_accounts` en vez de
+reusar `category`. Vale la pena confirmar antes de construir la 14 tal cual,
+para no calcular el chip equivocado.
+
+### 16. Contacto con iconos de acción, no solo texto
+Hoy el correo y el WhatsApp se ven como texto plano en su fila de "Cambiar".
+En la tarjeta de arriba, mostrar el teléfono y correo con icono clicable:
+teléfono abre `https://wa.me/<phone>` (ya se usa ese mismo formato en el
+botón de recordatorio de `app/dashboard/page.js`, línea ~1500) y el correo
+abre `mailto:`. Así cualquiera del equipo puede escribirle a alguien desde
+su perfil sin copiar/pegar el número.
+
+### 17. Ver el perfil de un compañero, no solo el propio
+Ahora mismo `/perfil` solo carga al usuario logueado
+(`supabase.from("profiles").select("*").eq("id", user.id)`). Se podría hacer
+`/perfil/[id]` para ver la tarjeta de cualquier miembro del equipo — sin
+botones de "Cambiar" si no eres tú — accesible con un clic desde el nombre
+del responsable en cualquier pendiente del dashboard. Útil para ver rápido
+"¿a quién le hablo de Diseño?" sin preguntar en el chat.
+
+### 18. Directorio de equipo (`/equipo`)
+Una grilla con la tarjeta resumida (inicial, nombre, puesto, cuentas) de
+cada perfil, reusando la lista de `profiles` que el dashboard ya trae para
+el selector de "Asignar a". Sirve como mini organigrama del equipo y de
+paso resuelve la navegación hacia la propuesta 17.
+
+### 19. Estado rápido opcional (disponible / ocupado)
+Un campo `status_emoji` + `status_text` tipo Slack ("🎬 grabando hasta las
+3pm") que la persona actualiza ella misma desde su tarjeta. Opcional y de
+baja prioridad frente a las anteriores — lo dejo anotado por si acaso
+quieres ese nivel de detalle más adelante.
+
 ## Pendientes de investigar más
 
 - Automatizaciones tipo "si urgencia = Urgente y pasan 2 días sin
