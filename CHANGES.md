@@ -8,23 +8,6 @@ se hizo).
 
 ## Pendientes
 
-### 1. Buscador en lupa con filtro avanzado (dashboard)
-Quitar la barra de búsqueda fija del dashboard. En su lugar, agregar un
-ícono de lupa a la derecha de los filtros existentes. Al darle clic, se
-abre una ventana con un campo de búsqueda.
-
-La búsqueda debe ser completa, y poder filtrar pendientes por:
-- **Nombres**: si escribo el nombre de alguien del equipo, deben salir
-  todos MIS pendientes (los que yo solicité o me asignaron) donde esa
-  persona aparece — como solicitante o como asignado.
-- **Estados** (No iniciado, En progreso, Detenido, Terminado y entregado)
-- **Urgencias** (Baja, Media, Alta, Urgente)
-- **Categorías**
-- **Títulos**
-- **Tipos de pendiente** (individual, personal, colaborativo)
-- **Palabras de fecha**: si escribo "hoy", que salga todo lo que vence
-  hoy; si escribo "mañana", todo lo que vence mañana.
-
 ### 2. Biblioteca: recursos generales vs. individuales, compartir, y subir archivos
 Hoy en Biblioteca solo el admin puede agregar recursos, y todos son
 "generales" (le sirven a todo el equipo). Cambios deseados:
@@ -58,7 +41,70 @@ g. **Buscador (lupa) dentro de Biblioteca**, que busque solo por:
 h. **La lupa del dashboard** (solicitud #1) también debe poder
    encontrar estos recursos de Biblioteca entre sus resultados.
 
-### 3. Pestañas en Popups del admin: Nuevos / Programados / Historial
+### 5. Cambiar el engrane de "Mi actividad" por un botón "Ver perfil"
+En la ventana de "Mi actividad" (`ActivityPanel`), donde hoy está el
+ícono de engrane junto al nombre para ir al perfil, quitar el engrane y
+poner en su lugar un botón que diga "Ver perfil". Debe llevar al mismo
+lugar de siempre (`/perfil`), solo cambia de ícono+link a un botón con
+texto.
+
+### 6. Botón "Asignar cambios" en pendientes finalizados
+En el desglose de un pendiente ya finalizado, justo donde antes estaba
+el botón de "Finalizar pendiente", el solicitante debe ver un botón
+nuevo: "Asignar cambios".
+
+- Al darle clic, sale una leyenda de confirmación: "Crearás un nuevo
+  pendiente para solicitar estos cambios." con botones "Aceptar" y
+  "Cancelar".
+- Si le da "Cancelar", no pasa nada.
+- Si le da "Aceptar", se abre la ventana normal de crear pendiente
+  (puede ser individual, personal o colaborativo, como siempre lo
+  decide quien lo crea), pero con el título fijo: el título del
+  pendiente al que se le están pidiendo cambios (ese campo no se
+  edita).
+- Al crear ese nuevo pendiente, debe aparecer junto a su título — tanto
+  en la tarjeta del dashboard como en su desglose — la leyenda "Cambios
+  Ronda 1".
+- Si ese nuevo pendiente ("Cambios Ronda 1") también se finaliza y de
+  nuevo se usa "Asignar cambios" sobre él, el siguiente pendiente que se
+  cree sale con "Cambios Ronda 2" — y así, subiendo de número cada vez
+  que se repite el ciclo.
+
+### 7. Mover la leyenda "De hoy para hoy 💀" de junto al título a debajo del deadline
+Es para el caso específico de que el solicitante creó el pendiente el
+mismo día de la fecha límite que le puso (`request_date === deadline`).
+Hoy esa leyenda ("De hoy para hoy 💀") aparece junto al título — tanto en
+la tarjeta del pendiente en el dashboard como en el encabezado del
+desglose. Quitarla de ahí y ponerla debajo del deadline en ambos
+lugares: debajo del badge de fecha en la tarjeta, y debajo del campo de
+Deadline en el desglose.
+
+## Historial (aplicadas)
+
+<!-- Aquí se van moviendo las solicitudes ya aplicadas, con fecha y commit. -->
+
+### [x] 1. Buscador en lupa con filtro avanzado (dashboard)
+_Aplicada 2026-08-30 — PR #25._
+
+Quitar la barra de búsqueda fija del dashboard. En su lugar, agregar un
+ícono de lupa a la derecha de los filtros existentes. Al darle clic, se
+abre una ventana con un campo de búsqueda.
+
+La búsqueda debe ser completa, y poder filtrar pendientes por:
+- **Nombres**: si escribo el nombre de alguien del equipo, deben salir
+  todos MIS pendientes (los que yo solicité o me asignaron) donde esa
+  persona aparece — como solicitante o como asignado.
+- **Estados** (No iniciado, En progreso, Detenido, Terminado y entregado)
+- **Urgencias** (Baja, Media, Alta, Urgente)
+- **Categorías**
+- **Títulos**
+- **Tipos de pendiente** (individual, personal, colaborativo)
+- **Palabras de fecha**: si escribo "hoy", que salga todo lo que vence
+  hoy; si escribo "mañana", todo lo que vence mañana.
+
+### [x] 3. Pestañas en Popups del admin: Nuevos / Programados / Historial
+_Aplicada 2026-08-30 — PR #25._
+
 Dentro del apartado "Popups" del dashboard de admin, agregar 3 filtros
 (pestañas):
 
@@ -71,7 +117,9 @@ Dentro del apartado "Popups" del dashboard de admin, agregar 3 filtros
 - **Historial**: popups que ya salieron (ya se mostraron a la gente).
   Estos se borran automáticamente pasando 3 días desde que salieron.
 
-### 4. Recordatorios y mecánica de "finalizar pendiente" para el solicitante
+### [x] 4. Recordatorios y mecánica de "finalizar pendiente" para el solicitante
+_Aplicada 2026-08-30 — PR #25._
+
 Varias piezas relacionadas con lo que pasa después de que le dan
 "Entregado" a un pendiente, para que los solicitantes no se olviden de
 finalizarlo. Aplica a todos los solicitantes (no solo admin).
@@ -119,14 +167,14 @@ c. **A los 4 días hábiles de entregado** (hábiles = lunes a viernes, sin
 d. **Auto-finalizado a los 7 días de entregado**: como el pop up del
    punto (c) se puede ignorar, que a los 7 días de entregado sin que el
    solicitante lo finalice, el pendiente se finalice automáticamente y
-   **se elimine de inmediato** (no espera los 4 días del punto f — ese
+   se elimine de inmediato (no espera los 4 días del punto f — ese
    plazo es solo para cuando alguien le da al botón de finalizar a
    mano). El registro en "Mi actividad" del asignado se queda igual, vía
    `finalized_log`.
 
 e. **Con qué fecha cuenta un pendiente finalizado** (sin etiqueta de
    "rezagado", solo la fecha): un pendiente finalizado siempre cuenta con
-   la fecha en la que se **entregó**, no la que se finalizó.
+   la fecha en la que se entregó, no la que se finalizó.
    - En "Mi actividad": si entregué un pendiente el martes y me lo
      finalizan el viernes de esa misma semana, en "Mi actividad" cuenta
      como finalizado el martes (no el viernes) — el conteo de "hoy" no
@@ -136,52 +184,10 @@ e. **Con qué fecha cuenta un pendiente finalizado** (sin etiqueta de
      actividad" en absoluto.
    - En la lista/reporte descargable de finalizados: siempre aparece con
      la fecha original de entrega, sin importar cuánto se haya tardado
-     en finalizarse — ahí si sigue apareciendo, nomás con esa fecha.
+     en finalizarse — ahí sí sigue apareciendo, nomás con esa fecha.
 
 f. **Auto-eliminado a los 4 días de finalizado a mano**: cuando el
    solicitante le da al botón de "Finalizar pendiente" él mismo, ese
    pendiente se elimina automáticamente a los 4 días de haberse
    finalizado (el auto-finalizado del punto (d) no pasa por aquí — ese
    se borra de inmediato).
-
-### 5. Cambiar el engrane de "Mi actividad" por un botón "Ver perfil"
-En la ventana de "Mi actividad" (`ActivityPanel`), donde hoy está el
-ícono de engrane junto al nombre para ir al perfil, quitar el engrane y
-poner en su lugar un botón que diga "Ver perfil". Debe llevar al mismo
-lugar de siempre (`/perfil`), solo cambia de ícono+link a un botón con
-texto.
-
-### 6. Botón "Asignar cambios" en pendientes finalizados
-En el desglose de un pendiente ya finalizado, justo donde antes estaba
-el botón de "Finalizar pendiente", el solicitante debe ver un botón
-nuevo: "Asignar cambios".
-
-- Al darle clic, sale una leyenda de confirmación: "Crearás un nuevo
-  pendiente para solicitar estos cambios." con botones "Aceptar" y
-  "Cancelar".
-- Si le da "Cancelar", no pasa nada.
-- Si le da "Aceptar", se abre la ventana normal de crear pendiente
-  (puede ser individual, personal o colaborativo, como siempre lo
-  decide quien lo crea), pero con el título fijo: el título del
-  pendiente al que se le están pidiendo cambios (ese campo no se
-  edita).
-- Al crear ese nuevo pendiente, debe aparecer junto a su título — tanto
-  en la tarjeta del dashboard como en su desglose — la leyenda "Cambios
-  Ronda 1".
-- Si ese nuevo pendiente ("Cambios Ronda 1") también se finaliza y de
-  nuevo se usa "Asignar cambios" sobre él, el siguiente pendiente que se
-  cree sale con "Cambios Ronda 2" — y así, subiendo de número cada vez
-  que se repite el ciclo.
-
-### 7. Mover la leyenda "De hoy para hoy 💀" de junto al título a debajo del deadline
-Es para el caso específico de que el solicitante creó el pendiente el
-mismo día de la fecha límite que le puso (`request_date === deadline`).
-Hoy esa leyenda ("De hoy para hoy 💀") aparece junto al título — tanto en
-la tarjeta del pendiente en el dashboard como en el encabezado del
-desglose. Quitarla de ahí y ponerla debajo del deadline en ambos
-lugares: debajo del badge de fecha en la tarjeta, y debajo del campo de
-Deadline en el desglose.
-
-## Historial (aplicadas)
-
-<!-- Aquí se van moviendo las solicitudes ya aplicadas, con fecha y commit. -->
