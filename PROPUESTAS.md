@@ -150,6 +150,64 @@ Un campo `status_emoji` + `status_text` tipo Slack ("🎬 grabando hasta las
 baja prioridad frente a las anteriores — lo dejo anotado por si acaso
 quieres ese nivel de detalle más adelante.
 
+## Referencias visuales para el refresh general (limpio, bordes curvos)
+
+También pedido directo: ejemplos de apps con un look moderno — limpio, con
+bordes curvos — para inspirar el refresh visual completo, no solo el
+perfil. Punto de partida: hoy el estilo (`C` palette repetida en
+`app/dashboard/page.js` y `app/perfil/page.js`, tipografía Georgia serif
+para títulos, mono uppercase para labels, `border` sin `rounded` en casi
+todo — solo 7 usos de `rounded` en todo el código, todos en dashboard) es
+más "hoja de periódico/ficha editorial" que "app moderna". Ninguna de estas
+apps hay que copiarla completa, son referencia de rasgos puntuales.
+
+### 20. Linear — tarjetas y botones con esquinas suaves, mucho aire
+Radios pequeños y consistentes (6-8px), fondo casi blanco con un solo color
+de acento, tipografía sans todo el tiempo (nada de mezclar serif + mono
+como ahora), sombras casi imperceptibles en vez de bordes duros. Es la
+referencia más cercana a "limpio pero no plano" para las tarjetas de
+pendientes del dashboard.
+
+### 21. Notion — tarjetas de perfil y bloques con radio mediano
+Los bloques de contenido y las "person cards" de Notion usan radios más
+grandes (10-12px) con un borde muy tenue de 1px, sin sombra. Encaja bien
+con la tarjeta de perfil de las propuestas 12-19 — el encabezado con
+inicial + nombre + puesto se vería como una card de Notion.
+
+### 22. Airbnb — botones y chips totalmente redondeados (pill)
+Los chips de categoría (`DEFAULT_CATEGORIES` en el selector de pendiente,
+y los chips de cuentas de la propuesta 14) se verían más modernos como
+"pills" (radio completo, `rounded-full`) en vez de las etiquetas
+rectangulares con esquina recta que hay hoy en la línea ~728 de
+`app/dashboard/page.js`.
+
+### 23. Cash App / Revolut — bloques de color sólido con radio grande
+Radios grandes (16-20px) en bloques de color plano (sin degradados), buen
+contraste de texto. Útil como referencia para las tarjetas de resumen o
+estadísticas si se construye la propuesta 6 (reportes de equipo).
+
+### 24. Duolingo — botones sólidos con "borde de profundidad" y radio alto
+Botones con esquinas muy redondeadas y un borde inferior más oscuro que da
+sensación de botón físico (en vez del botón plano `background: C.spine`
+que hoy se usa en `FieldActions` de `app/perfil/page.js`). Útil si además
+del refresh visual quieres que los botones de acción se sientan más
+"clicables".
+
+### 25. Stripe Dashboard — mezcla de radios chicos y medianos, gris muy suave
+En vez de un solo radio para todo, Stripe usa radios chicos (4-6px) en
+inputs y filas de tabla, y medianos (8-10px) en tarjetas contenedoras. Como
+`app/perfil/page.js` ya separa "fila" (`ProfileRow`) de "tarjeta", este
+patrón de dos tamaños de radio se podría aplicar directo ahí sin rediseñar
+la estructura.
+
+### 26. Cómo aplicarlo sin rehacer toda la app
+En vez de ir componente por componente a mano, definir el radio como token
+en `tailwind.config.js` (`theme.extend.borderRadius`, ej. `sm: 6px`,
+`md: 10px`, `full: 9999px`) y reemplazar los `className="border ..."`
+sueltos por `rounded-md border ...` (o `rounded-full` en chips/botones) de
+forma progresiva, empezando por `app/perfil/page.js` ya que es la pantalla
+más chica y sirve de piloto antes de tocar todo `app/dashboard/page.js`.
+
 ## Pendientes de investigar más
 
 - Automatizaciones tipo "si urgencia = Urgente y pasan 2 días sin
