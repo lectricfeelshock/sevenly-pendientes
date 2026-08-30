@@ -243,6 +243,31 @@ function dueLegend(deadline, status) {
   return { text: "Todo chill, aún falta", color: C.inkSoft };
 }
 
+function normalizeText(s) {
+  return (s || "").toString().toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+}
+
+// Búsqueda avanzada del dashboard (CHANGES.md #1): nombres (solicitante,
+// asignado, equipo), estado, urgencia, categoría, título, tipo de pendiente,
+// y las palabras "hoy"/"mañana" contra el deadline.
+function matchesSearchQuery(task, rawQuery, profiles) {
+  const q = normalizeText(rawQuery.trim());
+  if (!q) return false;
+  if (q === "hoy" || q === "manana") {
+    const d = daysUntil(task.deadline);
+    if (d === null) return false;
+    return q === "hoy" ? d === 0 : d === 1;
+  }
+  const teamNames = (task.team_member_ids || []).map((id) => profiles.find((p) => p.id === id)?.name).filter(Boolean);
+  const typeLabel = TASK_TYPES.find((x) => x.key === effectiveTaskType(task))?.label || "";
+  const haystacks = [
+    task.title, task.requested_by, task.assigned_to_name, task.responsible_name,
+    task.status, effectiveUrgency(task), task.category, typeLabel,
+    ...(task.co_requester_names || []), ...teamNames,
+  ];
+  return haystacks.some((h) => normalizeText(h).includes(q));
+}
+
 function activityMsg(n) {
   if (!n) return "Aún no finalizas pendientes hoy.";
   if (n <= 2) return "Vas bien.";
@@ -283,7 +308,7 @@ export default function Dashboard() {
   const [showTeam, setShowTeam] = useState(false);
   const [showActivity, setShowActivity] = useState(false);
   const [showNotifs, setShowNotifs] = useState(false);
-  const [search, setSearch] = useState("");
+  const [showSearch, setShowSearch] = useState(false);
   const [statusFilter, setStatusFilter] = useState("Todos");
   const [primaryTab, setPrimaryTab] = useState("mine"); // requests | mine | all
   const [pushEnabled, setPushEnabled] = useState(false);
@@ -500,9 +525,9 @@ export default function Dashboard() {
 
   const logout = async () => { await supabase.auth.signOut(); router.replace("/login"); };
   const addHistory = async (taskId, text) => { await supabase.from("task_history").insert({ task_id: taskId, text }); };
-  const notify = async (userId, taskId, message) => {
-    await supabase.from("notifications").insert({ user_id: userId, task_id: taskId, message });
-    fetch("/api/send-push", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ userId, title: "Sevenly", body: message, url: "/dashboard" }) }).catch(() => {});
+  const notify = async (userId, taskId, message, title) => {
+    await supabase.from("notifications").insert({ user_id: userId, task_id: taskId, message, ...(title ? { title } : {}) });
+    fetch("/api/send-push", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ userId, title: title || "Sevenly", body: message, url: "/dashboard" }) }).catch(() => {});
   };
 
   const createTask = async (form) => {
@@ -587,7 +612,7 @@ export default function Dashboard() {
     }
     await supabase.from("popups").insert({
       title: form.title, description: form.description, image_url: imageUrl,
-      scheduled_date: form.scheduledDate, scheduled_time: form.scheduledTime,
+      scheduled_date: form.scheduledDate || null, scheduled_time: form.scheduledTime,
       target_user_ids: form.targetUserIds || [], replicate_notification: !!form.replicateNotification, only_notification: !!form.onlyNotification,
       related_tasks: form.relatedTasks || [], created_by: profile.id,
     });
@@ -621,7 +646,8 @@ export default function Dashboard() {
     await supabase.from("tasks").update({ status: "Finalizado", finalized_at: new Date().toISOString() }).eq("id", task.id);
     await addHistory(task.id, `${profile.name} finalizó el pendiente`);
     await notifyFollowers(task, `${profile.name} finalizó "${task.title}"`);
-    await supabase.from("finalized_log").insert({ user_id: task.assigned_to_id || task.requested_by_id, task_title: task.title });
+    const isDelayed = !!task.delivered_at && task.delivered_at.slice(0, 10) !== todayISO();
+    await supabase.from("finalized_log").insert({ user_id: task.assigned_to_id || task.requested_by_id, task_title: task.title, delivered_at: task.delivered_at || null, is_delayed: isDelayed });
     await refreshSelected(task.id);
   };
 
@@ -642,7 +668,8 @@ export default function Dashboard() {
     if (!task || task.status === "Finalizado") return;
     const newStatus = computeGeneralStatus(subtasksForTask);
     if (!newStatus || newStatus === task.status) return;
-    await supabase.from("tasks").update({ status: newStatus }).eq("id", taskId);
+    const patch = newStatus === "Entregado" ? { status: newStatus, delivered_at: new Date().toISOString() } : { status: newStatus };
+    await supabase.from("tasks").update(patch).eq("id", taskId);
     await addHistory(taskId, `Estado general actualizado automáticamente a "${newStatus}" según las subtareas`);
     if (newStatus === "Entregado") {
       const requesterIds = new Set([task.requested_by_id, task.responsible_id, ...(task.co_requester_ids || [])].filter(Boolean));
@@ -716,15 +743,12 @@ export default function Dashboard() {
   if (primaryTab === "requests") base = tasks.filter((t) => isRequesterOf(t, effectiveId));
   else if (primaryTab === "mine") base = tasks.filter((t) => isAssignedTo(t, effectiveId));
   else if (primaryTab === "all") base = tasks.filter((t) => isRequesterOf(t, effectiveId) || isAssignedTo(t, effectiveId));
+  // Universo de la búsqueda avanzada (CHANGES.md #1): siempre "todos mis
+  // pendientes" — los que solicité o me asignaron — sin importar qué pestaña
+  // esté activa.
+  const myTasks = tasks.filter((t) => isRequesterOf(t, effectiveId) || isAssignedTo(t, effectiveId));
 
-  const filtered = base.filter((t) => {
-    if (statusFilter !== "Todos" && t.status !== statusFilter) return false;
-    if (search.trim()) {
-      const s = search.toLowerCase();
-      if (!t.title.toLowerCase().includes(s) && !(t.requested_by || "").toLowerCase().includes(s) && !(t.assigned_to_name || "").toLowerCase().includes(s)) return false;
-    }
-    return true;
-  });
+  const filtered = base.filter((t) => statusFilter === "Todos" || t.status === statusFilter);
 
   const byUrgency = {};
   filtered.forEach((t) => { const u = effectiveUrgency(t); (byUrgency[u] = byUrgency[u] || []).push(t); });
@@ -798,15 +822,14 @@ export default function Dashboard() {
       ) : (
       <>
       <div style={{ borderColor: C.hairline }} className="border-b px-5 py-2.5 flex flex-wrap items-center gap-2">
-        <div style={{ borderColor: C.hairline, background: C.panel }} className="flex items-center gap-1.5 border px-2.5 py-1.5 flex-1 min-w-[160px] max-w-xs">
-          <Search size={13} style={{ color: C.inkSoft }} />
-          <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Buscar..." className="text-sm outline-none bg-transparent flex-1" />
-        </div>
         {["Todos", ...ASSIGNEE_STATUSES, "Finalizado"].map((s) => (
           <button key={s} onClick={() => setStatusFilter(s)}
             style={{ borderColor: statusFilter === s ? C.spine : C.hairline, background: statusFilter === s ? C.spine : "transparent", color: statusFilter === s ? C.paper : C.inkSoft }}
             className="border px-2.5 py-1.5 text-xs whitespace-nowrap">{s}</button>
         ))}
+        <button onClick={() => setShowSearch(true)} title="Buscar pendientes" style={{ borderColor: C.hairline, background: C.panel }} className="border p-2 flex items-center justify-center ml-auto">
+          <Search size={15} style={{ color: C.inkSoft }} />
+        </button>
       </div>
 
       <div className="max-w-3xl mx-auto pb-16">
@@ -836,6 +859,7 @@ export default function Dashboard() {
       {showTeam && <TeamPanel onClose={() => setShowTeam(false)} profiles={assignableProfiles} tasks={tasks} />}
       {showActivity && <ActivityPanel onClose={() => setShowActivity(false)} profile={profile} router={router} />}
       {showNotifs && <NotificationsPanel onClose={() => setShowNotifs(false)} notifications={notifications} onOpenTask={(taskId) => { const t = tasks.find((x) => x.id === taskId); if (t) setSelected(t); setShowNotifs(false); }} pushSupported={pushSupported} pushEnabled={pushEnabled} onEnablePush={enablePush} />}
+      {showSearch && <SearchModal onClose={() => setShowSearch(false)} tasks={myTasks} profiles={profiles} onOpenTask={(t) => { setSelected(t); setShowSearch(false); }} />}
     </div>
   );
 }
@@ -908,7 +932,7 @@ function NewTaskForm({ onClose, onCreate, onCreatePopup, profiles, profile, isAd
 
   // Campos del Pop Up
   const [popupTitle, setPopupTitle] = useState(""), [popupDesc, setPopupDesc] = useState("");
-  const [popupDate, setPopupDate] = useState(todayISO()), [popupImage, setPopupImage] = useState(null);
+  const [popupDate, setPopupDate] = useState(""), [popupImage, setPopupImage] = useState(null);
   const [popupTime, setPopupTime] = useState(""), [popupTargetIds, setPopupTargetIds] = useState([]);
   const [replicateNotification, setReplicateNotification] = useState(false), [onlyNotification, setOnlyNotification] = useState(false);
   const [popupImageError, setPopupImageError] = useState(""), [popupSaving, setPopupSaving] = useState(false);
@@ -1003,7 +1027,7 @@ function NewTaskForm({ onClose, onCreate, onCreatePopup, profiles, profile, isAd
   };
 
   const submitPopup = async () => {
-    if (!popupTitle.trim() || !popupDate || popupSaving) return;
+    if (!popupTitle.trim() || popupSaving) return;
     setPopupSaving(true);
     const result = await onCreatePopup({
       title: popupTitle, description: popupDesc, scheduledDate: popupDate, scheduledTime: popupTime || null,
@@ -1070,8 +1094,9 @@ function NewTaskForm({ onClose, onCreate, onCreatePopup, profiles, profile, isAd
               </label>
             </div>
             <div className="grid grid-cols-2 gap-3">
-              <div><label className="font-mono text-[10px] uppercase tracking-widest" style={{ color: C.inkSoft }}>Día programado</label>
-                <input type="date" value={popupDate} onChange={(e) => setPopupDate(e.target.value)} style={{ borderColor: C.hairline, background: C.panel }} className="w-full border px-3 py-2 text-sm mt-1 outline-none" /></div>
+              <div><label className="font-mono text-[10px] uppercase tracking-widest" style={{ color: C.inkSoft }}>Día programado (opcional)</label>
+                <input type="date" value={popupDate} onChange={(e) => setPopupDate(e.target.value)} style={{ borderColor: C.hairline, background: C.panel }} className="w-full border px-3 py-2 text-sm mt-1 outline-none" />
+                <p className="text-[11px] mt-1" style={{ color: C.inkSoft }}>Vacío = se guarda en "Nuevos" para programarlo después.</p></div>
               <div><label className="font-mono text-[10px] uppercase tracking-widest" style={{ color: C.inkSoft }}>Hora (opcional)</label>
                 <input type="time" value={popupTime} onChange={(e) => setPopupTime(e.target.value)} style={{ borderColor: C.hairline, background: C.panel }} className="w-full border px-3 py-2 text-sm mt-1 outline-none" />
                 <p className="text-[10px] mt-1" style={{ color: C.inkSoft }}>Vacío = aparece todo el día.</p></div>
@@ -1301,10 +1326,26 @@ function NewTaskForm({ onClose, onCreate, onCreatePopup, profiles, profile, isAd
   );
 }
 
+const POPUP_TABS = [
+  ["nuevos", "Nuevos"],
+  ["programados", "Programados"],
+  ["historial", "Historial"],
+];
+
+// CHANGES.md #3: clasifica cada pop up en Nuevos (sin scheduled_date todavía
+// — editable, listo para programar), Programados (con fecha futura, aún no
+// sale) o Historial (fecha ya pasada, ya salió — se auto-borra a los 3 días
+// vía el cron de cleanup-notifications).
+function classifyPopup(p, today) {
+  if (!p.scheduled_date) return "nuevos";
+  return p.scheduled_date >= today ? "programados" : "historial";
+}
+
 function PopupsAdminPanel({ profile, profiles, tasks, subtasks }) {
   const [popups, setPopups] = useState([]);
   const [loading, setLoading] = useState(true);
   const [editing, setEditing] = useState(null); // popup object or null
+  const [tab, setTab] = useState("nuevos");
 
   const load = async () => {
     setLoading(true);
@@ -1314,19 +1355,39 @@ function PopupsAdminPanel({ profile, profiles, tasks, subtasks }) {
   };
   useEffect(() => { load(); }, []);
 
+  const today = todayISO();
+  const grouped = { nuevos: [], programados: [], historial: [] };
+  popups.forEach((p) => grouped[classifyPopup(p, today)].push(p));
+  const shown = grouped[tab];
+  const emptyMessage = {
+    nuevos: "Sin borradores por ahora.",
+    programados: "No hay pop ups programados todavía. Créalos desde el botón \"Nuevo\".",
+    historial: "Sin historial todavía.",
+  }[tab];
+
   return (
     <div className="max-w-2xl mx-auto px-5 py-6">
+      <div className="flex gap-2 mb-4">
+        {POPUP_TABS.map(([key, label]) => (
+          <button key={key} onClick={() => setTab(key)}
+            style={{ borderColor: tab === key ? C.signal : C.hairline, background: tab === key ? C.signal : "transparent", color: tab === key ? "#fff" : C.ink }}
+            className="border-2 px-3 py-1.5 text-sm font-medium">
+            {label} <span className="font-mono text-[10px]">({grouped[key].length})</span>
+          </button>
+        ))}
+      </div>
       {loading && <p className="text-sm" style={{ color: C.inkSoft }}>Cargando...</p>}
-      {!loading && popups.length === 0 && <p className="text-sm" style={{ color: C.inkSoft }}>No hay pop ups programados todavía. Créalos desde el botón "Nuevo".</p>}
+      {!loading && shown.length === 0 && <p className="text-sm" style={{ color: C.inkSoft }}>{emptyMessage}</p>}
       <div className="flex flex-col gap-2">
-        {popups.map((p) => {
+        {shown.map((p) => {
           const targetLabel = !p.target_user_ids || p.target_user_ids.length === 0 ? "Todo el equipo" : `${p.target_user_ids.length} persona(s)`;
+          const dateLabel = p.scheduled_date ? `${fmtDate(p.scheduled_date)}${p.scheduled_time ? " · " + p.scheduled_time.slice(0, 5) : ""}` : "Sin programar todavía";
           return (
             <button key={p.id} onClick={() => setEditing(p)} style={{ borderColor: C.hairline, background: C.panel }} className="border p-3.5 text-left flex items-center justify-between gap-3">
               <div className="min-w-0">
                 <div className="text-sm font-medium truncate" style={{ color: C.ink }}>{p.title}{p.only_notification && <span className="ml-1.5 font-mono text-[10px]" style={{ color: C.inkSoft }}>· solo notificación</span>}</div>
                 <div className="font-mono text-[11px] mt-0.5" style={{ color: C.inkSoft }}>
-                  {fmtDate(p.scheduled_date)}{p.scheduled_time ? " · " + p.scheduled_time.slice(0, 5) : ""} · {targetLabel}
+                  {dateLabel} · {targetLabel}
                 </div>
               </div>
               <ChevronRight size={16} style={{ color: C.inkSoft }} />
@@ -1342,7 +1403,7 @@ function PopupsAdminPanel({ profile, profiles, tasks, subtasks }) {
 function PopupEditForm({ popup, profiles, tasks, subtasks, onClose, onSaved }) {
   const [title, setTitle] = useState(popup.title || "");
   const [description, setDescription] = useState(popup.description || "");
-  const [scheduledDate, setScheduledDate] = useState(popup.scheduled_date || todayISO());
+  const [scheduledDate, setScheduledDate] = useState(popup.scheduled_date || "");
   const [scheduledTime, setScheduledTime] = useState(popup.scheduled_time ? popup.scheduled_time.slice(0, 5) : "");
   const [targetUserIds, setTargetUserIds] = useState(popup.target_user_ids || []);
   const [popupTasks, setPopupTasks] = useState(popup.related_tasks || []); // [{ id, fields: string[] }]
@@ -1387,7 +1448,7 @@ function PopupEditForm({ popup, profiles, tasks, subtasks, onClose, onSaved }) {
   };
 
   const save = async () => {
-    if (!title.trim() || !scheduledDate || saving) return;
+    if (!title.trim() || saving) return;
     setSaving(true);
     const oldPath = popupStoragePath(popup.image_url);
     const replacingMedia = !!imageFile;
@@ -1406,7 +1467,7 @@ function PopupEditForm({ popup, profiles, tasks, subtasks, onClose, onSaved }) {
     }
     await supabase.from("popups").update({
       title: title.trim(), description, image_url: imageUrl,
-      scheduled_date: scheduledDate, scheduled_time: scheduledTime || null,
+      scheduled_date: scheduledDate || null, scheduled_time: scheduledTime || null,
       target_user_ids: targetUserIds, replicate_notification: replicateNotification, only_notification: onlyNotification,
       related_tasks: popupTasks,
     }).eq("id", popup.id);
@@ -1473,8 +1534,9 @@ function PopupEditForm({ popup, profiles, tasks, subtasks, onClose, onSaved }) {
             </label>
           </div>
           <div className="grid grid-cols-2 gap-3">
-            <div><label className="font-mono text-[10px] uppercase tracking-widest" style={{ color: C.inkSoft }}>Día programado</label>
-              <input type="date" value={scheduledDate} onChange={(e) => setScheduledDate(e.target.value)} style={{ borderColor: C.hairline, background: C.panel }} className="w-full border px-3 py-2 text-sm mt-1 outline-none" /></div>
+            <div><label className="font-mono text-[10px] uppercase tracking-widest" style={{ color: C.inkSoft }}>Día programado (opcional)</label>
+              <input type="date" value={scheduledDate} onChange={(e) => setScheduledDate(e.target.value)} style={{ borderColor: C.hairline, background: C.panel }} className="w-full border px-3 py-2 text-sm mt-1 outline-none" />
+              <p className="text-[11px] mt-1" style={{ color: C.inkSoft }}>Vacío = se queda en "Nuevos".</p></div>
             <div><label className="font-mono text-[10px] uppercase tracking-widest" style={{ color: C.inkSoft }}>Hora (opcional)</label>
               <input type="time" value={scheduledTime} onChange={(e) => setScheduledTime(e.target.value)} style={{ borderColor: C.hairline, background: C.panel }} className="w-full border px-3 py-2 text-sm mt-1 outline-none" /></div>
           </div>
@@ -1786,7 +1848,11 @@ function TaskDetail({ task, onClose, onUpdate, onDelete, onFinalize, onDeliver, 
   const toggleNotifyRequester = async () => {
     if (task.notify_requester || !task.requested_by_id || viewerIsGerente) return;
     await onUpdate(task, { notify_requester: true }, `${profile.name} activó el aviso al solicitante`);
-    await notify(task.requested_by_id, task.id, `"${task.title}" fue entregado`);
+    await notify(
+      task.requested_by_id, task.id,
+      `${profile.name} ya entregó su pendiente, revísalo y dale finalizado. Al finalizar pendientes podrá sumarle al registro personal de ${profile.name}`,
+      "Te entregaron un pendiente"
+    );
   };
   const bumpRemindAssignee = async () => {
     if (!isAnyRequester || viewerIsGerente) return;
@@ -2199,6 +2265,38 @@ function TaskDetail({ task, onClose, onUpdate, onDelete, onFinalize, onDeliver, 
   );
 }
 
+// Búsqueda avanzada del dashboard (CHANGES.md #1). Busca entre TODOS mis
+// pendientes (solicitados o asignados), sin importar la pestaña activa, por
+// nombre, estado, urgencia, categoría, título, tipo de pendiente, o
+// "hoy"/"mañana" contra el deadline.
+function SearchModal({ onClose, tasks, profiles, onOpenTask }) {
+  const [query, setQuery] = useState("");
+  const results = query.trim() ? tasks.filter((t) => matchesSearchQuery(t, query, profiles)) : [];
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-start justify-center p-4" style={{ background: "rgba(20,24,31,0.5)" }} onClick={onClose}>
+      <div style={{ background: C.paper, borderColor: C.hairline }} className="border w-full max-w-md mt-14 max-h-[70vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
+        <div style={{ borderColor: C.hairline, background: C.paper }} className="border-b px-4 py-3 flex items-center gap-2 sticky top-0">
+          <Search size={15} style={{ color: C.inkSoft, flexShrink: 0 }} />
+          {/* eslint-disable-next-line jsx-a11y/no-autofocus */}
+          <input autoFocus value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Nombre, estado, urgencia, categoría, título, tipo, hoy, mañana..." className="text-sm outline-none bg-transparent flex-1" />
+          <button onClick={onClose}><X size={16} style={{ color: C.inkSoft }} /></button>
+        </div>
+        <div className="p-2">
+          {!query.trim() && <div className="text-xs px-2 py-4" style={{ color: C.inkSoft }}>Escribe para buscar entre todos tus pendientes (los que solicitaste o te asignaron).</div>}
+          {query.trim() && results.length === 0 && <div className="text-xs px-2 py-4" style={{ color: C.inkSoft }}>Sin resultados para "{query}".</div>}
+          {results.map((t) => (
+            <button key={t.id} onClick={() => onOpenTask(t)} style={{ borderColor: C.hairline }} className="w-full text-left border-b last:border-b-0 px-2.5 py-2.5 flex flex-col gap-0.5">
+              <span className="text-sm font-medium truncate" style={{ color: C.ink }}>{t.title}</span>
+              <span className="font-mono text-[10px]" style={{ color: C.inkSoft }}>{t.status} · {t.category} · solicita {t.requested_by} → {t.task_type === "colaborativo" ? "equipo" : t.assigned_to_name}</span>
+            </button>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function NotificationsPanel({ onClose, notifications, onOpenTask, pushSupported, pushEnabled, onEnablePush }) {
   return (
     <div className="fixed inset-0 z-50 flex items-start justify-end p-4" style={{ background: "rgba(20,24,31,0.35)" }} onClick={onClose}>
@@ -2216,7 +2314,8 @@ function NotificationsPanel({ onClose, notifications, onOpenTask, pushSupported,
           {notifications.length === 0 && <div className="text-xs px-2 py-4" style={{ color: C.inkSoft }}>Sin notificaciones todavía.</div>}
           {notifications.map((n) => (
             <div key={n.id} role={n.task_id ? "button" : undefined} onClick={() => n.task_id && onOpenTask(n.task_id)} style={{ background: n.read ? "transparent" : C.signalSoft, cursor: n.task_id ? "pointer" : "default" }} className="w-full text-left px-3 py-2.5 flex flex-col gap-0.5">
-              <span className="text-sm break-words" style={{ color: C.ink }}>{renderWithLinks(n.message, C.signal)}</span>
+              {n.title && <span className="text-sm font-medium break-words" style={{ color: C.ink }}>{n.title}</span>}
+              <span className="text-sm break-words" style={{ color: n.title ? C.inkSoft : C.ink }}>{renderWithLinks(n.message, C.signal)}</span>
               <span className="font-mono text-[10px]" style={{ color: C.inkSoft }}>{new Date(n.created_at).toLocaleDateString("es-MX", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" })}</span>
             </div>
           ))}
@@ -2278,9 +2377,16 @@ function ActivityPanel({ onClose, profile, router }) {
   const todayCount = days[0].count;
 
   const downloadLog = () => {
+    // Rezagado (CHANGES.md #4e): se finalizó en un día distinto al que se
+    // entregó — se muestra con la fecha original de entrega, no la de
+    // finalizado, y con la etiqueta "Rezagado".
     const lines = [
       `Pendientes finalizados por ${profile.name}`, `Total histórico: ${log.length}`, "",
-      ...log.map((l) => `[${new Date(l.finalized_at).toLocaleString("es-MX")}] ${l.task_title}`),
+      ...log.map((l) => {
+        const displayDate = l.is_delayed && l.delivered_at ? l.delivered_at : l.finalized_at;
+        const tag = l.is_delayed ? " · Rezagado" : "";
+        return `[${new Date(displayDate).toLocaleString("es-MX")}] ${l.task_title}${tag}`;
+      }),
     ];
     const blob = new Blob([lines.join("\n")], { type: "text/plain" });
     const url = URL.createObjectURL(blob);
