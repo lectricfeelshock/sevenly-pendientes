@@ -135,12 +135,42 @@ e. **Cómo cuentan estos pendientes rezagados**: si un pendiente se
    regresó a "En progreso" y se volvió a entregar, ya no cuenta como
    rezagado).
 
+f. **Auto-eliminado a los 4 días de finalizado**: un pendiente ya
+   finalizado (con "Terminado y entregado", sea que lo haya finalizado
+   el solicitante a mano o por el auto-finalizado del punto (d)) se
+   elimina automáticamente a los 4 días de haberse finalizado. *(Esto
+   puede resolver la duda que dejé en el punto (d) sobre qué tan literal
+   era "se elimine" ahí — a confirmar juntos antes de implementar para
+   no duplicar o encimar las dos reglas de borrado.)*
+
 ### 5. Cambiar el engrane de "Mi actividad" por un botón "Ver perfil"
 En la ventana de "Mi actividad" (`ActivityPanel`), donde hoy está el
 ícono de engrane junto al nombre para ir al perfil, quitar el engrane y
 poner en su lugar un botón que diga "Ver perfil". Debe llevar al mismo
 lugar de siempre (`/perfil`), solo cambia de ícono+link a un botón con
 texto.
+
+### 6. Botón "Asignar cambios" en pendientes finalizados
+En el desglose de un pendiente ya finalizado, justo donde antes estaba
+el botón de "Finalizar pendiente", el solicitante debe ver un botón
+nuevo: "Asignar cambios".
+
+- Al darle clic, sale una leyenda de confirmación: "Crearás un nuevo
+  pendiente para solicitar estos cambios." con botones "Aceptar" y
+  "Cancelar".
+- Si le da "Cancelar", no pasa nada.
+- Si le da "Aceptar", se abre la ventana normal de crear pendiente
+  (puede ser individual, personal o colaborativo, como siempre lo
+  decide quien lo crea), pero con el título fijo: el título del
+  pendiente al que se le están pidiendo cambios (ese campo no se
+  edita).
+- Al crear ese nuevo pendiente, debe aparecer junto a su título — tanto
+  en la tarjeta del dashboard como en su desglose — la leyenda "Cambios
+  Ronda 1".
+- Si ese nuevo pendiente ("Cambios Ronda 1") también se finaliza y de
+  nuevo se usa "Asignar cambios" sobre él, el siguiente pendiente que se
+  cree sale con "Cambios Ronda 2" — y así, subiendo de número cada vez
+  que se repite el ciclo.
 
 ## Historial (aplicadas)
 
