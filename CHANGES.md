@@ -172,6 +172,15 @@ nuevo: "Asignar cambios".
   cree sale con "Cambios Ronda 2" — y así, subiendo de número cada vez
   que se repite el ciclo.
 
+### 7. Mover la leyenda "De hoy para hoy 💀" de junto al título a debajo del deadline
+Es para el caso específico de que el solicitante creó el pendiente el
+mismo día de la fecha límite que le puso (`request_date === deadline`).
+Hoy esa leyenda ("De hoy para hoy 💀") aparece junto al título — tanto en
+la tarjeta del pendiente en el dashboard como en el encabezado del
+desglose. Quitarla de ahí y ponerla debajo del deadline en ambos
+lugares: debajo del badge de fecha en la tarjeta, y debajo del campo de
+Deadline en el desglose.
+
 ## Historial (aplicadas)
 
 <!-- Aquí se van moviendo las solicitudes ya aplicadas, con fecha y commit. -->
