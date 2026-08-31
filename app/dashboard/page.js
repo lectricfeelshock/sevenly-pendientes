@@ -106,10 +106,10 @@ function PopupMediaPreview({ url, maxHeight }) {
   const media = getPopupMedia(url);
   if (!media) return null;
   if (media.kind === "video") {
-    return <video src={media.src} autoPlay loop muted playsInline className="w-full object-cover" style={{ maxHeight }} />;
+    return <video src={media.src} autoPlay loop muted playsInline className="w-full aspect-video object-cover" style={{ maxHeight }} />;
   }
   // eslint-disable-next-line @next/next/no-img-element
-  return <img src={media.src} alt="" className="w-full object-cover" style={{ maxHeight }} />;
+  return <img src={media.src} alt="" className="w-full aspect-video object-cover" style={{ maxHeight }} />;
 }
 
 // Vista previa del pop up (y de la notificación, si aplica) antes de crearlo
@@ -118,6 +118,7 @@ function PopupMediaPreview({ url, maxHeight }) {
 // previsualización de la imagen/GIF/video.
 function PopupConfirmModal({ title, description, existingUrl, file, onlyNotification, replicateNotification, onCancel, onConfirm, confirmLabel, busy }) {
   const [objectUrl, setObjectUrl] = useState(null);
+  const [showFullMedia, setShowFullMedia] = useState(false);
   useEffect(() => {
     if (!file) { setObjectUrl(null); return; }
     const url = URL.createObjectURL(file);
@@ -141,10 +142,14 @@ function PopupConfirmModal({ title, description, existingUrl, file, onlyNotifica
             <div>
               <div className="font-mono text-[10px] uppercase tracking-widest mb-1.5" style={{ color: C.inkSoft }}>Así se ve el pop up</div>
               <div style={{ borderColor: C.hairline }} className="border overflow-hidden">
-                {mediaUrl && (isVideo
-                  ? <video src={mediaUrl} autoPlay loop muted playsInline className="w-full object-cover" style={{ maxHeight: 160 }} />
-                  // eslint-disable-next-line @next/next/no-img-element
-                  : <img src={mediaUrl} alt="" className="w-full object-cover" style={{ maxHeight: 160 }} />)}
+                {mediaUrl && (
+                  <button type="button" onClick={() => setShowFullMedia(true)} className="block w-full cursor-zoom-in">
+                    {isVideo
+                      ? <video src={mediaUrl} autoPlay loop muted playsInline className="w-full aspect-video object-cover" style={{ maxHeight: 160 }} />
+                      // eslint-disable-next-line @next/next/no-img-element
+                      : <img src={mediaUrl} alt="" className="w-full aspect-video object-cover" style={{ maxHeight: 160 }} />}
+                  </button>
+                )}
                 <div className="p-4">
                   <div className="flex items-center gap-1.5 mb-1.5 font-mono text-[10px] uppercase tracking-widest" style={{ color: C.inkSoft }}>
                     <Megaphone size={12} /> Aviso
@@ -158,9 +163,12 @@ function PopupConfirmModal({ title, description, existingUrl, file, onlyNotifica
           {showNotifPreview && (
             <div>
               <div className="font-mono text-[10px] uppercase tracking-widest mb-1.5" style={{ color: C.inkSoft }}>Así se ve la notificación</div>
-              <div style={{ borderColor: C.hairline, background: C.signalSoft }} className="border px-3 py-2.5 flex items-center gap-2">
-                <Bell size={14} style={{ color: C.signal, flexShrink: 0 }} />
-                <span className="text-sm" style={{ color: C.ink }}>{notifMessage}</span>
+              <div style={{ borderColor: C.hairline, background: C.signalSoft }} className="border px-3 py-2.5 flex flex-col gap-0.5">
+                <div className="flex items-center gap-2">
+                  <Bell size={14} style={{ color: C.signal, flexShrink: 0 }} />
+                  <span className="text-sm" style={{ color: C.ink }}>{notifMessage}</span>
+                </div>
+                {mediaUrl && <span className="text-xs font-medium self-start ml-6" style={{ color: C.signal }}>Ver más</span>}
               </div>
             </div>
           )}
@@ -170,6 +178,40 @@ function PopupConfirmModal({ title, description, existingUrl, file, onlyNotifica
           <button onClick={onConfirm} disabled={busy} style={{ background: C.spine, color: C.paper, opacity: busy ? 0.6 : 1 }} className="px-4 py-2 text-sm">{busy ? "..." : confirmLabel}</button>
         </div>
       </div>
+      {showFullMedia && (
+        <div
+          className="fixed inset-0 z-[95] flex items-center justify-center p-4"
+          style={{ background: "rgba(20,24,31,0.92)" }}
+          onClick={() => setShowFullMedia(false)}
+        >
+          <button
+            onClick={() => setShowFullMedia(false)}
+            style={{ background: C.paper }}
+            className="absolute top-3 right-3 z-10 p-1 rounded-full"
+          >
+            <X size={18} style={{ color: C.inkSoft }} />
+          </button>
+          {isVideo ? (
+            <video
+              src={mediaUrl}
+              controls
+              autoPlay
+              loop
+              playsInline
+              className="max-w-full max-h-full object-contain"
+              onClick={(e) => e.stopPropagation()}
+            />
+          ) : (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              src={mediaUrl}
+              alt=""
+              className="max-w-full max-h-full object-contain"
+              onClick={(e) => e.stopPropagation()}
+            />
+          )}
+        </div>
+      )}
     </div>
   );
 }
