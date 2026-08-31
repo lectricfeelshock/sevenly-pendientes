@@ -36,47 +36,103 @@ Hoy cada pendiente tiene una sola `category` fija (ver
 permitiría filtrar cruzando categorías, por ejemplo "todo lo de
 Instagram" sin importar si es de Marketing o de Diseño.
 
-### 5. Recurrencia más flexible
-Hoy "Pendiente de frecuencia" solo entiende una cosa: "se repite cada
-semana, tal día". Eso cubre el caso de "todos los lunes hay que subir el
-calendario de contenido", pero dentro de una agencia hay trabajo recurrente
-que no cae en semanas:
+### 5. Programar pendiente (reemplaza "Pendiente de frecuencia")
+Esta ya no es una idea mía — es la especificación que me diste, estructurada
+a detalle. Reemplaza por completo el checkbox actual de "Pendiente de
+frecuencia" (semanal únicamente) por un flujo nuevo de "Programar
+pendiente", con fecha de solicitud programada y repetición opcional.
 
-- **Pagos y facturación**: renta, nómina, algún proveedor — se repiten
-  "el día 5 de cada mes", no "cada lunes".
-- **Reportes de cliente**: muchas cuentas piden un reporte de avance cada
-  quincena, no cada semana ni cada mes — hoy ese caso no tiene dónde vivir.
-- **Revisiones periódicas** que no siguen el calendario de nadie más:
-  "cada 10 días toca revisar el inventario de assets", por ejemplo.
+**1. Dónde vive en el formulario**
+En el formulario de crear pendiente — tanto Individual como Colaborativo —,
+justo después de la sección de Subtareas, en el lugar donde hoy está el
+checkbox "Pendiente de frecuencia" va un botón: ícono de reloj + el texto
+**"Programar pendiente"**.
 
-Hoy, todo eso alguien tiene que acordarse de crearlo a mano. La idea es que
-"Pendiente de frecuencia" deje de significar solo "semanal" y pase a
-preguntar, en la creación, *cada cuánto* se repite: cada semana (como ya
-existe), cada mes en un día fijo, o cada cierto número de días
-(quincenal sería el caso más común de esta última, pero serviría para
-cualquier intervalo). La persona que arma el pendiente recurrente elige la
-opción que le haga sentido, sin tener que simular un mes con cuatro
-recordatorios semanales para lograr algo que en realidad es mensual.
+Al darle clic, el formulario se reorganiza:
+- Aparece **"Día programado"** — el mismo tipo de campo de fecha que ya se
+  usa en el pop up de admin ("Día programado (opcional)").
+- A un lado, **"Deadline General"** (el campo que ya existe hoy).
+- Debajo de esos dos, **"Urgencia"** (el campo que ya existe hoy).
 
-Un par de cosas que hay que resolver para que se sienta confiable y no solo
-"a medias":
-- **Meses con menos días.** Si alguien programa un pago "el día 31 de cada
-  mes", ¿qué pasa en febrero o en abril? Lo más razonable es que ese mes
-  se genere el último día disponible, para que nunca se salte un mes por
-  completo — si no, el pago de febrero simplemente no aparecería nunca y
-  nadie lo notaría hasta que ya fuera tarde.
-- **Que no se disparen dos veces por accidente.** Si por lo que sea el
-  sistema revisa dos veces el mismo día, no debería crear el pendiente
-  duplicado — sea recurrencia semanal, quincenal o mensual.
-- **Cambiar de opinión a medio camino.** Si alguien crea un pendiente
-  "mensual" y después decide que en realidad lo quiere "cada 15 días", el
-  cambio debería tomar como punto de partida ese momento, no reinterpretar
-  todo el historial pasado como si siempre hubiera sido quincenal.
+Junto al botón "Programar pendiente" (junto al reloj) aparece un menú
+desplegable estilo Google Calendar. Por default dice **"No se repite"**, y
+sus otras dos opciones son:
+- **Cada semana**
+- **Todos los meses**
 
-Con eso resuelto, el resultado de cara al usuario sigue siendo el mismo que
-hoy: uno arma el pendiente de frecuencia una sola vez, y la app se encarga
-de que aparezca solo cuando toca — solo que ahora "cuando toca" puede ser
-semanal, mensual o cada N días, en vez de estar limitado a semanas.
+**2. Cómo se calculan las fechas — es conteo de días, no día de la semana fijo**
+La regla completa se explica mejor con el ejemplo que diste: Día
+programado = 3 de septiembre (jueves), Deadline general = 8 de septiembre
+— un rango de 5 días entre la solicitud y la entrega.
+
+- **No se repite** → se crea un único pendiente: se solicita el 3 de
+  septiembre, se entrega el 8.
+- **Cada semana** → el pendiente se vuelve a solicitar cada jueves (el
+  mismo día de la semana que tuvo la fecha original), y el deadline sigue
+  siendo "5 días después de la solicitud" — que en este caso siempre cae
+  en martes, porque una semana completa (7 días) no mueve el día de la
+  semana. No es que el sistema sepa "el deadline es los martes": simplemente
+  cuenta 5 días desde el jueves, y da la casualidad de que siempre aterriza
+  en martes.
+- **Todos los meses** → el pendiente se solicita el primer jueves de cada
+  mes (la misma posición que tuvo el 3 de septiembre dentro de su mes: fue
+  el primer jueves de septiembre). Aquí el deadline **ya no** cae siempre
+  el mismo día de la semana — porque los meses no tienen un número exacto
+  de semanas — pero sigue siendo la misma regla: 5 días después de la
+  fecha en que se solicitó ese mes en particular.
+
+Esta misma lógica de conteo de días aplica igual a las subtareas con
+deadline propio, sea en pendiente Individual o Colaborativo. Ejemplo
+completo, con una subtarea cuyo deadline original es el 5 de septiembre
+(2 días después de la solicitud):
+
+| | Solicitud | Deadline general | Deadline de la subtarea |
+|---|---|---|---|
+| Original | 3 sep (jueves) | 8 sep — **+5 días** | 5 sep — **+2 días** |
+| Cada semana | cada jueves | siempre +5 días (cae martes) | siempre +2 días (cae sábado) |
+| Todos los meses | 1er jueves de cada mes | +5 días después de esa solicitud (día de semana variable) | +2 días después de esa solicitud (día de semana variable) |
+
+En resumen: lo único que se guarda al programar el pendiente es *cuántos
+días* hay entre la solicitud y cada deadline (general y de cada subtarea).
+Cada vez que se genera una nueva solicitud —el jueves que toque, o el
+primer jueves del mes que toque— todos los deadlines se recalculan
+sumando ese mismo número de días a la nueva fecha de solicitud.
+
+**3. Dónde se ve — filtro "Programados"**
+En la pestaña **"Mis solicitudes"**, justo después del filtro "Todos" (que
+hoy ya existe en esa barra junto con No iniciado / En progreso / Detenido /
+Entregado / Finalizado), aparece un nuevo filtro: **"Programados"**.
+
+Ahí vive cualquier pendiente creado con "Programar pendiente" activado,
+tenga o no repetición. Si el pendiente es de frecuencia (semanal o
+mensual), no se van acumulando tarjetas viejas — es una sola tarjeta que
+se mantiene ahí siempre, con la fecha de solicitud y los deadlines ya
+actualizados a la próxima ocurrencia.
+
+**4. Editar un pendiente programado**
+Al darle clic a la tarjeta se abre una ventana de edición — el mismo
+formato que ya usa el admin para editar un pop up, pero con la información
+de este pendiente. Si se edita algo ahí, el cambio **solo afecta a esa
+instancia**: no altera la regla de repetición ni las próximas veces que se
+genere, si el pendiente es de frecuencia.
+
+**5. Borrar un pendiente programado**
+- Si el pendiente **no** tiene repetición ("No se repite"): el botón de
+  borrar funciona como hoy — pide confirmación y borra ese único
+  pendiente.
+- Si el pendiente **sí** es de frecuencia: al darle borrar aparece una
+  ventana con dos opciones:
+  - **"Borrar"** → borra solo esta instancia; la próxima semana o mes se
+    sigue generando normal.
+  - **"Borrar pendientes programados"** → detiene la recurrencia por
+    completo, no se vuelve a generar.
+- Cualquiera de los dos botones de borrar pide confirmación antes de
+  ejecutarse.
+
+**6. Aplica igual a Individual y Colaborativo**
+El botón "Programar pendiente" existe en ambos formularios de creación, y
+si cualquiera de los dos tiene subtareas con deadline propio, esas
+subtareas participan de la misma lógica de conteo de días del punto 2.
 
 ### 6. Reportes básicos de equipo
 Con los datos que ya existen (`completed_at`, `assigned_to_id`,
