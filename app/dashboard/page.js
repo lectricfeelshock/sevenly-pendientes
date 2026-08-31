@@ -590,7 +590,7 @@ export default function Dashboard() {
       // "Solo notificación": nunca se muestra como pop up — se manda directo a la campanita, una sola vez.
       const notifyOnly = pending.filter((p) => p.only_notification);
       for (const p of notifyOnly) {
-        await supabase.from("notifications").insert({ user_id: profile.id, task_id: null, message: `📣 ${p.title}${p.description ? " — " + p.description : ""}` });
+        await supabase.from("notifications").insert({ user_id: profile.id, task_id: null, message: `📣 ${p.title}${p.description ? " — " + p.description : ""}`, ...(p.image_url ? { image_url: p.image_url } : {}) });
         await supabase.from("popup_dismissed").insert({ user_id: profile.id, popup_id: p.id });
       }
 
@@ -604,7 +604,7 @@ export default function Dashboard() {
     setPopupQueue((q) => q.slice(1));
     await supabase.from("popup_dismissed").insert({ user_id: profile.id, popup_id: current.id });
     if (current.replicate_notification) {
-      await supabase.from("notifications").insert({ user_id: profile.id, task_id: null, message: `📣 ${current.title}${current.description ? " — " + current.description : ""}` });
+      await supabase.from("notifications").insert({ user_id: profile.id, task_id: null, message: `📣 ${current.title}${current.description ? " — " + current.description : ""}`, ...(current.image_url ? { image_url: current.image_url } : {}) });
     }
   };
 
@@ -2466,6 +2466,7 @@ function SearchModal({ onClose, tasks, profiles, onOpenTask }) {
 }
 
 function NotificationsPanel({ onClose, notifications, onOpenTask, onOpenFilter, pushSupported, pushEnabled, onEnablePush }) {
+  const [fullMediaUrl, setFullMediaUrl] = useState(null);
   return (
     <div className="fixed inset-0 z-50 flex items-start justify-end p-4" style={{ background: "rgba(20,24,31,0.35)" }} onClick={onClose}>
       <div style={{ background: C.paper, borderColor: C.hairline }} className="border w-full max-w-sm mt-14 max-h-[70vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
@@ -2484,11 +2485,54 @@ function NotificationsPanel({ onClose, notifications, onOpenTask, onOpenFilter, 
             <div key={n.id} role={(n.task_id || n.target) ? "button" : undefined} onClick={() => { if (n.task_id) onOpenTask(n.task_id); else if (n.target) onOpenFilter(n.target); }} style={{ background: n.read ? "transparent" : C.signalSoft, cursor: (n.task_id || n.target) ? "pointer" : "default" }} className="w-full text-left px-3 py-2.5 flex flex-col gap-0.5">
               {n.title && <span className="text-sm font-medium break-words" style={{ color: C.ink }}>{n.title}</span>}
               <span className="text-sm break-words" style={{ color: n.title ? C.inkSoft : C.ink }}>{renderWithLinks(n.message, C.signal)}</span>
+              {n.image_url && (
+                <button
+                  onClick={(e) => { e.stopPropagation(); setFullMediaUrl(n.image_url); }}
+                  className="text-xs font-medium self-start"
+                  style={{ color: C.signal }}
+                >
+                  Ver más
+                </button>
+              )}
               <span className="font-mono text-[10px]" style={{ color: C.inkSoft }}>{new Date(n.created_at).toLocaleDateString("es-MX", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" })}</span>
             </div>
           ))}
         </div>
       </div>
+      {fullMediaUrl && (
+        <div
+          className="fixed inset-0 z-[90] flex items-center justify-center p-4"
+          style={{ background: "rgba(20,24,31,0.92)" }}
+          onClick={(e) => { e.stopPropagation(); setFullMediaUrl(null); }}
+        >
+          <button
+            onClick={(e) => { e.stopPropagation(); setFullMediaUrl(null); }}
+            style={{ background: C.paper }}
+            className="absolute top-3 right-3 z-10 p-1 rounded-full"
+          >
+            <X size={18} style={{ color: C.inkSoft }} />
+          </button>
+          {getPopupMedia(fullMediaUrl)?.kind === "video" ? (
+            <video
+              src={fullMediaUrl}
+              controls
+              autoPlay
+              loop
+              playsInline
+              className="max-w-full max-h-full object-contain"
+              onClick={(e) => e.stopPropagation()}
+            />
+          ) : (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              src={fullMediaUrl}
+              alt=""
+              className="max-w-full max-h-full object-contain"
+              onClick={(e) => e.stopPropagation()}
+            />
+          )}
+        </div>
+      )}
     </div>
   );
 }
