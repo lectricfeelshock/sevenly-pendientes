@@ -37,61 +37,46 @@ permitiría filtrar cruzando categorías, por ejemplo "todo lo de
 Instagram" sin importar si es de Marketing o de Diseño.
 
 ### 5. Recurrencia más flexible
-`recurring_templates` hoy solo soporta "cada semana en tal día"
-(`weekday`). Ampliarlo a quincenal/mensual o "cada N días" cubriría cosas
-como pagos mensuales o reportes quincenales que hoy no se pueden
-automatizar. Detallado abajo cómo quedaría el esquema, el cron y el
-formulario si se construye.
+Hoy "Pendiente de frecuencia" solo entiende una cosa: "se repite cada
+semana, tal día". Eso cubre el caso de "todos los lunes hay que subir el
+calendario de contenido", pero dentro de una agencia hay trabajo recurrente
+que no cae en semanas:
 
-**Esquema — agregar sin romper lo que ya existe**
-Las plantillas actuales solo tienen `weekday` + `deadline_offset_days`, y el
-cron (`app/api/generate-recurring/route.js`) hace un simple
-`.eq("weekday", weekday)` una vez al día (`vercel.json`, cron de las 8am).
-En vez de reemplazar eso, agregar columnas nuevas a `recurring_templates`
-con default que deje las plantillas viejas funcionando tal cual:
+- **Pagos y facturación**: renta, nómina, algún proveedor — se repiten
+  "el día 5 de cada mes", no "cada lunes".
+- **Reportes de cliente**: muchas cuentas piden un reporte de avance cada
+  quincena, no cada semana ni cada mes — hoy ese caso no tiene dónde vivir.
+- **Revisiones periódicas** que no siguen el calendario de nadie más:
+  "cada 10 días toca revisar el inventario de assets", por ejemplo.
 
-```sql
-alter table recurring_templates
-  add column if not exists frequency_type text not null default 'weekly'
-    check (frequency_type in ('weekly','every_n_days','monthly')),
-  add column if not exists interval_days int,      -- 'every_n_days': cada cuántos días (14 = quincenal)
-  add column if not exists day_of_month int check (day_of_month between 1 and 31), -- 'monthly'
-  add column if not exists last_generated_on date;  -- para no duplicar si el cron corre dos veces
-```
+Hoy, todo eso alguien tiene que acordarse de crearlo a mano. La idea es que
+"Pendiente de frecuencia" deje de significar solo "semanal" y pase a
+preguntar, en la creación, *cada cuánto* se repite: cada semana (como ya
+existe), cada mes en un día fijo, o cada cierto número de días
+(quincenal sería el caso más común de esta última, pero serviría para
+cualquier intervalo). La persona que arma el pendiente recurrente elige la
+opción que le haga sentido, sin tener que simular un mes con cuatro
+recordatorios semanales para lograr algo que en realidad es mensual.
 
-`weekday` se queda como está y solo se usa cuando `frequency_type = 'weekly'`.
-Ninguna plantilla existente necesita tocarse: todas nacen con
-`frequency_type = 'weekly'` por default y siguen generando igual que hoy.
+Un par de cosas que hay que resolver para que se sienta confiable y no solo
+"a medias":
+- **Meses con menos días.** Si alguien programa un pago "el día 31 de cada
+  mes", ¿qué pasa en febrero o en abril? Lo más razonable es que ese mes
+  se genere el último día disponible, para que nunca se salte un mes por
+  completo — si no, el pago de febrero simplemente no aparecería nunca y
+  nadie lo notaría hasta que ya fuera tarde.
+- **Que no se disparen dos veces por accidente.** Si por lo que sea el
+  sistema revisa dos veces el mismo día, no debería crear el pendiente
+  duplicado — sea recurrencia semanal, quincenal o mensual.
+- **Cambiar de opinión a medio camino.** Si alguien crea un pendiente
+  "mensual" y después decide que en realidad lo quiere "cada 15 días", el
+  cambio debería tomar como punto de partida ese momento, no reinterpretar
+  todo el historial pasado como si siempre hubiera sido quincenal.
 
-**Cron — tres ramas en vez de una**
-Hoy `generate-recurring/route.js` solo pregunta "¿es tu día de la semana?".
-Con los tipos nuevos sería:
-- `weekly` → igual que hoy, `weekday === now.getDay()`.
-- `every_n_days` → `(hoy − last_generated_on) % interval_days === 0`,
-  anclado a cuándo se creó la plantilla la primera vez (no a una fecha fija
-  arbitraria), para que "cada 15 días" sea predecible desde que se armó.
-- `monthly` → `day_of_month === now.getDate()`, con un ajuste para meses
-  cortos: si `day_of_month` (ej. 31) no existe ese mes, se dispara el
-  último día del mes en vez de saltárselo — si no, un pago "el día 31" no
-  se generaría nunca en febrero, abril, junio, etc.
-
-De paso, esto resuelve un hueco que ya existe hoy: ahora mismo nada evita
-que el cron cree el pendiente dos veces si Vercel llegara a reintentar la
-ejecución el mismo día. Guardar `last_generated_on` y solo insertar si es
-distinto de hoy cierra ese hueco para los tres tipos, incluido el semanal.
-
-**Formulario — un selector en vez del checkbox fijo**
-En `app/dashboard/page.js` (~línea 1221-1236), el checkbox "Pendiente de
-frecuencia (se repite cada semana)" pasaría a un selector de tipo: *Cada
-semana* / *Cada 15 días* / *Cada mes*, con el control que ya existe
-(`WEEKDAYS` select) apareciendo solo para semanal, y uno nuevo de día del
-mes (1-31) apareciendo solo para mensual. El select de
-`DEADLINE_OFFSETS` que ya existe no cambia — aplica igual a los tres tipos.
-
-**Un detalle a resolver antes de construirlo:** si alguien cambia una
-plantilla existente de un tipo a otro (de semanal a mensual, por ejemplo),
-hay que resetear `last_generated_on` a `null` para que no se salte el
-primer ciclo por comparar contra una fecha que ya no aplica.
+Con eso resuelto, el resultado de cara al usuario sigue siendo el mismo que
+hoy: uno arma el pendiente de frecuencia una sola vez, y la app se encarga
+de que aparezca solo cuando toca — solo que ahora "cuando toca" puede ser
+semanal, mensual o cada N días, en vez de estar limitado a semanas.
 
 ### 6. Reportes básicos de equipo
 Con los datos que ya existen (`completed_at`, `assigned_to_id`,
