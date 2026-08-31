@@ -114,6 +114,11 @@ mi propio pendiente general en partes más chicas, no para repartirlo
 con nadie más (el pendiente se queda individual, solo se trata de
 organizarme mejor).
 
+### 11. Quitar el botón "💡 Consejo" al marcar pendiente de frecuencia
+Al crear un pendiente **individual** y marcar la casilla de "pendiente
+de frecuencia", hoy aparece un botón "💡 Consejo" en el formulario.
+Quitarlo.
+
 ## Historial (aplicadas)
 
 <!-- Aquí se van moviendo las solicitudes ya aplicadas, con fecha y commit. -->
