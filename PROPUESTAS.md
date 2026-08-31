@@ -154,7 +154,15 @@ quieres ese nivel de detalle más adelante.
 
 También pedido directo: ejemplos de apps con un look moderno — limpio, con
 bordes curvos — para inspirar el refresh visual completo, no solo el
-perfil. Punto de partida: hoy el estilo (`C` palette repetida en
+perfil.
+
+**Muestrario visual (las seis renderizadas, no solo descritas):**
+https://claude.ai/code/artifact/4fd09627-aa8e-4c96-b01f-e3a762086d2a — la
+tarjeta de perfil, chips y botones reales de Sevenly repetidos seis veces,
+mismo color en todas, solo cambia el radio y la sombra por tratamiento
+(20-25 abajo), más el token de radio sugerido (26).
+
+Punto de partida: hoy el estilo (`C` palette repetida en
 `app/dashboard/page.js` y `app/perfil/page.js`, tipografía Georgia serif
 para títulos, mono uppercase para labels, `border` sin `rounded` en casi
 todo — solo 7 usos de `rounded` en todo el código, todos en dashboard) es
