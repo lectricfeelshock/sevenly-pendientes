@@ -107,6 +107,13 @@ este pendiente y en modo colaborativo:
 - **Subtareas**: también disponible, con la misma regla de siempre —
   hay que agregarle una subtarea a cada persona del equipo de trabajo.
 
+### 10. Poder agregarte subtareas a ti mismo en un pendiente individual que te asignaron
+En un pendiente **individual** que a mí me asignaron, que yo (el
+asignado) pueda agregarme subtareas a mí mismo — es para poder dividir
+mi propio pendiente general en partes más chicas, no para repartirlo
+con nadie más (el pendiente se queda individual, solo se trata de
+organizarme mejor).
+
 ## Historial (aplicadas)
 
 <!-- Aquí se van moviendo las solicitudes ya aplicadas, con fecha y commit. -->
