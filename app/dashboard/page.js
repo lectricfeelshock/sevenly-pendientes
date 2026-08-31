@@ -1914,7 +1914,7 @@ function TaskDetail({ task, onClose, onUpdate, onDelete, onFinalize, onDeliver, 
   const [comment, setComment] = useState(""), [comments, setComments] = useState([]);
   const [history, setHistory] = useState([]), [showHistory, setShowHistory] = useState(false);
   const [delegateId, setDelegateId] = useState(""), [confirmDelete, setConfirmDelete] = useState(false);
-  const [responsibleId, setResponsibleId] = useState("");
+  const [responsibleIds, setResponsibleIds] = useState([]);
   const [confirmFinalize, setConfirmFinalize] = useState(false);
   const [reminderTargetId, setReminderTargetId] = useState("");
   const [showAddSubtask, setShowAddSubtask] = useState(false);
@@ -2037,13 +2037,21 @@ function TaskDetail({ task, onClose, onUpdate, onDelete, onFinalize, onDeliver, 
     if (p.id !== profile.id) await notify(p.id, task.id, `Te ${isPersonalSolo ? "asignaron" : "delegaron"} "${task.title}"`);
     setDelegateId("");
   };
+  const toggleResponsibleId = (id) => setResponsibleIds((prev) => prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]);
   const assignResponsible = async () => {
     if (isFinalized || viewerIsGerente) return;
-    const p = profiles.find((x) => x.id === responsibleId);
-    if (!p) return;
-    await onUpdate(task, { requested_by_id: p.id, requested_by: p.name, assigned_to_id: profile.id, assigned_to_name: profile.name }, `${profile.name} asignó a ${p.name} como responsable de "${task.title}"`);
-    if (p.id !== profile.id) await notify(p.id, task.id, `Te asignaron como responsable de "${task.title}"`);
-    setResponsibleId("");
+    const selected = responsibleIds.map((id) => profiles.find((p) => p.id === id)).filter(Boolean);
+    if (selected.length === 0) return;
+    const [primary, ...rest] = selected;
+    await onUpdate(task, {
+      requested_by_id: primary.id, requested_by: primary.name,
+      co_requester_ids: rest.map((p) => p.id), co_requester_names: rest.map((p) => p.name),
+      assigned_to_id: profile.id, assigned_to_name: profile.name,
+    }, `${profile.name} asignó a ${selected.map((p) => p.name).join(", ")} como responsable${selected.length > 1 ? "s" : ""} de "${task.title}"`);
+    for (const p of selected) {
+      if (p.id !== profile.id) await notify(p.id, task.id, `Te asignaron como responsable de "${task.title}"`);
+    }
+    setResponsibleIds([]);
   };
 
   const toggleFollow = async () => {
@@ -2321,15 +2329,16 @@ function TaskDetail({ task, onClose, onUpdate, onDelete, onFinalize, onDeliver, 
 
           {!isColaborativo && isPersonalSolo && !viewerIsGerente && (
             <div style={{ borderColor: C.hairline }} className="border-t pt-4">
-              <div className="font-mono text-[10px] uppercase tracking-widest mb-1" style={{ color: C.inkSoft }}>Asignar responsable</div>
-              <p className="text-[11px] mb-2" style={{ color: C.inkSoft }}>Esa persona se vuelve la solicitante y tú te quedas como asignado.</p>
-              <div className="flex gap-2">
-                <select disabled={isFinalized} value={responsibleId} onChange={(e) => setResponsibleId(e.target.value)} style={{ borderColor: C.hairline, background: C.panel }} className="flex-1 border px-3 py-2 text-sm outline-none disabled:opacity-50">
-                  <option value="">Elegir persona...</option>
-                  {assignableProfiles.filter((p) => p.id !== profile.id).map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
-                </select>
-                <button disabled={isFinalized || !responsibleId} onClick={assignResponsible} style={{ borderColor: C.hairline, color: C.ink }} className="border px-3 py-2 text-sm flex items-center gap-1 disabled:opacity-50"><ArrowRightLeft size={14} /> Asignar responsable</button>
+              <div className="font-mono text-[10px] uppercase tracking-widest mb-1" style={{ color: C.inkSoft }}>Asignar Responsables</div>
+              <p className="text-[11px] mb-2" style={{ color: C.inkSoft }}>Esas personas se vuelven las solicitantes y tú te quedas como asignado.</p>
+              <div className="flex flex-wrap gap-1.5 mb-2">
+                {assignableProfiles.filter((p) => p.id !== profile.id).map((p) => (
+                  <button key={p.id} type="button" disabled={isFinalized} onClick={() => toggleResponsibleId(p.id)}
+                    style={{ borderColor: responsibleIds.includes(p.id) ? C.signal : C.hairline, background: responsibleIds.includes(p.id) ? C.signal : "transparent", color: responsibleIds.includes(p.id) ? "#fff" : C.ink }}
+                    className="border px-2.5 py-1 text-xs disabled:opacity-50">{p.name}</button>
+                ))}
               </div>
+              <button disabled={isFinalized || responsibleIds.length === 0} onClick={assignResponsible} style={{ borderColor: C.hairline, color: C.ink }} className="border px-3 py-2 text-sm flex items-center gap-1 disabled:opacity-50"><ArrowRightLeft size={14} /> Asignar Responsables</button>
             </div>
           )}
 
