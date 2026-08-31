@@ -868,12 +868,12 @@ export default function Dashboard() {
             style={{ borderColor: statusFilter === s ? C.spine : C.hairline, background: statusFilter === s ? C.spine : "transparent", color: statusFilter === s ? C.paper : C.inkSoft }}
             className="border px-2.5 py-1.5 text-xs whitespace-nowrap">{s}</button>
         ))}
-        <div className="flex items-center ml-auto">
-          <div className="relative">
-            <span className="font-mono text-[10px] uppercase tracking-wider px-2 py-1 rounded-full whitespace-nowrap" style={{ background: C.signal, color: C.paper }}>¡Nuevo!</span>
-            <span className="absolute top-1/2 -right-0.5 w-2 h-2 rotate-45" style={{ background: C.signal, transform: "translateY(-50%) rotate(45deg)" }} />
+        <div className="relative ml-auto">
+          <div className="absolute -top-8 left-1/2 -translate-x-1/2 flex flex-col items-center z-10">
+            <span className="font-mono text-[10px] uppercase tracking-wider px-2 py-1 rounded-md whitespace-nowrap" style={{ background: C.signal, color: C.paper }}>¡Nuevo!</span>
+            <span className="w-0 h-0" style={{ borderLeft: "5px solid transparent", borderRight: "5px solid transparent", borderTop: `6px solid ${C.signal}` }} />
           </div>
-          <button onClick={() => setShowSearch(true)} title="Buscar pendientes" style={{ background: C.spine }} className="p-2 ml-2.5 flex items-center justify-center">
+          <button onClick={() => setShowSearch(true)} title="Buscar pendientes" style={{ background: C.spine }} className="p-2 flex items-center justify-center">
             <Search size={15} style={{ color: C.paper }} />
           </button>
         </div>
