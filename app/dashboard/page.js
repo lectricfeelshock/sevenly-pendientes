@@ -112,6 +112,68 @@ function PopupMediaPreview({ url, maxHeight }) {
   return <img src={media.src} alt="" className="w-full object-cover" style={{ maxHeight }} />;
 }
 
+// Vista previa del pop up (y de la notificación, si aplica) antes de crearlo
+// o guardarlo — reemplaza el "Programar"/"Guardar" directo por un paso de
+// confirmación. `file` (si viene) manda sobre `existingUrl` para la
+// previsualización de la imagen/GIF/video.
+function PopupConfirmModal({ title, description, existingUrl, file, onlyNotification, replicateNotification, onCancel, onConfirm, confirmLabel, busy }) {
+  const [objectUrl, setObjectUrl] = useState(null);
+  useEffect(() => {
+    if (!file) { setObjectUrl(null); return; }
+    const url = URL.createObjectURL(file);
+    setObjectUrl(url);
+    return () => URL.revokeObjectURL(url);
+  }, [file]);
+  const mediaUrl = file ? objectUrl : existingUrl;
+  const isVideo = file ? file.type.startsWith("video/") : getPopupMedia(mediaUrl)?.kind === "video";
+  const showPopupPreview = !onlyNotification;
+  const showNotifPreview = onlyNotification || replicateNotification;
+  const notifMessage = `📣 ${title}${description ? " — " + description : ""}`;
+
+  return (
+    <div className="fixed inset-0 z-[80] flex items-center justify-center p-4" style={{ background: "rgba(20,24,31,0.65)" }}>
+      <div style={{ background: C.paper, borderColor: C.hairline }} className="w-full max-w-sm border max-h-[90vh] overflow-y-auto">
+        <div style={{ borderColor: C.hairline }} className="border-b px-5 py-4">
+          <h2 style={{ color: C.ink, fontFamily: "Georgia, serif" }} className="text-lg">Vista previa</h2>
+        </div>
+        <div className="p-5 flex flex-col gap-4">
+          {showPopupPreview && (
+            <div>
+              <div className="font-mono text-[10px] uppercase tracking-widest mb-1.5" style={{ color: C.inkSoft }}>Así se ve el pop up</div>
+              <div style={{ borderColor: C.hairline }} className="border overflow-hidden">
+                {mediaUrl && (isVideo
+                  ? <video src={mediaUrl} autoPlay loop muted playsInline className="w-full object-cover" style={{ maxHeight: 160 }} />
+                  // eslint-disable-next-line @next/next/no-img-element
+                  : <img src={mediaUrl} alt="" className="w-full object-cover" style={{ maxHeight: 160 }} />)}
+                <div className="p-4">
+                  <div className="flex items-center gap-1.5 mb-1.5 font-mono text-[10px] uppercase tracking-widest" style={{ color: C.inkSoft }}>
+                    <Megaphone size={12} /> Aviso
+                  </div>
+                  <h3 style={{ color: C.ink, fontFamily: "Georgia, serif" }} className="text-base mb-1">{title || "(sin título)"}</h3>
+                  {description && <p className="text-sm whitespace-pre-wrap" style={{ color: C.ink }}>{renderWithLinks(description, C.signal)}</p>}
+                </div>
+              </div>
+            </div>
+          )}
+          {showNotifPreview && (
+            <div>
+              <div className="font-mono text-[10px] uppercase tracking-widest mb-1.5" style={{ color: C.inkSoft }}>Así se ve la notificación</div>
+              <div style={{ borderColor: C.hairline, background: C.signalSoft }} className="border px-3 py-2.5 flex items-center gap-2">
+                <Bell size={14} style={{ color: C.signal, flexShrink: 0 }} />
+                <span className="text-sm" style={{ color: C.ink }}>{notifMessage}</span>
+              </div>
+            </div>
+          )}
+        </div>
+        <div style={{ borderColor: C.hairline }} className="border-t px-5 py-4 flex justify-end gap-2">
+          <button onClick={onCancel} disabled={busy} style={{ color: C.inkSoft }} className="px-4 py-2 text-sm disabled:opacity-60">Cancelar</button>
+          <button onClick={onConfirm} disabled={busy} style={{ background: C.spine, color: C.paper, opacity: busy ? 0.6 : 1 }} className="px-4 py-2 text-sm">{busy ? "..." : confirmLabel}</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 const POPUP_TASK_LIMIT = 10;
 
 const POPUP_TASK_FIELDS = [
@@ -983,6 +1045,7 @@ function NewTaskForm({ onClose, onCreate, onCreatePopup, profiles, profile, isAd
   const [popupTime, setPopupTime] = useState(""), [popupTargetIds, setPopupTargetIds] = useState([]);
   const [replicateNotification, setReplicateNotification] = useState(false), [onlyNotification, setOnlyNotification] = useState(false);
   const [popupImageError, setPopupImageError] = useState(""), [popupSaving, setPopupSaving] = useState(false);
+  const [showPopupConfirm, setShowPopupConfirm] = useState(false);
   const [popupTasks, setPopupTasks] = useState([]); // [{ id, fields: string[] }]
 
   const togglePopupTarget = (id) => setPopupTargetIds((prev) => prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]);
@@ -1354,7 +1417,7 @@ function NewTaskForm({ onClose, onCreate, onCreatePopup, profiles, profile, isAd
         <div style={{ borderColor: C.hairline }} className="border-t px-5 py-4 flex justify-end gap-2">
           <button onClick={onClose} style={{ color: C.inkSoft }} className="px-4 py-2 text-sm">Cancelar</button>
           {mode === "popup" && isAdmin ? (
-            <button onClick={submitPopup} disabled={popupSaving || !!popupImageError} style={{ background: C.spine, color: C.paper, opacity: popupSaving ? 0.6 : 1 }} className="px-4 py-2 text-sm">{popupSaving ? "Programando..." : "Programar"}</button>
+            <button onClick={() => setShowPopupConfirm(true)} disabled={!popupTitle.trim() || popupSaving || !!popupImageError} style={{ background: C.spine, color: C.paper, opacity: popupSaving ? 0.6 : 1 }} className="px-4 py-2 text-sm disabled:cursor-not-allowed">¿Listo?</button>
           ) : (
             <button onClick={handleCreateClick} disabled={usesDeadlineRules && !!deadlineError} style={{ background: C.spine, color: C.paper, opacity: usesDeadlineRules && deadlineError ? 0.5 : 1 }} className="px-4 py-2 text-sm disabled:cursor-not-allowed">Crear pendiente</button>
           )}
@@ -1368,6 +1431,15 @@ function NewTaskForm({ onClose, onCreate, onCreatePopup, profiles, profile, isAd
             <button onClick={() => setShowSubtaskRule(false)} style={{ background: C.spine, color: C.paper }} className="mt-3 px-3 py-1.5 text-xs w-full">Entendido</button>
           </div>
         </div>
+      )}
+      {showPopupConfirm && (
+        <PopupConfirmModal
+          title={popupTitle} description={popupDesc}
+          existingUrl={null} file={onlyNotification ? null : popupImage}
+          onlyNotification={onlyNotification} replicateNotification={replicateNotification}
+          onCancel={() => setShowPopupConfirm(false)} onConfirm={submitPopup}
+          confirmLabel="Crear" busy={popupSaving}
+        />
       )}
     </div>
   );
@@ -1473,6 +1545,7 @@ function PopupEditForm({ popup, profiles, tasks, subtasks, onClose, onSaved }) {
   const [imageError, setImageError] = useState("");
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [showConfirm, setShowConfirm] = useState(false);
 
   const toggleTarget = (id) => setTargetUserIds((prev) => prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]);
 
@@ -1592,10 +1665,19 @@ function PopupEditForm({ popup, profiles, tasks, subtasks, onClose, onSaved }) {
           <button onClick={remove} disabled={deleting} style={{ color: C.urgent }} className="px-3 py-2 text-sm flex items-center gap-1.5 disabled:opacity-60"><Trash2 size={14} /> {deleting ? "Borrando..." : "Borrar"}</button>
           <div className="flex gap-2">
             <button onClick={onClose} style={{ color: C.inkSoft }} className="px-4 py-2 text-sm">Cancelar</button>
-            <button onClick={save} disabled={saving || !!imageError} style={{ background: C.spine, color: C.paper, opacity: saving ? 0.6 : 1 }} className="px-4 py-2 text-sm">{saving ? "Guardando..." : "Guardar"}</button>
+            <button onClick={() => setShowConfirm(true)} disabled={!title.trim() || saving || !!imageError} style={{ background: C.spine, color: C.paper, opacity: saving ? 0.6 : 1 }} className="px-4 py-2 text-sm disabled:cursor-not-allowed">¿Listo?</button>
           </div>
         </div>
       </div>
+      {showConfirm && (
+        <PopupConfirmModal
+          title={title} description={description}
+          existingUrl={popup.image_url} file={onlyNotification ? null : imageFile}
+          onlyNotification={onlyNotification} replicateNotification={replicateNotification}
+          onCancel={() => setShowConfirm(false)} onConfirm={save}
+          confirmLabel="Guardar" busy={saving}
+        />
+      )}
     </div>
   );
 }
