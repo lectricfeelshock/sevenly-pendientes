@@ -79,6 +79,14 @@ desglose. Quitarla de ahí y ponerla debajo del deadline en ambos
 lugares: debajo del badge de fecha en la tarjeta, y debajo del campo de
 Deadline en el desglose.
 
+### 8. Apartado de FAQ (dudas frecuentes)
+Un apartado nuevo con preguntas frecuentes y sus respuestas, para que el
+equipo pueda resolver dudas comunes sin tener que preguntar. Aún sin
+definir bien — ni las preguntas, ni dónde vive dentro de la app (¿pestaña
+propia? ¿dentro de Biblioteca? ¿accesible desde el menú de arriba?), ni
+quién la puede editar. Lo dejo como opción por ahora; cuando lo tenga más
+claro lo detallo.
+
 ## Historial (aplicadas)
 
 <!-- Aquí se van moviendo las solicitudes ya aplicadas, con fecha y commit. -->
