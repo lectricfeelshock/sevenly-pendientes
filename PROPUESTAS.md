@@ -134,7 +134,24 @@ El botón "Programar pendiente" existe en ambos formularios de creación, y
 si cualquiera de los dos tiene subtareas con deadline propio, esas
 subtareas participan de la misma lógica de conteo de días del punto 2.
 
-### 6. Reportes básicos de equipo
+**7. Los pendientes de frecuencia que ya existen con el sistema viejo**
+Los pendientes de frecuencia creados con la opción anterior (la que solo
+sabía "cada semana en tal día") también deben aparecer en "Mis
+solicitudes" → "Programados", para poder editarlos o borrarlos desde ahí
+igual que los nuevos — que no se queden huérfanos en un sistema que ya no
+existe en la pantalla.
+
+**Pregunta abierta antes de construir esto, no algo que ya esté resuelto:**
+el sistema viejo y el nuevo no guardan la información de la misma forma.
+Lo viejo es una plantilla que solo sabe el día de la semana y cuántos días
+después va el deadline, y cada semana genera un pendiente nuevo y
+separado (cada uno con su propio registro). Lo nuevo es un "Día
+programado" real más una sola tarjeta que se actualiza en su lugar. Antes
+de dar por hecho que uno se puede convertir en el otro sin fricción, vale
+la pena confirmar si van a convivir dos formatos por debajo (mostrando lo
+viejo con una versión simplificada de la tarjeta) o si hay que migrar cada
+plantilla vieja a una con "Día programado" real — y qué pasa con el
+historial de pendientes que esa plantilla ya generó antes del cambio.
 Con los datos que ya existen (`completed_at`, `assigned_to_id`,
 `status`) se puede armar un panel simple: pendientes entregados por
 persona en la semana, cuántos están vencidos, tiempo promedio entre
