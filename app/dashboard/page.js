@@ -1786,6 +1786,7 @@ function PopupTaskBreakdown({ task, fields, profiles, subtasks, onFinalizeTask }
 
 function PopupModal({ popup, onClose, tasks, subtasks, profiles, onFinalizeTask }) {
   const [openTaskId, setOpenTaskId] = useState(null);
+  const [showFullMedia, setShowFullMedia] = useState(false);
   const relatedEntries = (popup.related_tasks || [])
     .map((entry) => ({ entry, task: tasks.find((t) => t.id === entry.id) }))
     .filter((x) => x.task);
@@ -1796,7 +1797,45 @@ function PopupModal({ popup, onClose, tasks, subtasks, profiles, onFinalizeTask 
         <button onClick={onClose} style={{ background: C.paper }} className="absolute top-3 right-3 z-10 p-1 rounded-full">
           <X size={18} style={{ color: C.inkSoft }} />
         </button>
-        {popup.image_url && <PopupMediaPreview url={popup.image_url} maxHeight={220} />}
+        {popup.image_url && (
+          <button type="button" onClick={() => setShowFullMedia(true)} className="block w-full cursor-zoom-in">
+            <PopupMediaPreview url={popup.image_url} maxHeight={220} />
+          </button>
+        )}
+        {showFullMedia && (
+          <div
+            className="fixed inset-0 z-[90] flex items-center justify-center p-4"
+            style={{ background: "rgba(20,24,31,0.92)" }}
+            onClick={() => setShowFullMedia(false)}
+          >
+            <button
+              onClick={() => setShowFullMedia(false)}
+              style={{ background: C.paper }}
+              className="absolute top-3 right-3 z-10 p-1 rounded-full"
+            >
+              <X size={18} style={{ color: C.inkSoft }} />
+            </button>
+            {getPopupMedia(popup.image_url)?.kind === "video" ? (
+              <video
+                src={popup.image_url}
+                controls
+                autoPlay
+                loop
+                playsInline
+                className="max-w-full max-h-full object-contain"
+                onClick={(e) => e.stopPropagation()}
+              />
+            ) : (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                src={popup.image_url}
+                alt=""
+                className="max-w-full max-h-full object-contain"
+                onClick={(e) => e.stopPropagation()}
+              />
+            )}
+          </div>
+        )}
         <div className="p-5">
           <div className="flex items-center gap-1.5 mb-2 font-mono text-[10px] uppercase tracking-widest" style={{ color: C.inkSoft }}>
             <Megaphone size={12} /> Aviso
