@@ -868,9 +868,15 @@ export default function Dashboard() {
             style={{ borderColor: statusFilter === s ? C.spine : C.hairline, background: statusFilter === s ? C.spine : "transparent", color: statusFilter === s ? C.paper : C.inkSoft }}
             className="border px-2.5 py-1.5 text-xs whitespace-nowrap">{s}</button>
         ))}
-        <button onClick={() => setShowSearch(true)} title="Buscar pendientes" style={{ borderColor: C.hairline, background: C.panel }} className="border p-2 flex items-center justify-center ml-auto">
-          <Search size={15} style={{ color: C.inkSoft }} />
-        </button>
+        <div className="flex items-center gap-1.5 ml-auto">
+          {/* Lanzamiento del buscador — quitar esta leyenda después del 2026-08-31 */}
+          {todayISO() === "2026-08-31" && (
+            <span className="font-mono text-[10px] uppercase tracking-wider" style={{ color: C.signal }}>¡Nuevo!</span>
+          )}
+          <button onClick={() => setShowSearch(true)} title="Buscar pendientes" style={{ background: C.spine }} className="p-2 flex items-center justify-center">
+            <Search size={15} style={{ color: C.paper }} />
+          </button>
+        </div>
       </div>
 
       <div className="max-w-3xl mx-auto pb-16">
@@ -2321,11 +2327,10 @@ function SearchModal({ onClose, tasks, profiles, onOpenTask }) {
         <div style={{ borderColor: C.hairline, background: C.paper }} className="border-b px-4 py-3 flex items-center gap-2 sticky top-0">
           <Search size={15} style={{ color: C.inkSoft, flexShrink: 0 }} />
           {/* eslint-disable-next-line jsx-a11y/no-autofocus */}
-          <input autoFocus value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Nombre, estado, urgencia, categoría, título, tipo, hoy, mañana..." className="text-sm outline-none bg-transparent flex-1" />
+          <input autoFocus value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Busca palabras clave..." className="text-sm outline-none bg-transparent flex-1" />
           <button onClick={onClose}><X size={16} style={{ color: C.inkSoft }} /></button>
         </div>
         <div className="p-2">
-          {!query.trim() && <div className="text-xs px-2 py-4" style={{ color: C.inkSoft }}>Escribe para buscar entre todos tus pendientes (los que solicitaste o te asignaron).</div>}
           {query.trim() && results.length === 0 && <div className="text-xs px-2 py-4" style={{ color: C.inkSoft }}>Sin resultados para "{query}".</div>}
           {results.map((t) => (
             <button key={t.id} onClick={() => onOpenTask(t)} style={{ borderColor: C.hairline }} className="w-full text-left border-b last:border-b-0 px-2.5 py-2.5 flex flex-col gap-0.5">
