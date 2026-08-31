@@ -868,9 +868,12 @@ export default function Dashboard() {
             style={{ borderColor: statusFilter === s ? C.spine : C.hairline, background: statusFilter === s ? C.spine : "transparent", color: statusFilter === s ? C.paper : C.inkSoft }}
             className="border px-2.5 py-1.5 text-xs whitespace-nowrap">{s}</button>
         ))}
-        <button onClick={() => setShowSearch(true)} title="Buscar pendientes" style={{ borderColor: C.hairline, background: C.panel }} className="border p-2 flex items-center justify-center ml-auto">
-          <Search size={15} style={{ color: C.inkSoft }} />
-        </button>
+        <div className="flex items-center gap-1.5 ml-auto">
+          <span className="font-mono text-[10px] uppercase tracking-wider" style={{ color: C.signal }}>¡Nuevo!</span>
+          <button onClick={() => setShowSearch(true)} title="Buscar pendientes" style={{ background: C.spine }} className="p-2 flex items-center justify-center">
+            <Search size={15} style={{ color: C.paper }} />
+          </button>
+        </div>
       </div>
 
       <div className="max-w-3xl mx-auto pb-16">
@@ -2325,7 +2328,6 @@ function SearchModal({ onClose, tasks, profiles, onOpenTask }) {
           <button onClick={onClose}><X size={16} style={{ color: C.inkSoft }} /></button>
         </div>
         <div className="p-2">
-          {!query.trim() && <div className="text-xs px-2 py-4" style={{ color: C.inkSoft }}>Escribe para buscar entre todos tus pendientes (los que solicitaste o te asignaron).</div>}
           {query.trim() && results.length === 0 && <div className="text-xs px-2 py-4" style={{ color: C.inkSoft }}>Sin resultados para "{query}".</div>}
           {results.map((t) => (
             <button key={t.id} onClick={() => onOpenTask(t)} style={{ borderColor: C.hairline }} className="w-full text-left border-b last:border-b-0 px-2.5 py-2.5 flex flex-col gap-0.5">
