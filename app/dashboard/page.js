@@ -869,7 +869,10 @@ export default function Dashboard() {
             className="border px-2.5 py-1.5 text-xs whitespace-nowrap">{s}</button>
         ))}
         <div className="flex items-center gap-1.5 ml-auto">
-          <span className="font-mono text-[10px] uppercase tracking-wider" style={{ color: C.signal }}>¡Nuevo!</span>
+          {/* Lanzamiento del buscador — quitar esta leyenda después del 2026-08-31 */}
+          {todayISO() === "2026-08-31" && (
+            <span className="font-mono text-[10px] uppercase tracking-wider" style={{ color: C.signal }}>¡Nuevo!</span>
+          )}
           <button onClick={() => setShowSearch(true)} title="Buscar pendientes" style={{ background: C.spine }} className="p-2 flex items-center justify-center">
             <Search size={15} style={{ color: C.paper }} />
           </button>
