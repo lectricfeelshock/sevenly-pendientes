@@ -87,6 +87,26 @@ propia? ¿dentro de Biblioteca? ¿accesible desde el menú de arriba?), ni
 quién la puede editar. Lo dejo como opción por ahora; cuando lo tenga más
 claro lo detallo.
 
+### 9. Convertir pendiente individual a colaborativo: abrir ventana completa en vez de solo agregar
+En el desglose de un pendiente **individual**, el botón "+" junto a
+"Asignar a" hoy solo convierte el pendiente a colaborativo agregando a
+esa persona. Cambiar esto por: al darle clic a ese "+", que se abra una
+ventana como la de crear un pendiente nuevo, pero ya con los datos de
+este pendiente y en modo colaborativo:
+
+- **Sin** las opciones de elegir entre individual/personal/colaborativo
+  (solo existe la parte de colaborativo).
+- **Título**: no se puede cambiar (se queda el que ya tenía).
+- **Descripción**: sí se puede editar.
+- **Categoría**: sí se puede cambiar.
+- **Deadline**: sí se puede cambiar.
+- **Urgencia**: sí se puede cambiar.
+- **Solicita (+)**: se sigue pudiendo agregar más gente, igual que hoy.
+- **Equipo de trabajo**: debe estar disponible esa opción (como al crear
+  un pendiente colaborativo nuevo).
+- **Subtareas**: también disponible, con la misma regla de siempre —
+  hay que agregarle una subtarea a cada persona del equipo de trabajo.
+
 ## Historial (aplicadas)
 
 <!-- Aquí se van moviendo las solicitudes ya aplicadas, con fecha y commit. -->
