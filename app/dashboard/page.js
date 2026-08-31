@@ -869,7 +869,7 @@ export default function Dashboard() {
             className="border px-2.5 py-1.5 text-xs whitespace-nowrap">{s}</button>
         ))}
         <div className="relative ml-auto">
-          <div className="absolute -top-8 left-1/2 -translate-x-1/2 flex flex-col items-center z-10">
+          <div className="absolute -top-4 left-1/2 -translate-x-1/2 flex flex-col items-center z-10">
             <span className="font-mono text-[10px] uppercase tracking-wider px-2 py-1 rounded-md whitespace-nowrap" style={{ background: C.signal, color: C.paper }}>¡Nuevo!</span>
             <span className="w-0 h-0" style={{ borderLeft: "5px solid transparent", borderRight: "5px solid transparent", borderTop: `6px solid ${C.signal}` }} />
           </div>
