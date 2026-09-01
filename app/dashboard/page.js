@@ -685,6 +685,13 @@ export default function Dashboard() {
     }
   };
 
+  // "Programados" solo existe como filtro dentro de "Mis solicitudes" — si
+  // se sale de esa pestaña con el filtro puesto, se resetea para que no
+  // quede aplicado de forma invisible (sin chip para quitarlo) en las otras.
+  useEffect(() => {
+    if (primaryTab !== "requests" && statusFilter === "Programados") setStatusFilter("Todos");
+  }, [primaryTab, statusFilter]);
+
   const logout = async () => { await supabase.auth.signOut(); router.replace("/login"); };
   const addHistory = async (taskId, text) => { await supabase.from("task_history").insert({ task_id: taskId, text }); };
   const notify = async (userId, taskId, message, title, target) => {
@@ -694,12 +701,14 @@ export default function Dashboard() {
 
   const createTask = async (form) => {
     if (form.scheduling && (form.repeatMode === "weekly" || form.repeatMode === "monthly")) {
-      // Programar pendiente + repetición: no crea una tarea ahora, crea la
-      // PLANTILLA que el cron usa para generar la tarea cada semana o mes.
-      // El día de la semana y "cuál ocurrencia del mes" salen del Día
-      // programado — nadie los elige a mano. Los deadlines (general y de
-      // cada subtarea) se guardan como conteo de días desde el día
-      // programado, para recalcularse en cada ocurrencia nueva.
+      // Programar pendiente + repetición: crea la PLANTILLA que el cron va
+      // a usar para generar cada ocurrencia siguiente, Y de una vez crea la
+      // PRIMERA ocurrencia con su Día programado como request_date — así
+      // aparece en Programados de inmediato, sin esperar al cron. El día
+      // de la semana y "cuál ocurrencia del mes" salen del Día programado
+      // — nadie los elige a mano. Los deadlines (general y de cada
+      // subtarea) se guardan como conteo de días desde ahí, para
+      // recalcularse en cada ocurrencia nueva.
       const subtaskSpecs = (form.subtasks || [])
         .filter((s) => s.title?.trim())
         .map((s) => ({
@@ -707,7 +716,7 @@ export default function Dashboard() {
           assigned_to_id: form.taskType === "colaborativo" ? (s.assignedToId || null) : (form.assignedToId || null),
           offset_days: s.deadline ? daysBetweenISO(form.scheduledDate, s.deadline) : daysBetweenISO(form.scheduledDate, form.deadline),
         }));
-      await supabase.from("recurring_templates").insert({
+      const { data: tpl, error: tplError } = await supabase.from("recurring_templates").insert({
         title: form.title, description: form.description, category: form.category,
         task_type: form.taskType, frequency_type: form.repeatMode,
         weekday: new Date(form.scheduledDate + "T00:00:00").getDay(),
@@ -718,7 +727,40 @@ export default function Dashboard() {
         assigned_to_id: form.taskType === "colaborativo" ? null : (form.assignedToId || null),
         team_member_ids: form.taskType === "colaborativo" ? (form.teamMemberIds || []) : [],
         subtask_specs: subtaskSpecs,
-      });
+      }).select().single();
+
+      if (!tplError && tpl) {
+        const assignee = form.taskType === "colaborativo" ? null : profiles.find((p) => p.id === form.assignedToId);
+        const coRequesters = (form.coRequesterIds || []).map((id) => profiles.find((p) => p.id === id)).filter(Boolean);
+        const { data: firstTask } = await supabase.from("tasks").insert({
+          title: form.title, description: form.description, category: form.category,
+          task_type: form.taskType,
+          requested_by: profile.name, requested_by_id: profile.id,
+          co_requester_ids: coRequesters.map((p) => p.id), co_requester_names: coRequesters.map((p) => p.name),
+          assigned_to_id: form.taskType === "colaborativo" ? null : (form.assignedToId || null),
+          assigned_to_name: assignee ? assignee.name : "",
+          team_member_ids: form.taskType === "colaborativo" ? (form.teamMemberIds || []) : [],
+          deadline: form.deadline, urgency: form.urgency || "Media",
+          request_date: form.scheduledDate,
+          recurring_template_id: tpl.id,
+          created_by: profile.id,
+        }).select().single();
+
+        if (firstTask) {
+          for (const spec of subtaskSpecs) {
+            const subDeadline = new Date(form.scheduledDate + "T00:00:00");
+            subDeadline.setDate(subDeadline.getDate() + (spec.offset_days ?? 0));
+            const subAssignee = profiles.find((p) => p.id === spec.assigned_to_id);
+            await supabase.from("subtasks").insert({
+              task_id: firstTask.id, title: spec.title, description: spec.description,
+              assigned_to_id: spec.assigned_to_id || null,
+              assigned_to_name: subAssignee ? subAssignee.name : "",
+              deadline: subDeadline.toISOString().slice(0, 10),
+            });
+          }
+          await supabase.from("recurring_templates").update({ current_task_id: firstTask.id }).eq("id", tpl.id);
+        }
+      }
       setShowNew(false);
       loadAll();
       return;
@@ -941,18 +983,15 @@ export default function Dashboard() {
   // esté activa.
   const myTasks = tasks.filter((t) => isRequesterOf(t, effectiveId) || isAssignedTo(t, effectiveId));
 
-  // "Programados": si es de frecuencia, muestra solo la tarjeta viva
-  // (current_task_id de su plantilla) — no se acumulan las viejas. Si no
-  // repite, es simplemente un pendiente cuyo Día programado sigue en el
-  // futuro; en cuanto llega esa fecha deja de contar como "programado" y
-  // se comporta como cualquier otro pendiente.
-  const isProgramado = (t) => {
-    if (t.recurring_template_id) {
-      const tpl = recurringTemplates.find((r) => r.id === t.recurring_template_id);
-      return !!tpl && tpl.active && tpl.current_task_id === t.id;
-    }
-    return !!t.request_date && t.request_date > todayISO();
-  };
+  // "Programados": un pendiente cuenta como programado mientras su Día
+  // programado (request_date) siga en el futuro — sea de frecuencia o no.
+  // En cuanto llega esa fecha se "publica": deja de estar en Programados y
+  // pasa a verse como cualquier pendiente Individual o Colaborativo normal
+  // (No iniciado, asignado a quien corresponda). Si es de frecuencia, para
+  // entonces el cron ya generó la SIGUIENTE ocurrencia por adelantado —con
+  // sus fechas de solicitud y deadline ya actualizadas— así que en
+  // Programados nunca hay un hueco: siempre hay una tarjeta viva.
+  const isProgramado = (t) => !!t.request_date && t.request_date > todayISO();
 
   const filtered = base.filter((t) =>
     statusFilter === "Todos" ? true :
@@ -1032,7 +1071,7 @@ export default function Dashboard() {
       ) : (
       <>
       <div style={{ borderColor: C.hairline }} className="border-b px-5 py-2.5 flex flex-wrap items-center gap-2">
-        {["Todos", "Programados", ...ASSIGNEE_STATUSES, "Finalizado"].map((s) => (
+        {["Todos", ...(primaryTab === "requests" ? ["Programados"] : []), ...ASSIGNEE_STATUSES, "Finalizado"].map((s) => (
           <button key={s} onClick={() => setStatusFilter(s)}
             style={{ borderColor: statusFilter === s ? C.spine : C.hairline, background: statusFilter === s ? C.spine : "transparent", color: statusFilter === s ? C.paper : C.inkSoft }}
             className="border px-2.5 py-1.5 text-xs whitespace-nowrap">{s}</button>
