@@ -7,7 +7,7 @@ import {
   ChevronRight, ChevronDown, Trash2, CheckCircle2, Circle,
   PauseCircle, PlayCircle, Send, LogOut, History, Mail, Users,
   User, TrendingUp, BookOpen, Download, Lock, CheckCheck, BellRing,
-  Image as ImageIcon, Megaphone, Settings, Eye, Pencil, Paperclip, Link2,
+  Image as ImageIcon, Megaphone, Settings, Eye, Pencil, Paperclip, Link2, Clock,
 } from "lucide-react";
 
 const C = {
@@ -38,11 +38,11 @@ const TASK_TYPES = [
   { key: "personal", label: "Personal" },
   { key: "colaborativo", label: "Colaborativo" },
 ];
-const WEEKDAYS = [
-  { value: 1, label: "Lunes" }, { value: 2, label: "Martes" }, { value: 3, label: "Miércoles" },
-  { value: 4, label: "Jueves" }, { value: 5, label: "Viernes" }, { value: 6, label: "Sábado" }, { value: 0, label: "Domingo" },
+const REPEAT_MODES = [
+  { value: "none", label: "No se repite" },
+  { value: "weekly", label: "Cada semana" },
+  { value: "monthly", label: "Todos los meses" },
 ];
-const DEADLINE_OFFSETS = [1, 2, 3, 4, 5, 6];
 const CONSEJO_TEXT = "Si solicitas briefs, en la descripción deja el link del share donde están las solicitudes.\n\nSi se trata del contenido de la press, pon el link de contenido de redes.";
 
 // Un pendiente Personal se muestra como Individual en cuanto se le asigna
@@ -83,6 +83,19 @@ function daysUntil(d) {
   return Math.round((dt - now) / 86400000);
 }
 function todayISO() { return new Date().toISOString().slice(0, 10); }
+// Conteo de días entre dos fechas ISO — es la base de "Programar pendiente":
+// cuántos días hay del día programado a cada deadline, para recalcularlos
+// en cada nueva ocurrencia sin importar si repite semanal o mensual.
+function daysBetweenISO(aISO, bISO) {
+  if (!aISO || !bISO) return 0;
+  const a = new Date(aISO + "T00:00:00"), b = new Date(bISO + "T00:00:00");
+  return Math.round((b - a) / 86400000);
+}
+// "El primer jueves del mes" = qué ocurrencia (1ª, 2ª, 3ª...) de su día de
+// la semana es una fecha dentro de su propio mes.
+function monthOccurrenceOfISO(dISO) {
+  return Math.ceil(new Date(dISO + "T00:00:00").getDate() / 7);
+}
 function popupStoragePath(url) {
   const marker = "/storage/v1/object/public/popups/";
   if (!url || !url.includes(marker)) return null;
@@ -419,6 +432,7 @@ export default function Dashboard() {
   const [pushSupported, setPushSupported] = useState(false);
   const [popupQueue, setPopupQueue] = useState([]);
   const [subtasks, setSubtasks] = useState([]);
+  const [recurringTemplates, setRecurringTemplates] = useState([]);
   const [viewingAs, setViewingAs] = useState(null); // id del compañero que un Gerente está observando
   const [showTeamPicker, setShowTeamPicker] = useState(false);
   const [watchers, setWatchers] = useState([]); // gerentes que me están observando a mí ahora mismo
@@ -429,9 +443,11 @@ export default function Dashboard() {
     const { data: t } = await supabase.from("tasks").select("*").order("created_at", { ascending: false });
     const { data: p } = await supabase.from("profiles").select("*");
     const { data: st } = await supabase.from("subtasks").select("*").order("created_at", { ascending: true });
+    const { data: rt } = await supabase.from("recurring_templates").select("*");
     setTasks(t || []);
     setProfiles(p || []);
     setSubtasks(st || []);
+    setRecurringTemplates(rt || []);
   }, []);
 
   const loadNotifications = useCallback(async (userId) => {
@@ -677,15 +693,34 @@ export default function Dashboard() {
   };
 
   const createTask = async (form) => {
-    if (form.frequency) {
-      // Pendiente de frecuencia: no crea una tarea ahora, crea la PLANTILLA
-      // que el cron va a usar para generar una tarea nueva cada semana.
+    if (form.scheduling && (form.repeatMode === "weekly" || form.repeatMode === "monthly")) {
+      // Programar pendiente + repetición: no crea una tarea ahora, crea la
+      // PLANTILLA que el cron usa para generar la tarea cada semana o mes.
+      // El día de la semana y "cuál ocurrencia del mes" salen del Día
+      // programado — nadie los elige a mano. Los deadlines (general y de
+      // cada subtarea) se guardan como conteo de días desde el día
+      // programado, para recalcularse en cada ocurrencia nueva.
+      const subtaskSpecs = (form.subtasks || [])
+        .filter((s) => s.title?.trim())
+        .map((s) => ({
+          title: s.title.trim(), description: s.description || "",
+          assigned_to_id: form.taskType === "colaborativo" ? (s.assignedToId || null) : (form.assignedToId || null),
+          offset_days: s.deadline ? daysBetweenISO(form.scheduledDate, s.deadline) : daysBetweenISO(form.scheduledDate, form.deadline),
+        }));
       await supabase.from("recurring_templates").insert({
         title: form.title, description: form.description, category: form.category,
-        weekday: form.weekday, deadline_offset_days: form.deadlineOffsetDays,
-        requested_by_id: profile.id, assigned_to_id: form.assignedToId,
+        task_type: form.taskType, frequency_type: form.repeatMode,
+        weekday: new Date(form.scheduledDate + "T00:00:00").getDay(),
+        month_occurrence: monthOccurrenceOfISO(form.scheduledDate),
+        deadline_offset_days: daysBetweenISO(form.scheduledDate, form.deadline),
+        urgency: form.urgency || "Media",
+        requested_by_id: profile.id, co_requester_ids: form.coRequesterIds || [],
+        assigned_to_id: form.taskType === "colaborativo" ? null : (form.assignedToId || null),
+        team_member_ids: form.taskType === "colaborativo" ? (form.teamMemberIds || []) : [],
+        subtask_specs: subtaskSpecs,
       });
       setShowNew(false);
+      loadAll();
       return;
     }
 
@@ -701,6 +736,10 @@ export default function Dashboard() {
       deadline: form.deadline || null, urgency: form.urgency || "Media",
       assigned_to_id: form.assignedToId || null, assigned_to_name: assignee ? assignee.name : "",
       team_member_ids: form.teamMemberIds || [],
+      // "Programar pendiente" sin repetición: el pendiente nace con su Día
+      // programado como fecha de solicitud, en vez de la de hoy. Mientras
+      // esa fecha siga en el futuro, cuenta como "Programado".
+      ...(form.scheduling && form.scheduledDate ? { request_date: form.scheduledDate } : {}),
       created_by: profile.id,
     }).select().single();
 
@@ -804,6 +843,15 @@ export default function Dashboard() {
   };
 
   const deleteTask = async (id) => { await supabase.from("tasks").delete().eq("id", id); setSelected(null); loadAll(); };
+  // "Borrar pendientes programados": borra esta instancia Y detiene la
+  // recurrencia (la plantilla deja de generar nuevas). "Borrar" solo pasa
+  // por deleteTask de arriba, sin tocar la plantilla.
+  const deleteRecurringTask = async (id, templateId) => {
+    await supabase.from("recurring_templates").update({ active: false }).eq("id", templateId);
+    await supabase.from("tasks").delete().eq("id", id);
+    setSelected(null);
+    loadAll();
+  };
 
   // Recalcula el estado general de un pendiente (Colaborativo, o Individual con
   // subtareas) a partir del estado actual de todas sus subtareas, y lo guarda si
@@ -893,7 +941,24 @@ export default function Dashboard() {
   // esté activa.
   const myTasks = tasks.filter((t) => isRequesterOf(t, effectiveId) || isAssignedTo(t, effectiveId));
 
-  const filtered = base.filter((t) => statusFilter === "Todos" || t.status === statusFilter);
+  // "Programados": si es de frecuencia, muestra solo la tarjeta viva
+  // (current_task_id de su plantilla) — no se acumulan las viejas. Si no
+  // repite, es simplemente un pendiente cuyo Día programado sigue en el
+  // futuro; en cuanto llega esa fecha deja de contar como "programado" y
+  // se comporta como cualquier otro pendiente.
+  const isProgramado = (t) => {
+    if (t.recurring_template_id) {
+      const tpl = recurringTemplates.find((r) => r.id === t.recurring_template_id);
+      return !!tpl && tpl.active && tpl.current_task_id === t.id;
+    }
+    return !!t.request_date && t.request_date > todayISO();
+  };
+
+  const filtered = base.filter((t) =>
+    statusFilter === "Todos" ? true :
+    statusFilter === "Programados" ? isProgramado(t) :
+    t.status === statusFilter
+  );
 
   const byUrgency = {};
   filtered.forEach((t) => { const u = effectiveUrgency(t); (byUrgency[u] = byUrgency[u] || []).push(t); });
@@ -967,7 +1032,7 @@ export default function Dashboard() {
       ) : (
       <>
       <div style={{ borderColor: C.hairline }} className="border-b px-5 py-2.5 flex flex-wrap items-center gap-2">
-        {["Todos", ...ASSIGNEE_STATUSES, "Finalizado"].map((s) => (
+        {["Todos", "Programados", ...ASSIGNEE_STATUSES, "Finalizado"].map((s) => (
           <button key={s} onClick={() => setStatusFilter(s)}
             style={{ borderColor: statusFilter === s ? C.spine : C.hairline, background: statusFilter === s ? C.spine : "transparent", color: statusFilter === s ? C.paper : C.inkSoft }}
             className="border px-2.5 py-1.5 text-xs whitespace-nowrap">{s}</button>
@@ -1006,7 +1071,7 @@ export default function Dashboard() {
 
       {showNew && <NewTaskForm onClose={() => setShowNew(false)} onCreate={createTask} onCreatePopup={createPopup} profiles={assignableProfiles} profile={profile} isAdmin={isAdmin} tasks={tasks} subtasks={subtasks} />}
       {popupQueue[0] && <PopupModal popup={popupQueue[0]} onClose={dismissPopup} tasks={tasks} subtasks={subtasks} profiles={profiles} onFinalizeTask={finalizeTask} />}
-      {selected && <TaskDetail task={selected} onClose={() => setSelected(null)} onUpdate={updateTask} onDelete={deleteTask} onFinalize={finalizeTask} onDeliver={deliverTask} profiles={profiles} assignableProfiles={assignableProfiles} profile={profile} notify={notify} subtasks={subtasks.filter((s) => s.task_id === selected.id)} onAddSubtask={addSubtask} onUpdateSubtaskStatus={updateSubtaskStatus} viewerIsGerente={!!viewingAs && !isAdmin} onCommentsRead={reloadMyCommentReads} />}
+      {selected && <TaskDetail task={selected} onClose={() => setSelected(null)} onUpdate={updateTask} onDelete={deleteTask} onDeleteRecurring={deleteRecurringTask} recurringTemplates={recurringTemplates} onFinalize={finalizeTask} onDeliver={deliverTask} profiles={profiles} assignableProfiles={assignableProfiles} profile={profile} notify={notify} subtasks={subtasks.filter((s) => s.task_id === selected.id)} onAddSubtask={addSubtask} onUpdateSubtaskStatus={updateSubtaskStatus} viewerIsGerente={!!viewingAs && !isAdmin} onCommentsRead={reloadMyCommentReads} />}
       {showTeam && <TeamPanel onClose={() => setShowTeam(false)} profiles={assignableProfiles} tasks={tasks} />}
       {showActivity && <ActivityPanel onClose={() => setShowActivity(false)} profile={profile} router={router} />}
       {showNotifs && <NotificationsPanel onClose={() => setShowNotifs(false)} notifications={notifications} onOpenTask={(taskId) => { const t = tasks.find((x) => x.id === taskId); if (t) setSelected(t); setShowNotifs(false); }} onOpenFilter={(target) => { if (target === "requests:Entregado") { setPrimaryTab("requests"); setStatusFilter("Entregado"); } setShowNotifs(false); }} pushSupported={pushSupported} pushEnabled={pushEnabled} onEnablePush={enablePush} />}
@@ -1065,10 +1130,12 @@ function NewTaskForm({ onClose, onCreate, onCreatePopup, profiles, profile, isAd
   const [deadline, setDeadline] = useState("");
   const [urgency, setUrgency] = useState("Media"), [assignedToId, setAssignedToId] = useState("");
 
-  // Individual: pendiente de frecuencia
-  const [frequency, setFrequency] = useState(false);
-  const [weekday, setWeekday] = useState(WEEKDAYS[0].value);
-  const [deadlineOffsetDays, setDeadlineOffsetDays] = useState(1);
+  // Individual y Colaborativo: Programar pendiente (Día programado +
+  // repetición opcional). El día de la semana / ocurrencia del mes no se
+  // elige a mano — sale del Día programado.
+  const [scheduling, setScheduling] = useState(false);
+  const [scheduledDate, setScheduledDate] = useState("");
+  const [repeatMode, setRepeatMode] = useState("none"); // "none" | "weekly" | "monthly"
   const [showConsejo, setShowConsejo] = useState(false);
 
   // Colaborativo: equipo + subtareas
@@ -1124,16 +1191,20 @@ function NewTaskForm({ onClose, onCreate, onCreatePopup, profiles, profile, isAd
   const missingSubtaskCoverage = taskType === "colaborativo" &&
     teamMemberIds.some((id) => !subtaskRows.some((r) => r.assignedToId === id && r.title.trim()));
 
-  // Reglas de deadline (individual y colaborativo): nunca antes de hoy, y el
-  // deadline general nunca antes que el deadline más lejano de las subtareas.
+  // Reglas de deadline (individual y colaborativo): nunca antes de hoy (o
+  // del Día programado, si se está programando), y el deadline general
+  // nunca antes que el deadline más lejano de las subtareas.
   const usesDeadlineRules = taskType === "individual" || taskType === "colaborativo";
   const todayStr = todayISO();
+  const baseDateStr = scheduling && scheduledDate ? scheduledDate : todayStr;
   const subtaskDeadlines = usesDeadlineRules ? subtaskRows.map((r) => r.deadline).filter(Boolean) : [];
   const maxSubtaskDeadline = subtaskDeadlines.length ? subtaskDeadlines.reduce((a, b) => (a > b ? a : b)) : null;
-  const minGeneralDeadline = maxSubtaskDeadline && maxSubtaskDeadline > todayStr ? maxSubtaskDeadline : todayStr;
+  const minGeneralDeadline = maxSubtaskDeadline && maxSubtaskDeadline > baseDateStr ? maxSubtaskDeadline : baseDateStr;
   const deadlineError = !usesDeadlineRules ? "" :
-    deadline && deadline < todayStr ? "El deadline general no puede ser antes de hoy." :
-    subtaskDeadlines.some((d) => d < todayStr) ? "El deadline de una subtarea no puede ser antes de hoy." :
+    scheduling && !scheduledDate ? "Elige el día programado." :
+    scheduling && repeatMode !== "none" && !deadline ? "Elige el deadline general." :
+    deadline && deadline < baseDateStr ? `El deadline general no puede ser antes de ${scheduling ? "el día programado" : "hoy"}.` :
+    subtaskDeadlines.some((d) => d < baseDateStr) ? `El deadline de una subtarea no puede ser antes de ${scheduling ? "el día programado" : "hoy"}.` :
     (deadline && maxSubtaskDeadline && deadline < maxSubtaskDeadline) ? "El deadline general no puede ser antes que el de alguna subtarea." :
     "";
 
@@ -1141,17 +1212,13 @@ function NewTaskForm({ onClose, onCreate, onCreatePopup, profiles, profile, isAd
     if (!title.trim()) return;
     const finalCategory = newCategory.trim() || category;
     if (taskType === "individual") {
-      if (frequency) {
-        onCreate({ title, description, category: finalCategory, taskType, frequency: true, weekday: Number(weekday), deadlineOffsetDays: Number(deadlineOffsetDays), assignedToId });
-        return;
-      }
       if (!assignedToId || deadlineError) return;
-      onCreate({ title, description, category: finalCategory, taskType, requestedById: profile.id, coRequesterIds, deadline, urgency, assignedToId, subtasks: subtaskRows });
+      onCreate({ title, description, category: finalCategory, taskType, requestedById: profile.id, coRequesterIds, deadline, urgency, assignedToId, subtasks: subtaskRows, scheduling, scheduledDate, repeatMode });
     } else if (taskType === "personal") {
       onCreate({ title, description, category: finalCategory, taskType, requestedById: profile.id, deadline, urgency, assignedToId: profile.id });
     } else if (taskType === "colaborativo") {
       if (teamMemberIds.length < 2 || deadlineError || missingSubtaskCoverage) return;
-      onCreate({ title, description, category: finalCategory, taskType, requestedById: profile.id, coRequesterIds, deadline, urgency, teamMemberIds, subtasks: subtaskRows });
+      onCreate({ title, description, category: finalCategory, taskType, requestedById: profile.id, coRequesterIds, deadline, urgency, teamMemberIds, subtasks: subtaskRows, scheduling, scheduledDate, repeatMode });
     }
   };
 
@@ -1308,42 +1375,49 @@ function NewTaskForm({ onClose, onCreate, onCreatePopup, profiles, profile, isAd
                     <p className="text-[11px]" style={{ color: C.inkSoft }}>Las personas que selecciones aparecerán contigo como solicitantes.</p>
                   </div>
                 )}
-                {!frequency && (
-                  <div>
-                    <div className="flex items-center justify-between">
-                      <label className="font-mono text-[10px] uppercase tracking-widest" style={{ color: C.inkSoft }}>Subtareas</label>
-                      <button type="button" onClick={addSubtaskRow} disabled={!assignedToId} style={{ color: C.signal }} className="text-xs flex items-center gap-1 disabled:opacity-40"><Plus size={12} /> Agregar subtarea</button>
-                    </div>
-                    <div className="flex flex-col gap-2 mt-2">
-                      {subtaskRows.map((row, i) => (
-                        <div key={i} style={{ borderColor: C.hairline }} className="border p-2.5 flex flex-col gap-1.5">
-                          <div className="flex gap-1.5">
-                            <input value={row.title} onChange={(e) => updateSubtaskRow(i, "title", e.target.value)} placeholder="Título de la subtarea" style={{ borderColor: C.hairline, background: C.panel }} className="flex-1 border px-2 py-1.5 text-xs outline-none" />
-                            <button type="button" onClick={() => removeSubtaskRow(i)}><X size={14} style={{ color: C.inkSoft }} /></button>
-                          </div>
-                          <textarea value={row.description} onChange={(e) => updateSubtaskRow(i, "description", e.target.value)} placeholder="Descripción (opcional)" rows={2} style={{ borderColor: C.hairline, background: C.panel }} className="border px-2 py-1.5 text-xs outline-none resize-y" />
-                          <input type="date" value={row.deadline} min={todayStr} max={deadline || undefined} onChange={(e) => updateSubtaskRow(i, "deadline", e.target.value)} style={{ borderColor: C.hairline, background: C.panel }} className="border px-2 py-1.5 text-xs outline-none" />
-                        </div>
-                      ))}
-                      {subtaskRows.length === 0 && <p className="text-[11px]" style={{ color: C.inkSoft }}>Sin subtarea con deadline propio, hereda el deadline general de abajo. Se asignarán a {assignedToId ? (individualAssignable.find((p) => p.id === assignedToId)?.name || "la persona asignada") : "la persona que asignes"}.</p>}
-                    </div>
+                <div>
+                  <div className="flex items-center justify-between">
+                    <label className="font-mono text-[10px] uppercase tracking-widest" style={{ color: C.inkSoft }}>Subtareas</label>
+                    <button type="button" onClick={addSubtaskRow} disabled={!assignedToId} style={{ color: C.signal }} className="text-xs flex items-center gap-1 disabled:opacity-40"><Plus size={12} /> Agregar subtarea</button>
                   </div>
-                )}
-                <label className="flex items-center gap-2 text-sm" style={{ color: C.ink }}>
-                  <input type="checkbox" checked={frequency} onChange={(e) => setFrequency(e.target.checked)} />
-                  Pendiente de frecuencia <span className="text-[11px]" style={{ color: C.inkSoft }}>(se repite cada semana)</span>
-                </label>
-                {frequency ? (
-                  <div className="grid grid-cols-2 gap-3 items-end">
-                    <div><label className="font-mono text-[10px] uppercase tracking-widest" style={{ color: C.inkSoft }}>Programar solicitud</label>
-                      <select value={weekday} onChange={(e) => setWeekday(e.target.value)} style={{ borderColor: C.hairline, background: C.panel }} className="w-full border px-3 py-2 text-sm mt-1 outline-none">
-                        {WEEKDAYS.map((w) => <option key={w.value} value={w.value}>{w.label}</option>)}
+                  <div className="flex flex-col gap-2 mt-2">
+                    {subtaskRows.map((row, i) => (
+                      <div key={i} style={{ borderColor: C.hairline }} className="border p-2.5 flex flex-col gap-1.5">
+                        <div className="flex gap-1.5">
+                          <input value={row.title} onChange={(e) => updateSubtaskRow(i, "title", e.target.value)} placeholder="Título de la subtarea" style={{ borderColor: C.hairline, background: C.panel }} className="flex-1 border px-2 py-1.5 text-xs outline-none" />
+                          <button type="button" onClick={() => removeSubtaskRow(i)}><X size={14} style={{ color: C.inkSoft }} /></button>
+                        </div>
+                        <textarea value={row.description} onChange={(e) => updateSubtaskRow(i, "description", e.target.value)} placeholder="Descripción (opcional)" rows={2} style={{ borderColor: C.hairline, background: C.panel }} className="border px-2 py-1.5 text-xs outline-none resize-y" />
+                        <input type="date" value={row.deadline} min={baseDateStr} max={deadline || undefined} onChange={(e) => updateSubtaskRow(i, "deadline", e.target.value)} style={{ borderColor: C.hairline, background: C.panel }} className="border px-2 py-1.5 text-xs outline-none" />
+                      </div>
+                    ))}
+                    {subtaskRows.length === 0 && <p className="text-[11px]" style={{ color: C.inkSoft }}>Sin subtarea con deadline propio, hereda el deadline general de abajo. Se asignarán a {assignedToId ? (individualAssignable.find((p) => p.id === assignedToId)?.name || "la persona asignada") : "la persona que asignes"}.</p>}
+                  </div>
+                </div>
+                <div className="flex items-center gap-2 flex-wrap">
+                  <button type="button" onClick={() => setScheduling((v) => !v)}
+                    style={{ borderColor: scheduling ? C.signal : C.hairline, background: scheduling ? C.signal : "transparent", color: scheduling ? "#fff" : C.ink }}
+                    className="border px-3 py-1.5 text-xs font-medium flex items-center gap-1.5"><Clock size={13} /> Programar pendiente</button>
+                  {scheduling && (
+                    <select value={repeatMode} onChange={(e) => setRepeatMode(e.target.value)} style={{ borderColor: C.hairline, background: C.panel }} className="border px-2.5 py-1.5 text-xs outline-none">
+                      {REPEAT_MODES.map((m) => <option key={m.value} value={m.value}>{m.label}</option>)}
+                    </select>
+                  )}
+                </div>
+                {scheduling ? (
+                  <div className="grid grid-cols-2 gap-3">
+                    <div><label className="font-mono text-[10px] uppercase tracking-widest" style={{ color: C.inkSoft }}>Día programado</label>
+                      <input type="date" value={scheduledDate} min={todayStr} onChange={(e) => setScheduledDate(e.target.value)} style={{ borderColor: C.hairline, background: C.panel }} className="w-full border px-3 py-2 text-sm mt-1 outline-none" /></div>
+                    <div><label className="font-mono text-[10px] uppercase tracking-widest" style={{ color: C.inkSoft }}>Deadline General</label>
+                      <input type="date" value={deadline} min={minGeneralDeadline} onChange={(e) => setDeadline(e.target.value)} style={{ borderColor: C.hairline, background: C.panel }} className="w-full border px-3 py-2 text-sm mt-1 outline-none" /></div>
+                    <div className="col-span-2"><label className="font-mono text-[10px] uppercase tracking-widest" style={{ color: C.inkSoft }}>Urgencia</label>
+                      <select value={urgency} onChange={(e) => setUrgency(e.target.value)} style={{ borderColor: C.hairline, background: C.panel }} className="w-full border px-3 py-2 text-sm mt-1 outline-none">
+                        {SELECTABLE_URGENCIES.map((u) => <option key={u.label} value={u.label}>{u.label}</option>)}
                       </select></div>
-                    <div><label className="font-mono text-[10px] uppercase tracking-widest" style={{ color: C.inkSoft }}>Deadline</label>
-                      <select value={deadlineOffsetDays} onChange={(e) => setDeadlineOffsetDays(e.target.value)} style={{ borderColor: C.hairline, background: C.panel }} className="w-full border px-3 py-2 text-sm mt-1 outline-none">
-                        {DEADLINE_OFFSETS.map((d) => <option key={d} value={d}>{d} día{d > 1 ? "s" : ""} después</option>)}
-                      </select></div>
-                    <button type="button" onClick={() => setShowConsejo(true)} style={{ borderColor: C.hairline, color: C.ink }} className="border px-3 py-2 text-sm col-span-2">💡 Consejo</button>
+                    {repeatMode !== "none" && (
+                      <button type="button" onClick={() => setShowConsejo(true)} style={{ borderColor: C.hairline, color: C.ink }} className="border px-3 py-2 text-sm col-span-2">💡 Consejo</button>
+                    )}
+                    {deadlineError && <p className="col-span-2 text-[11px]" style={{ color: C.urgent }}>{deadlineError}</p>}
                   </div>
                 ) : (
                   <div className="grid grid-cols-2 gap-3">
@@ -1354,14 +1428,6 @@ function NewTaskForm({ onClose, onCreate, onCreatePopup, profiles, profile, isAd
                         {SELECTABLE_URGENCIES.map((u) => <option key={u.label} value={u.label}>{u.label}</option>)}
                       </select></div>
                     {deadlineError && <p className="col-span-2 text-[11px]" style={{ color: C.urgent }}>{deadlineError}</p>}
-                  </div>
-                )}
-                {showConsejo && (
-                  <div className="fixed inset-0 z-[70] flex items-center justify-center p-4" style={{ background: "rgba(20,24,31,0.6)" }} onClick={() => setShowConsejo(false)}>
-                    <div style={{ background: C.paper, borderColor: C.hairline }} className="border max-w-xs p-4" onClick={(e) => e.stopPropagation()}>
-                      <p className="text-sm whitespace-pre-line" style={{ color: C.ink }}>{CONSEJO_TEXT}</p>
-                      <button onClick={() => setShowConsejo(false)} style={{ background: C.spine, color: C.paper }} className="mt-3 px-3 py-1.5 text-xs w-full">Entendido</button>
-                    </div>
                   </div>
                 )}
               </>
@@ -1430,7 +1496,7 @@ function NewTaskForm({ onClose, onCreate, onCreatePopup, profiles, profile, isAd
                             <option value="">Asignar a...</option>
                             {profiles.filter((p) => teamMemberIds.includes(p.id)).map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
                           </select>
-                          <input type="date" value={row.deadline} min={todayStr} max={deadline || undefined} onChange={(e) => updateSubtaskRow(i, "deadline", e.target.value)} style={{ borderColor: C.hairline, background: C.panel }} className="border px-2 py-1.5 text-xs outline-none" />
+                          <input type="date" value={row.deadline} min={baseDateStr} max={deadline || undefined} onChange={(e) => updateSubtaskRow(i, "deadline", e.target.value)} style={{ borderColor: C.hairline, background: C.panel }} className="border px-2 py-1.5 text-xs outline-none" />
                         </div>
                       </div>
                     ))}
@@ -1442,15 +1508,42 @@ function NewTaskForm({ onClose, onCreate, onCreatePopup, profiles, profile, isAd
                     </p>
                   )}
                 </div>
-                <div className="grid grid-cols-2 gap-3">
-                  <div><label className="font-mono text-[10px] uppercase tracking-widest" style={{ color: C.inkSoft }}>Deadline general</label>
-                    <input type="date" value={deadline} min={minGeneralDeadline} onChange={(e) => setDeadline(e.target.value)} style={{ borderColor: C.hairline, background: C.panel }} className="w-full border px-3 py-2 text-sm mt-1 outline-none" /></div>
-                  <div><label className="font-mono text-[10px] uppercase tracking-widest" style={{ color: C.inkSoft }}>Urgencia</label>
-                    <select value={urgency} onChange={(e) => setUrgency(e.target.value)} style={{ borderColor: C.hairline, background: C.panel }} className="w-full border px-3 py-2 text-sm mt-1 outline-none">
-                      {SELECTABLE_URGENCIES.map((u) => <option key={u.label} value={u.label}>{u.label}</option>)}
-                    </select></div>
-                  {deadlineError && <p className="col-span-2 text-[11px]" style={{ color: C.urgent }}>{deadlineError}</p>}
+                <div className="flex items-center gap-2 flex-wrap">
+                  <button type="button" onClick={() => setScheduling((v) => !v)}
+                    style={{ borderColor: scheduling ? C.signal : C.hairline, background: scheduling ? C.signal : "transparent", color: scheduling ? "#fff" : C.ink }}
+                    className="border px-3 py-1.5 text-xs font-medium flex items-center gap-1.5"><Clock size={13} /> Programar pendiente</button>
+                  {scheduling && (
+                    <select value={repeatMode} onChange={(e) => setRepeatMode(e.target.value)} style={{ borderColor: C.hairline, background: C.panel }} className="border px-2.5 py-1.5 text-xs outline-none">
+                      {REPEAT_MODES.map((m) => <option key={m.value} value={m.value}>{m.label}</option>)}
+                    </select>
+                  )}
                 </div>
+                {scheduling ? (
+                  <div className="grid grid-cols-2 gap-3">
+                    <div><label className="font-mono text-[10px] uppercase tracking-widest" style={{ color: C.inkSoft }}>Día programado</label>
+                      <input type="date" value={scheduledDate} min={todayStr} onChange={(e) => setScheduledDate(e.target.value)} style={{ borderColor: C.hairline, background: C.panel }} className="w-full border px-3 py-2 text-sm mt-1 outline-none" /></div>
+                    <div><label className="font-mono text-[10px] uppercase tracking-widest" style={{ color: C.inkSoft }}>Deadline General</label>
+                      <input type="date" value={deadline} min={minGeneralDeadline} onChange={(e) => setDeadline(e.target.value)} style={{ borderColor: C.hairline, background: C.panel }} className="w-full border px-3 py-2 text-sm mt-1 outline-none" /></div>
+                    <div className="col-span-2"><label className="font-mono text-[10px] uppercase tracking-widest" style={{ color: C.inkSoft }}>Urgencia</label>
+                      <select value={urgency} onChange={(e) => setUrgency(e.target.value)} style={{ borderColor: C.hairline, background: C.panel }} className="w-full border px-3 py-2 text-sm mt-1 outline-none">
+                        {SELECTABLE_URGENCIES.map((u) => <option key={u.label} value={u.label}>{u.label}</option>)}
+                      </select></div>
+                    {repeatMode !== "none" && (
+                      <button type="button" onClick={() => setShowConsejo(true)} style={{ borderColor: C.hairline, color: C.ink }} className="border px-3 py-2 text-sm col-span-2">💡 Consejo</button>
+                    )}
+                    {deadlineError && <p className="col-span-2 text-[11px]" style={{ color: C.urgent }}>{deadlineError}</p>}
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-2 gap-3">
+                    <div><label className="font-mono text-[10px] uppercase tracking-widest" style={{ color: C.inkSoft }}>Deadline general</label>
+                      <input type="date" value={deadline} min={minGeneralDeadline} onChange={(e) => setDeadline(e.target.value)} style={{ borderColor: C.hairline, background: C.panel }} className="w-full border px-3 py-2 text-sm mt-1 outline-none" /></div>
+                    <div><label className="font-mono text-[10px] uppercase tracking-widest" style={{ color: C.inkSoft }}>Urgencia</label>
+                      <select value={urgency} onChange={(e) => setUrgency(e.target.value)} style={{ borderColor: C.hairline, background: C.panel }} className="w-full border px-3 py-2 text-sm mt-1 outline-none">
+                        {SELECTABLE_URGENCIES.map((u) => <option key={u.label} value={u.label}>{u.label}</option>)}
+                      </select></div>
+                    {deadlineError && <p className="col-span-2 text-[11px]" style={{ color: C.urgent }}>{deadlineError}</p>}
+                  </div>
+                )}
               </>
             )}
           </div>
@@ -1465,6 +1558,14 @@ function NewTaskForm({ onClose, onCreate, onCreatePopup, profiles, profile, isAd
           )}
         </div>
       </div>
+      {showConsejo && (
+        <div className="fixed inset-0 z-[70] flex items-center justify-center p-4" style={{ background: "rgba(20,24,31,0.6)" }} onClick={() => setShowConsejo(false)}>
+          <div style={{ background: C.paper, borderColor: C.hairline }} className="border max-w-xs p-4" onClick={(e) => e.stopPropagation()}>
+            <p className="text-sm whitespace-pre-line" style={{ color: C.ink }}>{CONSEJO_TEXT}</p>
+            <button onClick={() => setShowConsejo(false)} style={{ background: C.spine, color: C.paper }} className="mt-3 px-3 py-1.5 text-xs w-full">Entendido</button>
+          </div>
+        </div>
+      )}
       {showSubtaskRule && (
         <div className="fixed inset-0 z-[70] flex items-center justify-center p-4" style={{ background: "rgba(20,24,31,0.6)" }} onClick={() => setShowSubtaskRule(false)}>
           <div style={{ background: C.paper, borderColor: C.hairline }} className="border max-w-xs p-4" onClick={(e) => e.stopPropagation()}>
@@ -1910,7 +2011,8 @@ function PopupModal({ popup, onClose, tasks, subtasks, profiles, onFinalizeTask 
   );
 }
 
-function TaskDetail({ task, onClose, onUpdate, onDelete, onFinalize, onDeliver, profiles, assignableProfiles, profile, notify, subtasks, onAddSubtask, onUpdateSubtaskStatus, viewerIsGerente, onCommentsRead }) {
+function TaskDetail({ task, onClose, onUpdate, onDelete, onDeleteRecurring, recurringTemplates, onFinalize, onDeliver, profiles, assignableProfiles, profile, notify, subtasks, onAddSubtask, onUpdateSubtaskStatus, viewerIsGerente, onCommentsRead }) {
+  const recurringTpl = task.recurring_template_id ? (recurringTemplates || []).find((r) => r.id === task.recurring_template_id) : null;
   const [comment, setComment] = useState(""), [comments, setComments] = useState([]);
   const [history, setHistory] = useState([]), [showHistory, setShowHistory] = useState(false);
   const [delegateId, setDelegateId] = useState(""), [confirmDelete, setConfirmDelete] = useState(false);
@@ -2140,7 +2242,7 @@ function TaskDetail({ task, onClose, onUpdate, onDelete, onFinalize, onDeliver, 
                 </button>
               )}
               {task.task_type && effectiveTaskType(task) !== "individual" && <span style={{ color: C.signal }}>· {TASK_TYPES.find((t) => t.key === effectiveTaskType(task))?.label}</span>}
-              {task.recurring_template_id && <span>· 🔁 Semanal</span>}
+              {task.recurring_template_id && <span>· 🔁 {recurringTpl?.frequency_type === "monthly" ? "Mensual" : "Semanal"}</span>}
               {isFinalized && <><Lock size={10} /> Finalizado — solo lectura</>}
               {viewerIsGerente && !isFinalized && <><Eye size={10} /> Modo lectura</>}
             </div>
@@ -2470,6 +2572,16 @@ function TaskDetail({ task, onClose, onUpdate, onDelete, onFinalize, onDeliver, 
 
           {!viewerIsGerente && (!confirmDelete ? (
             <button onClick={() => setConfirmDelete(true)} className="text-xs flex items-center gap-1.5 mt-1 self-start" style={{ color: C.urgent }}><Trash2 size={13} /> Eliminar pendiente</button>
+          ) : task.recurring_template_id ? (
+            <div style={{ borderColor: C.urgent, background: C.urgentSoft }} className="border px-3 py-2.5 flex flex-col gap-2 mt-1">
+              <span className="text-xs" style={{ color: C.urgent }}>Este pendiente es de frecuencia. No se puede deshacer.</span>
+              <div className="flex gap-2 flex-wrap items-center">
+                <button onClick={() => setConfirmDelete(false)} style={{ color: C.inkSoft }} className="text-xs">Cancelar</button>
+                <button onClick={() => onDelete(task.id)} style={{ borderColor: C.urgent, color: C.urgent }} className="border text-xs px-2.5 py-1">Borrar</button>
+                <button onClick={() => onDeleteRecurring(task.id, task.recurring_template_id)} style={{ background: C.urgent, color: "#fff" }} className="text-xs px-2.5 py-1">Borrar pendientes programados</button>
+              </div>
+              <span className="text-[10px]" style={{ color: C.inkSoft }}>"Borrar" solo elimina este — la próxima ocurrencia se sigue generando normal. "Borrar pendientes programados" detiene la recurrencia por completo.</span>
+            </div>
           ) : (
             <div style={{ borderColor: C.urgent, background: C.urgentSoft }} className="border px-3 py-2.5 flex items-center justify-between gap-2 mt-1">
               <span className="text-xs" style={{ color: C.urgent }}>¿Eliminar? {isFinalized ? "Su registro de finalizado seguirá contando en el perfil de quien lo hizo. " : ""}No se puede deshacer.</span>
