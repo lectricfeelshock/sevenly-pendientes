@@ -1127,6 +1127,7 @@ function TaskRow({ task, onOpen, unreadComments = 0 }) {
   const sameDay = task.request_date && task.deadline && task.request_date === task.deadline;
   const effType = effectiveTaskType(task);
   const typeLabel = TASK_TYPES.find((t) => t.key === effType)?.label;
+  const programado = !!task.request_date && task.request_date > todayISO();
   return (
     <button onClick={onOpen} style={{ borderColor: C.hairline, background: veryUrgent ? C.veryUrgentSoft : urgent ? C.urgentSoft : C.panel }} className="w-full text-left border-b px-4 py-3 flex items-center gap-3">
       <Icon size={16} style={{ color: isDone ? C.signal : C.inkSoft, flexShrink: 0 }} />
@@ -1135,6 +1136,9 @@ function TaskRow({ task, onOpen, unreadComments = 0 }) {
           <span className="font-mono text-[9px] uppercase tracking-wider px-1.5 py-0.5" style={{ background: C.paper, color: C.inkSoft, border: `1px solid ${C.hairline}` }}>{task.category}</span>
           {effType && effType !== "individual" && (
             <span className="font-mono text-[9px] uppercase tracking-wider px-1.5 py-0.5" style={{ background: C.signalSoft, color: C.signal, border: `1px solid ${C.signal}` }}>{typeLabel}</span>
+          )}
+          {programado && (
+            <span className="font-mono text-[9px] uppercase tracking-wider px-1.5 py-0.5 flex items-center gap-1" style={{ background: C.signalSoft, color: C.signal, border: `1px solid ${C.signal}` }}><Clock size={10} /> Programado</span>
           )}
           <span style={{ color: C.ink, textDecoration: isDone ? "line-through" : "none", opacity: isDone ? 0.6 : 1 }} className="text-sm font-medium truncate">{task.title}</span>
           {unreadComments > 0 && (
