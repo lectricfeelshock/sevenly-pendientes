@@ -119,6 +119,34 @@ Al crear un pendiente **individual** y marcar la casilla de "pendiente
 de frecuencia", hoy aparece un botón "💡 Consejo" en el formulario.
 Quitarlo.
 
+### 12. Rediseñar los filtros del dashboard
+Cambiar los filtros actuales por estos 5: **Todos**, **Estado**,
+**Urgencia**, **Categoría**, **Deadline**.
+
+- **Todos**: muestra todos los pendientes (sin filtrar).
+- **Estado**: al darle clic se abre un menú desplegable con:
+  - Todos los estados por separado, para filtrar por uno en específico.
+  - **"De mayor a menor"**: ordena los pendientes agrupándolos en este
+    orden — Finalizados, Entregados, Detenidos, En progreso, No
+    iniciado.
+  - **"De menor a mayor"**: el orden inverso al anterior.
+- **Urgencia**: al darle clic se abre un menú desplegable con:
+  - Todas las urgencias por separado, para filtrar por una en
+    específico.
+  - **"De mayor a menor"**: ordena por urgencia — Muy urgente, Urgente,
+    Alta, Media, Baja.
+  - **"De menor a mayor"**: el orden inverso al anterior.
+- **Categoría**: al darle clic se abre un menú desplegable con todas las
+  categorías, para filtrar por una en específico.
+- **Deadline**: al darle clic se abre un menú desplegable con solo dos
+  opciones:
+  - **"De mayor a menor"**: ordena de la fecha de deadline más próxima
+    a la más alejada.
+  - **"De menor a mayor"**: el orden inverso al anterior.
+
+Esto aplica igual en "Mis solicitudes", solo que ahí, a un lado de
+"Todos", también está la opción "Programados" (como ya existe hoy).
+
 ## Historial (aplicadas)
 
 <!-- Aquí se van moviendo las solicitudes ya aplicadas, con fecha y commit. -->
