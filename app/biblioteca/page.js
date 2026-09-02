@@ -2,7 +2,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabaseClient";
-import { ArrowLeft, Plus, ExternalLink, X, Trash2, Pencil, BookOpen, Tag, Play } from "lucide-react";
+import { ArrowLeft, Plus, ExternalLink, X, Trash2, Pencil, BookOpen, Tag, Play, Gamepad2 } from "lucide-react";
 
 const C = {
   paper: "#F6F4EE", panel: "#FFFFFF", ink: "#1C1F26", inkSoft: "#5B5F6B",
@@ -41,6 +41,10 @@ function getVideoEmbed(url) {
       const match = u.pathname.match(/(\d+)/);
       if (!match) return null;
       return { type: "vimeo", embedUrl: `https://player.vimeo.com/video/${match[1]}`, thumbnail: null };
+    }
+
+    if (host === "figma.com") {
+      return { type: "figma", embedUrl: `https://www.figma.com/embed?embed_host=share&url=${encodeURIComponent(u.toString())}`, thumbnail: null };
     }
 
     return null;
@@ -154,7 +158,11 @@ export default function BibliotecaPage() {
               <button key={r.id} onClick={() => setSelected(r)} style={{ borderColor: C.hairline, background: C.panel, backgroundImage: embed?.thumbnail ? `url(${embed.thumbnail})` : undefined, backgroundSize: "cover", backgroundPosition: "center" }} className="relative border p-4 text-left flex flex-col gap-2 aspect-square justify-between hover:brightness-[0.98] overflow-hidden">
                 {embed?.thumbnail && <div className="absolute inset-0" style={{ background: "linear-gradient(to top, rgba(20,24,31,0.75), rgba(20,24,31,0.15))" }} />}
                 <div className="relative flex items-center justify-between">
-                  {embed ? (
+                  {embed?.type === "figma" ? (
+                    <span className="flex items-center justify-center rounded-full" style={{ background: C.spine, width: 26, height: 26 }}>
+                      <Gamepad2 size={13} style={{ color: C.paper }} />
+                    </span>
+                  ) : embed ? (
                     <span className="flex items-center justify-center rounded-full" style={{ background: C.spine, width: 26, height: 26 }}>
                       <Play size={12} style={{ color: C.paper }} fill={C.paper} />
                     </span>
@@ -266,9 +274,9 @@ function ResourceForm({ initial, onClose, onSave }) {
             <textarea value={description} onChange={(e) => setDescription(e.target.value)} rows={2} placeholder='Ej. "Aquí podrás encontrar fotos y videos de stock"' style={{ borderColor: C.hairline, background: C.panel }} className="w-full border px-3 py-2 text-sm mt-1 outline-none" />
           </div>
           <div>
-            <label className="font-mono text-[10px] uppercase tracking-widest" style={{ color: C.inkSoft }}>Link (SharePoint/OneDrive/YouTube/Drive/Vimeo)</label>
+            <label className="font-mono text-[10px] uppercase tracking-widest" style={{ color: C.inkSoft }}>Link (SharePoint/OneDrive/YouTube/Drive/Vimeo/Figma)</label>
             <input value={url} onChange={(e) => setUrl(e.target.value)} placeholder="https://..." style={{ borderColor: C.hairline, background: C.panel }} className="w-full border px-3 py-2 text-sm mt-1 outline-none" />
-            <p className="text-[11px] mt-1" style={{ color: C.inkSoft }}>Los links de YouTube, Google Drive o Vimeo se muestran como video, el resto como link normal.</p>
+            <p className="text-[11px] mt-1" style={{ color: C.inkSoft }}>Los links de YouTube, Google Drive o Vimeo se muestran como video, un link de Figma (ej. un prototipo del emulador de la app) se muestra embebido y navegable, el resto como link normal.</p>
           </div>
           <div>
             <label className="font-mono text-[10px] uppercase tracking-widest" style={{ color: C.inkSoft }}>Etiquetas</label>
