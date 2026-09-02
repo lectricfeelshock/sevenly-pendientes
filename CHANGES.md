@@ -147,6 +147,29 @@ Cambiar los filtros actuales por estos 5: **Todos**, **Estado**,
 Esto aplica igual en "Mis solicitudes", solo que ahí, a un lado de
 "Todos", también está la opción "Programados" (como ya existe hoy).
 
+### 13. Que un solicitante pueda salirse (abandonar) un pendiente
+Un solicitante debe poder salirse de un pendiente — dejar de ser
+solicitante de él — siempre y cuando ese pendiente tenga **al menos
+otro solicitante más** (no se puede quedar sin nadie que lo solicite).
+
+### 14. Restringir "Eliminar pendiente" a solo solicitante y admin
+Hoy el botón "Eliminar pendiente" del desglose aparece para cualquiera
+que lo abra (incluido el asignado), sin restricción. Cambiar esto para
+que solo lo pueda ver y usar el solicitante del pendiente (o cualquiera
+de los co-solicitantes) y el admin — el asignado ya no debe poder
+eliminarlo.
+
+### 15. Poder editar la descripción del pendiente y de las subtareas ya creadas
+Hoy, una vez publicado un pendiente, ni su descripción ni la
+descripción de una subtarea ya creada se pueden editar (solo se
+definen al momento de crearlos). Agregar la opción de editarlas
+después:
+
+- **Descripción del pendiente**: que el solicitante la pueda editar
+  desde el desglose.
+- **Descripción de una subtarea**: que se pueda editar igual desde el
+  desglose de esa subtarea.
+
 ## Historial (aplicadas)
 
 <!-- Aquí se van moviendo las solicitudes ya aplicadas, con fecha y commit. -->
