@@ -7,7 +7,7 @@ import {
   ChevronRight, ChevronDown, Trash2, CheckCircle2, Circle,
   PauseCircle, PlayCircle, Send, LogOut, History, Mail, Users,
   User, TrendingUp, BookOpen, Download, Lock, CheckCheck, BellRing,
-  Image as ImageIcon, Megaphone, Settings, Eye, Pencil, Paperclip, Link2, Clock,
+  Image as ImageIcon, Megaphone, Eye, Pencil, Paperclip, Link2, Clock,
 } from "lucide-react";
 
 const C = {
@@ -43,7 +43,6 @@ const REPEAT_MODES = [
   { value: "weekly", label: "Cada semana" },
   { value: "monthly", label: "Todos los meses" },
 ];
-const CONSEJO_TEXT = "Si solicitas briefs, en la descripción deja el link del share donde están las solicitudes.\n\nSi se trata del contenido de la press, pon el link de contenido de redes.";
 
 // Un pendiente Personal se muestra como Individual en cuanto se le asigna
 // a alguien más (con "Asignar responsable" o "Asignar a").
@@ -945,6 +944,11 @@ export default function Dashboard() {
     loadAll();
   };
 
+  const updateSubtaskDescription = async (subtask, description) => {
+    await supabase.from("subtasks").update({ description }).eq("id", subtask.id);
+    loadAll();
+  };
+
   const markNotifsRead = async () => {
     const unread = notifications.filter((n) => !n.read).map((n) => n.id);
     if (unread.length === 0) return;
@@ -1110,7 +1114,7 @@ export default function Dashboard() {
 
       {showNew && <NewTaskForm onClose={() => setShowNew(false)} onCreate={createTask} onCreatePopup={createPopup} profiles={assignableProfiles} profile={profile} isAdmin={isAdmin} tasks={tasks} subtasks={subtasks} />}
       {popupQueue[0] && <PopupModal popup={popupQueue[0]} onClose={dismissPopup} tasks={tasks} subtasks={subtasks} profiles={profiles} onFinalizeTask={finalizeTask} />}
-      {selected && <TaskDetail task={selected} onClose={() => setSelected(null)} onUpdate={updateTask} onDelete={deleteTask} onDeleteRecurring={deleteRecurringTask} recurringTemplates={recurringTemplates} onFinalize={finalizeTask} onDeliver={deliverTask} profiles={profiles} assignableProfiles={assignableProfiles} profile={profile} notify={notify} subtasks={subtasks.filter((s) => s.task_id === selected.id)} onAddSubtask={addSubtask} onUpdateSubtaskStatus={updateSubtaskStatus} viewerIsGerente={!!viewingAs && !isAdmin} onCommentsRead={reloadMyCommentReads} />}
+      {selected && <TaskDetail task={selected} onClose={() => setSelected(null)} onUpdate={updateTask} onDelete={deleteTask} onDeleteRecurring={deleteRecurringTask} recurringTemplates={recurringTemplates} onFinalize={finalizeTask} onDeliver={deliverTask} profiles={profiles} assignableProfiles={assignableProfiles} profile={profile} notify={notify} subtasks={subtasks.filter((s) => s.task_id === selected.id)} onAddSubtask={addSubtask} onUpdateSubtaskStatus={updateSubtaskStatus} onUpdateSubtaskDescription={updateSubtaskDescription} viewerIsGerente={!!viewingAs && !isAdmin} onCommentsRead={reloadMyCommentReads} />}
       {showTeam && <TeamPanel onClose={() => setShowTeam(false)} profiles={assignableProfiles} tasks={tasks} />}
       {showActivity && <ActivityPanel onClose={() => setShowActivity(false)} profile={profile} router={router} />}
       {showNotifs && <NotificationsPanel onClose={() => setShowNotifs(false)} notifications={notifications} onOpenTask={(taskId) => { const t = tasks.find((x) => x.id === taskId); if (t) setSelected(t); setShowNotifs(false); }} onOpenFilter={(target) => { if (target === "requests:Entregado") { setPrimaryTab("requests"); setStatusFilter("Entregado"); } setShowNotifs(false); }} pushSupported={pushSupported} pushEnabled={pushEnabled} onEnablePush={enablePush} />}
@@ -1147,7 +1151,6 @@ function TaskRow({ task, onOpen, unreadComments = 0 }) {
               <span style={{ background: C.urgent, color: "#fff" }} className="absolute -top-1.5 -right-1.5 text-[8px] font-mono px-1 py-0.5 leading-none rounded-full">{unreadComments > 9 ? "9+" : unreadComments}</span>
             </span>
           )}
-          {sameDay && <span className="font-mono text-[9px] uppercase tracking-wider px-1.5 py-0.5 flex items-center gap-1" style={{ background: C.urgentSoft, color: C.urgent, border: `1px solid ${C.urgent}` }}>De hoy para hoy 💀</span>}
           {Array.from({ length: task.remind_assignee_count || 0 }).map((_, i) => <Bell key={i} size={11} style={{ color: C.amber, flexShrink: 0 }} />)}
         </div>
         <div className="flex items-center gap-3 mt-1 flex-wrap">
@@ -1159,7 +1162,10 @@ function TaskRow({ task, onOpen, unreadComments = 0 }) {
           )}
         </div>
       </div>
-      <DeadlineBadge deadline={task.deadline} status={task.status} />
+      <div>
+        <DeadlineBadge deadline={task.deadline} status={task.status} />
+        {sameDay && <div className="font-mono text-[9px] uppercase tracking-wider text-right mt-0.5" style={{ color: C.urgent }}>De hoy para hoy 💀</div>}
+      </div>
       <ChevronRight size={15} style={{ color: C.inkSoft, flexShrink: 0 }} />
     </button>
   );
@@ -1179,7 +1185,6 @@ function NewTaskForm({ onClose, onCreate, onCreatePopup, profiles, profile, isAd
   const [scheduling, setScheduling] = useState(false);
   const [scheduledDate, setScheduledDate] = useState("");
   const [repeatMode, setRepeatMode] = useState("none"); // "none" | "weekly" | "monthly"
-  const [showConsejo, setShowConsejo] = useState(false);
 
   // Colaborativo: equipo + subtareas
   const [teamMemberIds, setTeamMemberIds] = useState([]);
@@ -1457,9 +1462,6 @@ function NewTaskForm({ onClose, onCreate, onCreatePopup, profiles, profile, isAd
                       <select value={urgency} onChange={(e) => setUrgency(e.target.value)} style={{ borderColor: C.hairline, background: C.panel }} className="w-full border px-3 py-2 text-sm mt-1 outline-none">
                         {SELECTABLE_URGENCIES.map((u) => <option key={u.label} value={u.label}>{u.label}</option>)}
                       </select></div>
-                    {repeatMode !== "none" && (
-                      <button type="button" onClick={() => setShowConsejo(true)} style={{ borderColor: C.hairline, color: C.ink }} className="border px-3 py-2 text-sm col-span-2">💡 Consejo</button>
-                    )}
                     {deadlineError && <p className="col-span-2 text-[11px]" style={{ color: C.urgent }}>{deadlineError}</p>}
                   </div>
                 ) : (
@@ -1571,9 +1573,6 @@ function NewTaskForm({ onClose, onCreate, onCreatePopup, profiles, profile, isAd
                       <select value={urgency} onChange={(e) => setUrgency(e.target.value)} style={{ borderColor: C.hairline, background: C.panel }} className="w-full border px-3 py-2 text-sm mt-1 outline-none">
                         {SELECTABLE_URGENCIES.map((u) => <option key={u.label} value={u.label}>{u.label}</option>)}
                       </select></div>
-                    {repeatMode !== "none" && (
-                      <button type="button" onClick={() => setShowConsejo(true)} style={{ borderColor: C.hairline, color: C.ink }} className="border px-3 py-2 text-sm col-span-2">💡 Consejo</button>
-                    )}
                     {deadlineError && <p className="col-span-2 text-[11px]" style={{ color: C.urgent }}>{deadlineError}</p>}
                   </div>
                 ) : (
@@ -1601,14 +1600,6 @@ function NewTaskForm({ onClose, onCreate, onCreatePopup, profiles, profile, isAd
           )}
         </div>
       </div>
-      {showConsejo && (
-        <div className="fixed inset-0 z-[70] flex items-center justify-center p-4" style={{ background: "rgba(20,24,31,0.6)" }} onClick={() => setShowConsejo(false)}>
-          <div style={{ background: C.paper, borderColor: C.hairline }} className="border max-w-xs p-4" onClick={(e) => e.stopPropagation()}>
-            <p className="text-sm whitespace-pre-line" style={{ color: C.ink }}>{CONSEJO_TEXT}</p>
-            <button onClick={() => setShowConsejo(false)} style={{ background: C.spine, color: C.paper }} className="mt-3 px-3 py-1.5 text-xs w-full">Entendido</button>
-          </div>
-        </div>
-      )}
       {showSubtaskRule && (
         <div className="fixed inset-0 z-[70] flex items-center justify-center p-4" style={{ background: "rgba(20,24,31,0.6)" }} onClick={() => setShowSubtaskRule(false)}>
           <div style={{ background: C.paper, borderColor: C.hairline }} className="border max-w-xs p-4" onClick={(e) => e.stopPropagation()}>
@@ -2054,7 +2045,7 @@ function PopupModal({ popup, onClose, tasks, subtasks, profiles, onFinalizeTask 
   );
 }
 
-function TaskDetail({ task, onClose, onUpdate, onDelete, onDeleteRecurring, recurringTemplates, onFinalize, onDeliver, profiles, assignableProfiles, profile, notify, subtasks, onAddSubtask, onUpdateSubtaskStatus, viewerIsGerente, onCommentsRead }) {
+function TaskDetail({ task, onClose, onUpdate, onDelete, onDeleteRecurring, recurringTemplates, onFinalize, onDeliver, profiles, assignableProfiles, profile, notify, subtasks, onAddSubtask, onUpdateSubtaskStatus, onUpdateSubtaskDescription, viewerIsGerente, onCommentsRead }) {
   const recurringTpl = task.recurring_template_id ? (recurringTemplates || []).find((r) => r.id === task.recurring_template_id) : null;
   const [comment, setComment] = useState(""), [comments, setComments] = useState([]);
   const [history, setHistory] = useState([]), [showHistory, setShowHistory] = useState(false);
@@ -2071,6 +2062,10 @@ function TaskDetail({ task, onClose, onUpdate, onDelete, onDeleteRecurring, recu
   const [showAttachments, setShowAttachments] = useState(false);
   const [showAddTeam, setShowAddTeam] = useState(false);
   const [newTeamIds, setNewTeamIds] = useState([]);
+  const [editingDescription, setEditingDescription] = useState(false);
+  const [descriptionDraft, setDescriptionDraft] = useState(task.description || "");
+  const [editingSubtaskId, setEditingSubtaskId] = useState(null);
+  const [subtaskDescriptionDraft, setSubtaskDescriptionDraft] = useState("");
   const assignee = profiles.find((p) => p.id === task.assigned_to_id);
 
   const isColaborativo = task.task_type === "colaborativo";
@@ -2088,6 +2083,7 @@ function TaskDetail({ task, onClose, onUpdate, onDelete, onDeleteRecurring, recu
   const teamProfiles = profiles.filter((p) => (task.team_member_ids || []).includes(p.id));
   const coRequesterNames = (task.co_requester_names || []).length > 0 ? task.co_requester_names : (task.responsible_name ? [task.responsible_name] : []);
   const showSubtasks = isColaborativo || task.task_type === "individual";
+  const sameDay = task.request_date && task.deadline && task.request_date === task.deadline;
   const hasSubtasks = subtasks.length > 0;
   const allSubtasksDelivered = hasSubtasks && subtasks.every((s) => s.status === "Entregado");
   const canFinalize = !viewerIsGerente && !isFinalized && (isAdmin || (isColaborativo ? isAnyRequester && allSubtasksDelivered : isRequester && (hasSubtasks ? allSubtasksDelivered : isDelivered)));
@@ -2166,6 +2162,18 @@ function TaskDetail({ task, onClose, onUpdate, onDelete, onDeleteRecurring, recu
     await onUpdate(task, { category: val }, `${profile.name} cambió la categoría a "${val}"`);
     setNewCategoryDraft("");
     setEditingCategory(false);
+  };
+
+  const saveDescription = async () => {
+    if (!isAnyRequester || isFinalized || viewerIsGerente) return;
+    await onUpdate(task, { description: descriptionDraft.trim() }, `${profile.name} editó la descripción`);
+    setEditingDescription(false);
+  };
+
+  const saveSubtaskDescription = async (subtask) => {
+    if (!isAnyRequester || isFinalized || viewerIsGerente) return;
+    await onUpdateSubtaskDescription(subtask, subtaskDescriptionDraft.trim());
+    setEditingSubtaskId(null);
   };
 
   const addComment = async () => {
@@ -2301,14 +2309,34 @@ function TaskDetail({ task, onClose, onUpdate, onDelete, onDeleteRecurring, recu
                 </div>
               </div>
             )}
-            <h2 style={{ color: C.ink, fontFamily: "Georgia, serif" }} className="text-lg leading-tight">{task.title}</h2>
-            {task.request_date && task.deadline && task.request_date === task.deadline && (
-              <div className="font-mono text-[10px] uppercase tracking-wider mt-1" style={{ color: C.urgent }}>De hoy para hoy 💀</div>
-            )}</div>
+            <h2 style={{ color: C.ink, fontFamily: "Georgia, serif" }} className="text-lg leading-tight">{task.title}</h2></div>
           <button onClick={onClose}><X size={18} style={{ color: C.inkSoft }} /></button>
         </div>
         <div className="p-5 flex flex-col gap-5">
-          {task.description && <p style={{ color: C.ink }} className="text-sm leading-relaxed whitespace-pre-wrap break-words">{renderWithLinks(task.description, C.signal)}</p>}
+          {editingDescription ? (
+            <div className="flex flex-col gap-1.5">
+              <textarea value={descriptionDraft} onChange={(e) => setDescriptionDraft(e.target.value)} rows={3} style={{ borderColor: C.hairline, background: C.panel, color: C.ink }} className="w-full border px-3 py-2 text-sm outline-none resize-y" />
+              <div className="flex gap-2 justify-end">
+                <button onClick={() => { setDescriptionDraft(task.description || ""); setEditingDescription(false); }} className="text-xs" style={{ color: C.inkSoft }}>Cancelar</button>
+                <button onClick={saveDescription} style={{ background: C.spine, color: C.paper }} className="text-xs px-2.5 py-1">Guardar</button>
+              </div>
+            </div>
+          ) : (
+            (task.description || (isAnyRequester && !isFinalized && !viewerIsGerente)) && (
+              <div className="flex items-start gap-1.5">
+                {task.description ? (
+                  <p style={{ color: C.ink }} className="text-sm leading-relaxed whitespace-pre-wrap break-words flex-1">{renderWithLinks(task.description, C.signal)}</p>
+                ) : (
+                  <p style={{ color: C.inkSoft }} className="text-sm flex-1">Sin descripción.</p>
+                )}
+                {isAnyRequester && !isFinalized && !viewerIsGerente && (
+                  <button onClick={() => { setDescriptionDraft(task.description || ""); setEditingDescription(true); }} title="Editar descripción" className="flex-shrink-0 mt-0.5">
+                    <Pencil size={12} style={{ color: C.inkSoft }} />
+                  </button>
+                )}
+              </div>
+            )
+          )}
           <div className="grid grid-cols-2 gap-3 text-sm">
             {isPersonalSolo ? (
               <div className="col-span-2"><div className="font-mono text-[10px] uppercase tracking-widest mb-0.5" style={{ color: C.inkSoft }}>Tipo</div><div style={{ color: C.ink }}>Pendiente personal (solo tuyo)</div></div>
@@ -2337,6 +2365,7 @@ function TaskDetail({ task, onClose, onUpdate, onDelete, onDeleteRecurring, recu
               {canEditDeadline ? (
                 <input type="date" value={task.deadline || ""} min={showSubtasks ? minGeneralDeadline : undefined} onChange={(e) => changeDeadline(e.target.value)} style={{ borderColor: C.hairline, background: C.panel }} className="border px-2 py-1 text-xs outline-none" />
               ) : <div style={{ color: C.ink }}>{fmtDate(task.deadline)}</div>}
+              {sameDay && <div className="font-mono text-[10px] uppercase tracking-wider mt-1" style={{ color: C.urgent }}>De hoy para hoy 💀</div>}
             </div>
             <div>
               <div className="font-mono text-[10px] uppercase tracking-widest mb-0.5" style={{ color: C.inkSoft }}>Urgencia</div>
@@ -2445,8 +2474,29 @@ function TaskDetail({ task, onClose, onUpdate, onDelete, onDeleteRecurring, recu
                           <span className="flex items-center gap-1 text-[11px] shrink-0" style={{ color: C.inkSoft }}><StIcon size={12} /> {s.status}</span>
                         )}
                       </div>
-                      {expanded && s.description && (
-                        <div className="text-xs mt-2 pt-2 border-t whitespace-pre-wrap break-words" style={{ borderColor: C.hairline, color: C.ink }}>{renderWithLinks(s.description, C.signal)}</div>
+                      {expanded && (
+                        editingSubtaskId === s.id ? (
+                          <div className="mt-2 pt-2 border-t flex flex-col gap-1.5" style={{ borderColor: C.hairline }} onClick={(e) => e.stopPropagation()}>
+                            <textarea value={subtaskDescriptionDraft} onChange={(e) => setSubtaskDescriptionDraft(e.target.value)} rows={2} style={{ borderColor: C.hairline, background: C.paper, color: C.ink }} className="border px-2 py-1.5 text-xs outline-none resize-y" />
+                            <div className="flex gap-2 justify-end">
+                              <button onClick={() => setEditingSubtaskId(null)} className="text-xs" style={{ color: C.inkSoft }}>Cancelar</button>
+                              <button onClick={() => saveSubtaskDescription(s)} style={{ background: C.spine, color: C.paper }} className="text-xs px-2.5 py-1">Guardar</button>
+                            </div>
+                          </div>
+                        ) : (s.description || (isAnyRequester && !isFinalized && !viewerIsGerente)) && (
+                          <div className="mt-2 pt-2 border-t flex items-start gap-1.5" style={{ borderColor: C.hairline }}>
+                            {s.description ? (
+                              <div className="text-xs whitespace-pre-wrap break-words flex-1" style={{ color: C.ink }}>{renderWithLinks(s.description, C.signal)}</div>
+                            ) : (
+                              <div className="text-xs flex-1" style={{ color: C.inkSoft }}>Sin descripción.</div>
+                            )}
+                            {isAnyRequester && !isFinalized && !viewerIsGerente && (
+                              <button onClick={(e) => { e.stopPropagation(); setSubtaskDescriptionDraft(s.description || ""); setEditingSubtaskId(s.id); }} title="Editar descripción" className="flex-shrink-0">
+                                <Pencil size={11} style={{ color: C.inkSoft }} />
+                              </button>
+                            )}
+                          </div>
+                        )
                       )}
                     </div>
                   );
@@ -2613,7 +2663,7 @@ function TaskDetail({ task, onClose, onUpdate, onDelete, onDeleteRecurring, recu
             </div>
           )}
 
-          {!viewerIsGerente && (!confirmDelete ? (
+          {!viewerIsGerente && (isAnyRequester || isAdmin) && (!confirmDelete ? (
             <button onClick={() => setConfirmDelete(true)} className="text-xs flex items-center gap-1.5 mt-1 self-start" style={{ color: C.urgent }}><Trash2 size={13} /> Eliminar pendiente</button>
           ) : task.recurring_template_id ? (
             <div style={{ borderColor: C.urgent, background: C.urgentSoft }} className="border px-3 py-2.5 flex flex-col gap-2 mt-1">
@@ -2814,7 +2864,7 @@ function ActivityPanel({ onClose, profile, router }) {
       <div style={{ background: C.paper, borderColor: C.hairline }} className="border w-full max-w-xs mt-14 p-4" onClick={(e) => e.stopPropagation()}>
         <div className="flex items-center justify-between mb-3">
           <div className="flex items-center gap-1.5 text-sm font-medium" style={{ color: C.ink }}><TrendingUp size={14} /> Mi actividad
-            <button onClick={() => router.push("/perfil")} title="Editar mi perfil" className="ml-1"><Settings size={14} style={{ color: C.inkSoft }} /></button>
+            <button onClick={() => router.push("/perfil")} style={{ borderColor: C.hairline, color: C.ink }} className="border px-2 py-0.5 text-[11px] ml-1">Ver perfil</button>
           </div>
           <button onClick={onClose}><X size={15} style={{ color: C.inkSoft }} /></button>
         </div>
