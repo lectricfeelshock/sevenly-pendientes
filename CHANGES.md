@@ -254,14 +254,14 @@ f. **Auto-eliminado a los 4 días de finalizado a mano**: cuando el
    se borra de inmediato).
 
 ### [x] 5. Cambiar el engrane de "Mi actividad" por un botón "Ver perfil"
-_Aplicada 2026-09-03._
+_Aplicada 2026-09-03 — PR #48._
 
 En la ventana de "Mi actividad" (`ActivityPanel`), donde antes estaba el
 ícono de engrane junto al nombre para ir al perfil, ahora hay un botón
 que dice "Ver perfil". Lleva al mismo lugar de siempre (`/perfil`).
 
 ### [x] 7. Mover la leyenda "De hoy para hoy 💀" de junto al título a debajo del deadline
-_Aplicada 2026-09-03._
+_Aplicada 2026-09-03 — PR #48._
 
 Para el caso específico de que el solicitante creó el pendiente el
 mismo día de la fecha límite que le puso (`request_date === deadline`),
@@ -271,21 +271,21 @@ la tarjeta del dashboard, y debajo del campo de Deadline en el
 desglose.
 
 ### [x] 11. Quitar el botón "💡 Consejo" al marcar pendiente de frecuencia
-_Aplicada 2026-09-03._
+_Aplicada 2026-09-03 — PR #48._
 
 Al crear un pendiente **individual** y marcar la casilla de "pendiente
 de frecuencia", ya no aparece el botón "💡 Consejo" en el formulario
 (sigue existiendo en la versión de colaborativo, que no se tocó).
 
 ### [x] 14. Restringir "Eliminar pendiente" a solo solicitante y admin
-_Aplicada 2026-09-03._
+_Aplicada 2026-09-03 — PR #48._
 
 El botón "Eliminar pendiente" del desglose ahora solo lo ve y puede
 usar el solicitante del pendiente (o cualquiera de los
 co-solicitantes) y el admin — el asignado ya no puede eliminarlo.
 
 ### [x] 15. Poder editar la descripción del pendiente y de las subtareas ya creadas
-_Aplicada 2026-09-03._
+_Aplicada 2026-09-03 — PR #48._
 
 Ahora, desde el desglose, el solicitante puede editar (con un ícono de
 lápiz) tanto la descripción del pendiente como la descripción de
