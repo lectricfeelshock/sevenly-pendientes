@@ -43,7 +43,6 @@ const REPEAT_MODES = [
   { value: "weekly", label: "Cada semana" },
   { value: "monthly", label: "Todos los meses" },
 ];
-const CONSEJO_TEXT = "Si solicitas briefs, en la descripción deja el link del share donde están las solicitudes.\n\nSi se trata del contenido de la press, pon el link de contenido de redes.";
 
 // Un pendiente Personal se muestra como Individual en cuanto se le asigna
 // a alguien más (con "Asignar responsable" o "Asignar a").
@@ -1186,7 +1185,6 @@ function NewTaskForm({ onClose, onCreate, onCreatePopup, profiles, profile, isAd
   const [scheduling, setScheduling] = useState(false);
   const [scheduledDate, setScheduledDate] = useState("");
   const [repeatMode, setRepeatMode] = useState("none"); // "none" | "weekly" | "monthly"
-  const [showConsejo, setShowConsejo] = useState(false);
 
   // Colaborativo: equipo + subtareas
   const [teamMemberIds, setTeamMemberIds] = useState([]);
@@ -1575,9 +1573,6 @@ function NewTaskForm({ onClose, onCreate, onCreatePopup, profiles, profile, isAd
                       <select value={urgency} onChange={(e) => setUrgency(e.target.value)} style={{ borderColor: C.hairline, background: C.panel }} className="w-full border px-3 py-2 text-sm mt-1 outline-none">
                         {SELECTABLE_URGENCIES.map((u) => <option key={u.label} value={u.label}>{u.label}</option>)}
                       </select></div>
-                    {repeatMode !== "none" && (
-                      <button type="button" onClick={() => setShowConsejo(true)} style={{ borderColor: C.hairline, color: C.ink }} className="border px-3 py-2 text-sm col-span-2">💡 Consejo</button>
-                    )}
                     {deadlineError && <p className="col-span-2 text-[11px]" style={{ color: C.urgent }}>{deadlineError}</p>}
                   </div>
                 ) : (
@@ -1605,14 +1600,6 @@ function NewTaskForm({ onClose, onCreate, onCreatePopup, profiles, profile, isAd
           )}
         </div>
       </div>
-      {showConsejo && (
-        <div className="fixed inset-0 z-[70] flex items-center justify-center p-4" style={{ background: "rgba(20,24,31,0.6)" }} onClick={() => setShowConsejo(false)}>
-          <div style={{ background: C.paper, borderColor: C.hairline }} className="border max-w-xs p-4" onClick={(e) => e.stopPropagation()}>
-            <p className="text-sm whitespace-pre-line" style={{ color: C.ink }}>{CONSEJO_TEXT}</p>
-            <button onClick={() => setShowConsejo(false)} style={{ background: C.spine, color: C.paper }} className="mt-3 px-3 py-1.5 text-xs w-full">Entendido</button>
-          </div>
-        </div>
-      )}
       {showSubtaskRule && (
         <div className="fixed inset-0 z-[70] flex items-center justify-center p-4" style={{ background: "rgba(20,24,31,0.6)" }} onClick={() => setShowSubtaskRule(false)}>
           <div style={{ background: C.paper, borderColor: C.hairline }} className="border max-w-xs p-4" onClick={(e) => e.stopPropagation()}>

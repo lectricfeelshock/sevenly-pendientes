@@ -273,9 +273,9 @@ desglose.
 ### [x] 11. Quitar el botón "💡 Consejo" al marcar pendiente de frecuencia
 _Aplicada 2026-09-03 — PR #48._
 
-Al crear un pendiente **individual** y marcar la casilla de "pendiente
-de frecuencia", ya no aparece el botón "💡 Consejo" en el formulario
-(sigue existiendo en la versión de colaborativo, que no se tocó).
+Al crear un pendiente **individual o colaborativo** y marcar la casilla
+de "pendiente de frecuencia", ya no aparece el botón "💡 Consejo" en el
+formulario (se quitó en ambos, junto con su ventana emergente).
 
 ### [x] 14. Restringir "Eliminar pendiente" a solo solicitante y admin
 _Aplicada 2026-09-03 — PR #48._
