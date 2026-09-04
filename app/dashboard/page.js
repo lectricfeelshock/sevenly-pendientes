@@ -395,12 +395,13 @@ function UrgencyFlag({ urgency }) {
   const u = URGENCIES.find((x) => x.label === urgency) || URGENCIES[0];
   return <span className="inline-flex items-center gap-1 font-mono text-[10px] uppercase tracking-wider" style={{ color: u.color }}><Flag size={12} fill={u.color} strokeWidth={0} />{u.label}</span>;
 }
-function DeadlineBadge({ deadline, status }) {
+function DeadlineBadge({ deadline, status, hideToday }) {
   const legend = dueLegend(deadline, status);
+  const showLegend = legend && !(hideToday && legend.text === "¡Se entrega hoy!");
   return (
     <div className="text-right">
       <div className="font-mono text-[11px]" style={{ color: C.inkSoft }}>{fmtDate(deadline)}</div>
-      {legend && <div className="font-mono text-[9px] uppercase tracking-wide" style={{ color: legend.color }}>{legend.text}</div>}
+      {showLegend && <div className="font-mono text-[9px] uppercase tracking-wide" style={{ color: legend.color }}>{legend.text}</div>}
     </div>
   );
 }
@@ -1167,7 +1168,7 @@ function TaskRow({ task, onOpen, unreadComments = 0 }) {
         </div>
       </div>
       <div>
-        <DeadlineBadge deadline={task.deadline} status={task.status} />
+        <DeadlineBadge deadline={task.deadline} status={task.status} hideToday={sameDay} />
         {sameDay && <div className="font-mono text-[9px] uppercase tracking-wider text-right mt-0.5" style={{ color: C.urgent }}>De hoy para hoy 💀</div>}
       </div>
       <ChevronRight size={15} style={{ color: C.inkSoft, flexShrink: 0 }} />

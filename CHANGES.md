@@ -270,6 +270,10 @@ sale debajo del deadline en ambos lugares: debajo del badge de fecha en
 la tarjeta del dashboard, y debajo del campo de Deadline en el
 desglose.
 
+_Ajustado 2026-09-04:_ en la tarjeta del dashboard, cuando sale "De hoy
+para hoy 💀" ya no sale también "¡Se entrega hoy!" junto al badge de
+fecha — se evita el mensaje redundante, solo se ve "De hoy para hoy 💀".
+
 ### [x] 11. Quitar el botón "💡 Consejo" al marcar pendiente de frecuencia
 _Aplicada 2026-09-03 — PR #48._
 
