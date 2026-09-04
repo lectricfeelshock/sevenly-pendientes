@@ -978,14 +978,6 @@ export default function Dashboard() {
     subtasks.some((s) => s.task_id === t.id && s.assigned_to_id === id);
 
   const isRequesterOf = (t, id) => t.requested_by_id === id || t.responsible_id === id || (t.co_requester_ids || []).includes(id);
-  let base = tasks;
-  if (primaryTab === "requests") base = tasks.filter((t) => isRequesterOf(t, effectiveId));
-  else if (primaryTab === "mine") base = tasks.filter((t) => isAssignedTo(t, effectiveId));
-  else if (primaryTab === "all") base = tasks.filter((t) => isRequesterOf(t, effectiveId) || isAssignedTo(t, effectiveId));
-  // Universo de la búsqueda avanzada (CHANGES.md #1): siempre "todos mis
-  // pendientes" — los que solicité o me asignaron — sin importar qué pestaña
-  // esté activa.
-  const myTasks = tasks.filter((t) => isRequesterOf(t, effectiveId) || isAssignedTo(t, effectiveId));
 
   // "Programados": un pendiente cuenta como programado mientras su Día
   // programado (request_date) siga en el futuro — sea de frecuencia o no.
@@ -996,6 +988,18 @@ export default function Dashboard() {
   // sus fechas de solicitud y deadline ya actualizadas— así que en
   // Programados nunca hay un hueco: siempre hay una tarjeta viva.
   const isProgramado = (t) => !!t.request_date && t.request_date > todayISO();
+
+  // Solo el solicitante ve un pendiente mientras está Programado — al
+  // asignado no le debe salir todavía en "Mis pendientes" ni en "Todos"
+  // (a menos que también sea de los solicitantes).
+  let base = tasks;
+  if (primaryTab === "requests") base = tasks.filter((t) => isRequesterOf(t, effectiveId));
+  else if (primaryTab === "mine") base = tasks.filter((t) => isAssignedTo(t, effectiveId) && !isProgramado(t));
+  else if (primaryTab === "all") base = tasks.filter((t) => isRequesterOf(t, effectiveId) || (isAssignedTo(t, effectiveId) && !isProgramado(t)));
+  // Universo de la búsqueda avanzada (CHANGES.md #1): siempre "todos mis
+  // pendientes" — los que solicité o me asignaron — sin importar qué pestaña
+  // esté activa.
+  const myTasks = tasks.filter((t) => isRequesterOf(t, effectiveId) || isAssignedTo(t, effectiveId));
 
   const filtered = base.filter((t) =>
     statusFilter === "Todos" ? true :
