@@ -213,6 +213,9 @@ El botón "Eliminar pendiente" del desglose ahora solo lo ve y puede
 usar el solicitante del pendiente (o cualquiera de los
 co-solicitantes) y el admin — el asignado ya no puede eliminarlo.
 
+_Revertido 2026-09-05:_ vuelve a verlo y poder usarlo cualquiera con
+acceso al desglose, como antes de esta solicitud.
+
 ### [x] 15. Poder editar la descripción del pendiente y de las subtareas ya creadas
 _Aplicada 2026-09-03 — PR #48._
 
