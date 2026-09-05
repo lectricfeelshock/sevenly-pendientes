@@ -286,6 +286,10 @@ Los filtros del dashboard ahora son 5: **Todos**, **Estado**,
 En "Mis solicitudes", a un lado de "Todos", sigue estando la opción
 "Programados" (como ya existía).
 
+_Ajustado 2026-09-05:_ el filtro por default al entrar a la app ya no
+es "Todos" — es "Estado: No iniciado", para que lo primero que se vea
+sea lo que aún falta por arrancar.
+
 ### [x] 13. Que un solicitante pueda salirse (abandonar) un pendiente
 _Aplicada 2026-09-04._
 

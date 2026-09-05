@@ -443,7 +443,9 @@ export default function Dashboard() {
   // + "Programados" en "Mis solicitudes"). Solo uno puede estar activo a la
   // vez. `value` filtra por un valor puntual; `order` ("desc" = de mayor a
   // menor, "asc" = de menor a mayor) ordena/agrupa sin filtrar a un solo valor.
-  const [activeFilter, setActiveFilter] = useState({ type: "Todos" });
+  // Filtro por default al entrar a la app: "No iniciado", para que lo
+  // primero que se vea sea lo que aún falta por arrancar.
+  const [activeFilter, setActiveFilter] = useState({ type: "Estado", value: "No iniciado" });
   const [openFilterKey, setOpenFilterKey] = useState(null);
   const [primaryTab, setPrimaryTab] = useState("mine"); // requests | mine | all
   const [pushEnabled, setPushEnabled] = useState(false);
