@@ -290,7 +290,11 @@ En "Mis solicitudes", a un lado de "Todos", sigue estando la opción
 _Aplicada 2026-09-04._
 
 Un solicitante puede salirse de un pendiente — dejar de ser solicitante
-de él — desde el desglose, siempre y cuando ese pendiente tenga al
-menos otro solicitante más (no se puede quedar sin nadie que lo
-solicite). Si el que se sale es el solicitante principal, otro
-co-solicitante lo reemplaza automáticamente.
+de él — siempre y cuando ese pendiente tenga al menos otro solicitante
+más (no se puede quedar sin nadie que lo solicite). Si el que se sale
+es el solicitante principal, otro co-solicitante lo reemplaza
+automáticamente.
+
+_Ajustado 2026-09-05:_ el botón vive hasta abajo del desglose, junto a
+"Eliminar pendiente" — se llama "Abandonar" y pide confirmación
+("Dejarás de ser responsable de este pendiente.").

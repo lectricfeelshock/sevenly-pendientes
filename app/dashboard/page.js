@@ -2715,17 +2715,6 @@ function TaskDetail({ task, onClose, onUpdate, onDelete, onDeleteRecurring, recu
                 <div>
                   <div className="font-mono text-[10px] uppercase tracking-widest mb-0.5" style={{ color: C.inkSoft }}>Solicita</div>
                   <div style={{ color: C.ink }}>{task.requested_by}{coRequesterNames.length ? ` + ${coRequesterNames.join(", ")}` : ""}</div>
-                  {canLeaveAsRequester && (!confirmLeave ? (
-                    <button type="button" onClick={() => setConfirmLeave(true)} className="text-[11px] mt-1" style={{ color: C.urgent }}>Salirse del pendiente</button>
-                  ) : (
-                    <div style={{ borderColor: C.urgent, background: C.urgentSoft }} className="border px-2 py-1.5 mt-1 flex flex-col gap-1.5">
-                      <span className="text-[11px]" style={{ color: C.urgent }}>¿Salirte como solicitante de este pendiente?</span>
-                      <div className="flex gap-2">
-                        <button onClick={() => setConfirmLeave(false)} className="text-[11px]" style={{ color: C.inkSoft }}>Cancelar</button>
-                        <button onClick={leaveTask} style={{ background: C.urgent, color: "#fff" }} className="text-[11px] px-2 py-0.5">Sí, salirme</button>
-                      </div>
-                    </div>
-                  ))}
                 </div>
                 {isColaborativo ? (
                   <div><div className="font-mono text-[10px] uppercase tracking-widest mb-0.5" style={{ color: C.inkSoft }}>Equipo</div><div style={{ color: C.ink }} className="text-xs leading-relaxed">{teamProfiles.map((p) => p.name).join(", ") || "—"}</div></div>
@@ -3054,9 +3043,17 @@ function TaskDetail({ task, onClose, onUpdate, onDelete, onDeleteRecurring, recu
             </div>
           )}
 
-          {!viewerIsGerente && (isAnyRequester || isAdmin) && (!confirmDelete ? (
-            <button onClick={() => setConfirmDelete(true)} className="text-xs flex items-center gap-1.5 mt-1 self-start" style={{ color: C.urgent }}><Trash2 size={13} /> Eliminar pendiente</button>
-          ) : task.recurring_template_id ? (
+          {((!viewerIsGerente && (isAnyRequester || isAdmin) && !confirmDelete) || (canLeaveAsRequester && !confirmLeave)) && (
+            <div className="flex items-center gap-4 mt-1">
+              {!viewerIsGerente && (isAnyRequester || isAdmin) && !confirmDelete && (
+                <button onClick={() => setConfirmDelete(true)} className="text-xs flex items-center gap-1.5 self-start" style={{ color: C.urgent }}><Trash2 size={13} /> Eliminar pendiente</button>
+              )}
+              {canLeaveAsRequester && !confirmLeave && (
+                <button onClick={() => setConfirmLeave(true)} className="text-xs flex items-center gap-1.5 self-start" style={{ color: C.urgent }}><LogOut size={13} /> Abandonar</button>
+              )}
+            </div>
+          )}
+          {confirmDelete && (task.recurring_template_id ? (
             <div style={{ borderColor: C.urgent, background: C.urgentSoft }} className="border px-3 py-2.5 flex flex-col gap-2 mt-1">
               <span className="text-xs" style={{ color: C.urgent }}>Este pendiente es de frecuencia. No se puede deshacer.</span>
               <div className="flex gap-2 flex-wrap items-center">
@@ -3075,6 +3072,15 @@ function TaskDetail({ task, onClose, onUpdate, onDelete, onDeleteRecurring, recu
               </div>
             </div>
           ))}
+          {confirmLeave && (
+            <div style={{ borderColor: C.urgent, background: C.urgentSoft }} className="border px-3 py-2.5 flex items-center justify-between gap-2 mt-1">
+              <span className="text-xs" style={{ color: C.urgent }}>Dejarás de ser responsable de este pendiente.</span>
+              <div className="flex gap-2 flex-shrink-0">
+                <button onClick={() => setConfirmLeave(false)} style={{ color: C.inkSoft }} className="text-xs">Cancelar</button>
+                <button onClick={leaveTask} style={{ background: C.urgent, color: "#fff" }} className="text-xs px-2.5 py-1">Sí, abandonar</button>
+              </div>
+            </div>
+          )}
         </div>
       </div>
     </div>
