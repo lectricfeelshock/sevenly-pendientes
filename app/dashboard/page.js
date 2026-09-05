@@ -3045,9 +3045,9 @@ function TaskDetail({ task, onClose, onUpdate, onDelete, onDeleteRecurring, recu
             </div>
           )}
 
-          {((!viewerIsGerente && (isAnyRequester || isAdmin) && !confirmDelete) || (canLeaveAsRequester && !confirmLeave)) && (
+          {((!viewerIsGerente && !confirmDelete) || (canLeaveAsRequester && !confirmLeave)) && (
             <div className="flex items-center gap-4 mt-1">
-              {!viewerIsGerente && (isAnyRequester || isAdmin) && !confirmDelete && (
+              {!viewerIsGerente && !confirmDelete && (
                 <button onClick={() => setConfirmDelete(true)} className="text-xs flex items-center gap-1.5 self-start" style={{ color: C.urgent }}><Trash2 size={13} /> Eliminar pendiente</button>
               )}
               {canLeaveAsRequester && !confirmLeave && (
