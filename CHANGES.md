@@ -41,28 +41,6 @@ g. **Buscador (lupa) dentro de Biblioteca**, que busque solo por:
 h. **La lupa del dashboard** (solicitud #1) también debe poder
    encontrar estos recursos de Biblioteca entre sus resultados.
 
-### 6. Botón "Asignar cambios" en pendientes finalizados
-En el desglose de un pendiente ya finalizado, justo donde antes estaba
-el botón de "Finalizar pendiente", el solicitante debe ver un botón
-nuevo: "Asignar cambios".
-
-- Al darle clic, sale una leyenda de confirmación: "Crearás un nuevo
-  pendiente para solicitar estos cambios." con botones "Aceptar" y
-  "Cancelar".
-- Si le da "Cancelar", no pasa nada.
-- Si le da "Aceptar", se abre la ventana normal de crear pendiente
-  (puede ser individual, personal o colaborativo, como siempre lo
-  decide quien lo crea), pero con el título fijo: el título del
-  pendiente al que se le están pidiendo cambios (ese campo no se
-  edita).
-- Al crear ese nuevo pendiente, debe aparecer junto a su título — tanto
-  en la tarjeta del dashboard como en su desglose — la leyenda "Cambios
-  Ronda 1".
-- Si ese nuevo pendiente ("Cambios Ronda 1") también se finaliza y de
-  nuevo se usa "Asignar cambios" sobre él, el siguiente pendiente que se
-  cree sale con "Cambios Ronda 2" — y así, subiendo de número cada vez
-  que se repite el ciclo.
-
 ### 8. Apartado de FAQ (dudas frecuentes)
 Un apartado nuevo con preguntas frecuentes y sus respuestas, para que el
 equipo pueda resolver dudas comunes sin tener que preguntar. Aún sin
@@ -71,65 +49,12 @@ propia? ¿dentro de Biblioteca? ¿accesible desde el menú de arriba?), ni
 quién la puede editar. Lo dejo como opción por ahora; cuando lo tenga más
 claro lo detallo.
 
-### 9. Convertir pendiente individual a colaborativo: abrir ventana completa en vez de solo agregar
-En el desglose de un pendiente **individual**, el botón "+" junto a
-"Asignar a" hoy solo convierte el pendiente a colaborativo agregando a
-esa persona. Cambiar esto por: al darle clic a ese "+", que se abra una
-ventana como la de crear un pendiente nuevo, pero ya con los datos de
-este pendiente y en modo colaborativo:
-
-- **Sin** las opciones de elegir entre individual/personal/colaborativo
-  (solo existe la parte de colaborativo).
-- **Título**: no se puede cambiar (se queda el que ya tenía).
-- **Descripción**: sí se puede editar.
-- **Categoría**: sí se puede cambiar.
-- **Deadline**: sí se puede cambiar.
-- **Urgencia**: sí se puede cambiar.
-- **Solicita (+)**: se sigue pudiendo agregar más gente, igual que hoy.
-- **Equipo de trabajo**: debe estar disponible esa opción (como al crear
-  un pendiente colaborativo nuevo).
-- **Subtareas**: también disponible, con la misma regla de siempre —
-  hay que agregarle una subtarea a cada persona del equipo de trabajo.
-
 ### 10. Poder agregarte subtareas a ti mismo en un pendiente individual que te asignaron
 En un pendiente **individual** que a mí me asignaron, que yo (el
 asignado) pueda agregarme subtareas a mí mismo — es para poder dividir
 mi propio pendiente general en partes más chicas, no para repartirlo
 con nadie más (el pendiente se queda individual, solo se trata de
 organizarme mejor).
-
-### 12. Rediseñar los filtros del dashboard
-Cambiar los filtros actuales por estos 5: **Todos**, **Estado**,
-**Urgencia**, **Categoría**, **Deadline**.
-
-- **Todos**: muestra todos los pendientes (sin filtrar).
-- **Estado**: al darle clic se abre un menú desplegable con:
-  - Todos los estados por separado, para filtrar por uno en específico.
-  - **"De mayor a menor"**: ordena los pendientes agrupándolos en este
-    orden — Finalizados, Entregados, Detenidos, En progreso, No
-    iniciado.
-  - **"De menor a mayor"**: el orden inverso al anterior.
-- **Urgencia**: al darle clic se abre un menú desplegable con:
-  - Todas las urgencias por separado, para filtrar por una en
-    específico.
-  - **"De mayor a menor"**: ordena por urgencia — Muy urgente, Urgente,
-    Alta, Media, Baja.
-  - **"De menor a mayor"**: el orden inverso al anterior.
-- **Categoría**: al darle clic se abre un menú desplegable con todas las
-  categorías, para filtrar por una en específico.
-- **Deadline**: al darle clic se abre un menú desplegable con solo dos
-  opciones:
-  - **"De mayor a menor"**: ordena de la fecha de deadline más próxima
-    a la más alejada.
-  - **"De menor a mayor"**: el orden inverso al anterior.
-
-Esto aplica igual en "Mis solicitudes", solo que ahí, a un lado de
-"Todos", también está la opción "Programados" (como ya existe hoy).
-
-### 13. Que un solicitante pueda salirse (abandonar) un pendiente
-Un solicitante debe poder salirse de un pendiente — dejar de ser
-solicitante de él — siempre y cuando ese pendiente tenga **al menos
-otro solicitante más** (no se puede quedar sin nadie que lo solicite).
 
 ## Historial (aplicadas)
 
@@ -295,3 +220,77 @@ Ahora, desde el desglose, el solicitante puede editar (con un ícono de
 lápiz) tanto la descripción del pendiente como la descripción de
 cualquier subtarea ya creada — antes solo se podían definir al momento
 de crearlos.
+
+### [x] 6. Botón "Asignar cambios" en pendientes finalizados
+_Aplicada 2026-09-04._
+
+En el desglose de un pendiente ya finalizado, donde antes estaba el
+botón de "Finalizar pendiente", el solicitante ve un botón nuevo:
+"Asignar cambios".
+
+- Al darle clic, sale una leyenda de confirmación: "Crearás un nuevo
+  pendiente para solicitar estos cambios." con botones "Aceptar" y
+  "Cancelar".
+- Si le da "Cancelar", no pasa nada.
+- Si le da "Aceptar", se abre la ventana normal de crear pendiente
+  (puede ser individual, personal o colaborativo, como siempre lo
+  decide quien lo crea), con el título fijo: el título del pendiente al
+  que se le están pidiendo cambios (ese campo no se edita).
+- Al crear ese nuevo pendiente, aparece junto a su título — tanto en la
+  tarjeta del dashboard como en su desglose — la leyenda "Cambios Ronda
+  1".
+- Si ese nuevo pendiente también se finaliza y de nuevo se usa "Asignar
+  cambios" sobre él, el siguiente pendiente que se crea sale con
+  "Cambios Ronda 2" — y así, subiendo de número cada vez que se repite
+  el ciclo.
+
+### [x] 9. Convertir pendiente individual a colaborativo: abrir ventana completa en vez de solo agregar
+_Aplicada 2026-09-04._
+
+En el desglose de un pendiente **individual**, el botón "+" junto a
+"Asignar a" ya no solo convierte el pendiente a colaborativo agregando
+a una persona — ahora abre una ventana completa (como la de crear un
+pendiente nuevo, pero solo la parte colaborativa) con los datos de este
+pendiente:
+
+- **Sin** las opciones de elegir entre individual/personal/colaborativo.
+- **Título**: no se puede cambiar.
+- **Descripción, categoría, deadline y urgencia**: sí se pueden editar.
+- **Solicita (+)**: se sigue pudiendo agregar más gente, igual que antes.
+- **Equipo de trabajo**: disponible, igual que al crear un pendiente
+  colaborativo nuevo.
+- **Subtareas**: también disponible, con la misma regla de siempre —
+  hay que agregarle una subtarea a cada persona del equipo de trabajo.
+
+### [x] 12. Rediseñar los filtros del dashboard
+_Aplicada 2026-09-04._
+
+Los filtros del dashboard ahora son 5: **Todos**, **Estado**,
+**Urgencia**, **Categoría**, **Deadline**.
+
+- **Todos**: muestra todos los pendientes (sin filtrar).
+- **Estado**: al darle clic se abre un menú desplegable con todos los
+  estados por separado (para filtrar por uno en específico), más
+  "De mayor a menor" (agrupa Finalizados, Entregados, Detenidos, En
+  progreso, No iniciado, en ese orden) y "De menor a mayor" (el orden
+  inverso).
+- **Urgencia**: igual, con todas las urgencias por separado, más
+  "De mayor a menor" (Muy urgente, Urgente, Alta, Media, Baja) y
+  "De menor a mayor" (el orden inverso).
+- **Categoría**: menú desplegable con todas las categorías, para
+  filtrar por una en específico.
+- **Deadline**: menú desplegable con solo dos opciones — "De mayor a
+  menor" (de la fecha más próxima a la más alejada) y "De menor a
+  mayor" (el orden inverso).
+
+En "Mis solicitudes", a un lado de "Todos", sigue estando la opción
+"Programados" (como ya existía).
+
+### [x] 13. Que un solicitante pueda salirse (abandonar) un pendiente
+_Aplicada 2026-09-04._
+
+Un solicitante puede salirse de un pendiente — dejar de ser solicitante
+de él — desde el desglose, siempre y cuando ese pendiente tenga al
+menos otro solicitante más (no se puede quedar sin nadie que lo
+solicite). Si el que se sale es el solicitante principal, otro
+co-solicitante lo reemplaza automáticamente.
