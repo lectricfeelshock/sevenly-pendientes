@@ -33,6 +33,8 @@ const URGENCIES = [
 const SELECTABLE_URGENCIES = URGENCIES.filter((u) => u.label !== "Muy urgente");
 const DEFAULT_CATEGORIES = ["Video", "Diseño", "Guiones", "Briefs"];
 const DONE_STATUSES = ["Entregado", "Finalizado"];
+// CHANGES.md #12: orden "de mayor a menor" del filtro Estado.
+const STATUS_GROUP_ORDER = ["Finalizado", "Entregado", "Detenido", "En progreso", "No iniciado"];
 const TASK_TYPES = [
   { key: "individual", label: "Individual" },
   { key: "personal", label: "Personal" },
@@ -422,11 +424,29 @@ export default function Dashboard() {
   const [notifications, setNotifications] = useState([]);
   const [showNew, setShowNew] = useState(false);
   const [selected, setSelected] = useState(null);
+  // CHANGES.md #6: "Asignar cambios" abre el formulario de crear pendiente
+  // con el título fijo del pendiente al que se le piden cambios, y sube de
+  // ronda cada vez que se repite el ciclo sobre un pendiente que ya venía
+  // de otra ronda de cambios.
+  const [assignChangesFor, setAssignChangesFor] = useState(null);
+  const startAssignChanges = (task) => {
+    setAssignChangesFor({ title: task.title, changesRound: (task.changes_round || 0) + 1 });
+    setSelected(null);
+    setShowNew(true);
+  };
   const [showTeam, setShowTeam] = useState(false);
   const [showActivity, setShowActivity] = useState(false);
   const [showNotifs, setShowNotifs] = useState(false);
   const [showSearch, setShowSearch] = useState(false);
-  const [statusFilter, setStatusFilter] = useState("Todos");
+  // CHANGES.md #12: filtro activo del dashboard — reemplaza los tabs de
+  // estado de antes por 5 filtros (Todos/Estado/Urgencia/Categoría/Deadline,
+  // + "Programados" en "Mis solicitudes"). Solo uno puede estar activo a la
+  // vez. `value` filtra por un valor puntual; `order` ("desc" = de mayor a
+  // menor, "asc" = de menor a mayor) ordena/agrupa sin filtrar a un solo valor.
+  // Filtro por default al entrar a la app: "No iniciado", para que lo
+  // primero que se vea sea lo que aún falta por arrancar.
+  const [activeFilter, setActiveFilter] = useState({ type: "Estado", value: "No iniciado" });
+  const [openFilterKey, setOpenFilterKey] = useState(null);
   const [primaryTab, setPrimaryTab] = useState("mine"); // requests | mine | all
   const [pushEnabled, setPushEnabled] = useState(false);
   const [pushSupported, setPushSupported] = useState(false);
@@ -689,8 +709,8 @@ export default function Dashboard() {
   // se sale de esa pestaña con el filtro puesto, se resetea para que no
   // quede aplicado de forma invisible (sin chip para quitarlo) en las otras.
   useEffect(() => {
-    if (primaryTab !== "requests" && statusFilter === "Programados") setStatusFilter("Todos");
-  }, [primaryTab, statusFilter]);
+    if (primaryTab !== "requests" && activeFilter.type === "Programados") setActiveFilter({ type: "Todos" });
+  }, [primaryTab, activeFilter]);
 
   const logout = async () => { await supabase.auth.signOut(); router.replace("/login"); };
   const addHistory = async (taskId, text) => { await supabase.from("task_history").insert({ task_id: taskId, text }); };
@@ -782,6 +802,7 @@ export default function Dashboard() {
       // programado como fecha de solicitud, en vez de la de hoy. Mientras
       // esa fecha siga en el futuro, cuenta como "Programado".
       ...(form.scheduling && form.scheduledDate ? { request_date: form.scheduledDate } : {}),
+      ...(form.changesRound ? { changes_round: form.changesRound } : {}),
       created_by: profile.id,
     }).select().single();
 
@@ -1002,21 +1023,50 @@ export default function Dashboard() {
   // esté activa.
   const myTasks = tasks.filter((t) => isRequesterOf(t, effectiveId) || isAssignedTo(t, effectiveId));
 
-  const filtered = base.filter((t) =>
-    statusFilter === "Todos" ? true :
-    statusFilter === "Programados" ? isProgramado(t) :
-    t.status === statusFilter
-  );
+  const filtered = base.filter((t) => {
+    if (activeFilter.type === "Programados") return isProgramado(t);
+    if (activeFilter.type === "Estado" && activeFilter.value) return t.status === activeFilter.value;
+    if (activeFilter.type === "Urgencia" && activeFilter.value) return effectiveUrgency(t) === activeFilter.value;
+    if (activeFilter.type === "Categoria" && activeFilter.value) return t.category === activeFilter.value;
+    return true;
+  });
+  const categoryOptions = Array.from(new Set(base.map((t) => t.category).filter(Boolean))).sort();
 
-  const byUrgency = {};
-  filtered.forEach((t) => { const u = effectiveUrgency(t); (byUrgency[u] = byUrgency[u] || []).push(t); });
-  const urgencyOrder = ["Muy urgente", "Urgente", "Alta", "Media", "Baja"];
-  Object.values(byUrgency).forEach((arr) => arr.sort((a, b) => {
+  const sortByDoneThenDeadline = (a, b) => {
     const aDone = DONE_STATUSES.includes(a.status) ? 1 : 0, bDone = DONE_STATUSES.includes(b.status) ? 1 : 0;
     if (aDone !== bDone) return aDone - bDone;
     const ad = a.deadline ? new Date(a.deadline).getTime() : Infinity, bd = b.deadline ? new Date(b.deadline).getTime() : Infinity;
     return ad - bd;
-  }));
+  };
+  const urgencyGroupOrder = ["Muy urgente", "Urgente", "Alta", "Media", "Baja"];
+
+  // Modo de agrupación de la lista: por default (o al filtrar a un valor
+  // puntual de Estado/Urgencia/Categoría) se agrupa por urgencia, igual que
+  // siempre. "Estado: de mayor/menor a menor/mayor" agrupa por estado en vez
+  // de por urgencia. "Deadline" no agrupa — lista plana ordenada por fecha.
+  let groupKeyOf = (t) => effectiveUrgency(t);
+  let groupOrder = urgencyGroupOrder;
+  let groupIsStatus = false;
+  let flatDeadlineList = null;
+
+  if (activeFilter.type === "Estado" && activeFilter.order) {
+    groupKeyOf = (t) => t.status;
+    groupOrder = activeFilter.order === "asc" ? [...STATUS_GROUP_ORDER].reverse() : STATUS_GROUP_ORDER;
+    groupIsStatus = true;
+  } else if (activeFilter.type === "Urgencia" && activeFilter.order === "asc") {
+    groupOrder = [...urgencyGroupOrder].reverse();
+  } else if (activeFilter.type === "Deadline" && activeFilter.order) {
+    flatDeadlineList = [...filtered].sort((a, b) => {
+      const ad = a.deadline ? new Date(a.deadline).getTime() : Infinity, bd = b.deadline ? new Date(b.deadline).getTime() : Infinity;
+      return activeFilter.order === "asc" ? ad - bd : bd - ad;
+    });
+  }
+
+  const grouped = {};
+  if (!flatDeadlineList) {
+    filtered.forEach((t) => { const k = groupKeyOf(t); (grouped[k] = grouped[k] || []).push(t); });
+    Object.values(grouped).forEach((arr) => arr.sort(sortByDoneThenDeadline));
+  }
 
   const unreadCount = notifications.filter((n) => !n.read).length;
   const bellLabel = unreadCount === 0 ? null : unreadCount > 3 ? "+3" : String(unreadCount);
@@ -1080,11 +1130,99 @@ export default function Dashboard() {
       ) : (
       <>
       <div style={{ borderColor: C.hairline }} className="border-b px-5 py-2.5 flex flex-wrap items-center gap-2">
-        {["Todos", ...(primaryTab === "requests" ? ["Programados"] : []), ...ASSIGNEE_STATUSES, "Finalizado"].map((s) => (
-          <button key={s} onClick={() => setStatusFilter(s)}
-            style={{ borderColor: statusFilter === s ? C.spine : C.hairline, background: statusFilter === s ? C.spine : "transparent", color: statusFilter === s ? C.paper : C.inkSoft }}
-            className="border px-2.5 py-1.5 text-xs whitespace-nowrap">{s}</button>
-        ))}
+        <button onClick={() => { setActiveFilter({ type: "Todos" }); setOpenFilterKey(null); }}
+          style={{ borderColor: activeFilter.type === "Todos" ? C.spine : C.hairline, background: activeFilter.type === "Todos" ? C.spine : "transparent", color: activeFilter.type === "Todos" ? C.paper : C.inkSoft }}
+          className="border px-2.5 py-1.5 text-xs whitespace-nowrap">Todos</button>
+        {primaryTab === "requests" && (
+          <button onClick={() => { setActiveFilter({ type: "Programados" }); setOpenFilterKey(null); }}
+            style={{ borderColor: activeFilter.type === "Programados" ? C.spine : C.hairline, background: activeFilter.type === "Programados" ? C.spine : "transparent", color: activeFilter.type === "Programados" ? C.paper : C.inkSoft }}
+            className="border px-2.5 py-1.5 text-xs whitespace-nowrap">Programados</button>
+        )}
+
+        <div className="relative">
+          <button type="button" onClick={() => setOpenFilterKey((k) => k === "Estado" ? null : "Estado")}
+            style={{ borderColor: activeFilter.type === "Estado" ? C.spine : C.hairline, background: activeFilter.type === "Estado" ? C.spine : "transparent", color: activeFilter.type === "Estado" ? C.paper : C.inkSoft }}
+            className="border px-2.5 py-1.5 text-xs whitespace-nowrap flex items-center gap-1">
+            Estado <ChevronDown size={11} style={{ transform: openFilterKey === "Estado" ? "rotate(180deg)" : "none" }} />
+          </button>
+          {openFilterKey === "Estado" && (
+            <div style={{ borderColor: C.hairline, background: C.paper }} className="absolute left-0 top-full mt-1 border z-30 min-w-[180px] shadow-lg py-1">
+              {[...ASSIGNEE_STATUSES, "Finalizado"].map((s) => (
+                <button key={s} onClick={() => { setActiveFilter({ type: "Estado", value: s }); setOpenFilterKey(null); }}
+                  style={{ color: activeFilter.type === "Estado" && activeFilter.value === s ? C.signal : C.ink }}
+                  className="w-full text-left px-3 py-1.5 text-sm">{s}</button>
+              ))}
+              <div style={{ borderColor: C.hairline }} className="border-t my-1" />
+              <button onClick={() => { setActiveFilter({ type: "Estado", order: "desc" }); setOpenFilterKey(null); }}
+                style={{ color: activeFilter.type === "Estado" && activeFilter.order === "desc" ? C.signal : C.ink }}
+                className="w-full text-left px-3 py-1.5 text-sm">De mayor a menor</button>
+              <button onClick={() => { setActiveFilter({ type: "Estado", order: "asc" }); setOpenFilterKey(null); }}
+                style={{ color: activeFilter.type === "Estado" && activeFilter.order === "asc" ? C.signal : C.ink }}
+                className="w-full text-left px-3 py-1.5 text-sm">De menor a mayor</button>
+            </div>
+          )}
+        </div>
+
+        <div className="relative">
+          <button type="button" onClick={() => setOpenFilterKey((k) => k === "Urgencia" ? null : "Urgencia")}
+            style={{ borderColor: activeFilter.type === "Urgencia" ? C.spine : C.hairline, background: activeFilter.type === "Urgencia" ? C.spine : "transparent", color: activeFilter.type === "Urgencia" ? C.paper : C.inkSoft }}
+            className="border px-2.5 py-1.5 text-xs whitespace-nowrap flex items-center gap-1">
+            Urgencia <ChevronDown size={11} style={{ transform: openFilterKey === "Urgencia" ? "rotate(180deg)" : "none" }} />
+          </button>
+          {openFilterKey === "Urgencia" && (
+            <div style={{ borderColor: C.hairline, background: C.paper }} className="absolute left-0 top-full mt-1 border z-30 min-w-[180px] shadow-lg py-1">
+              {URGENCIES.map((u) => (
+                <button key={u.label} onClick={() => { setActiveFilter({ type: "Urgencia", value: u.label }); setOpenFilterKey(null); }}
+                  style={{ color: activeFilter.type === "Urgencia" && activeFilter.value === u.label ? C.signal : C.ink }}
+                  className="w-full text-left px-3 py-1.5 text-sm">{u.label}</button>
+              ))}
+              <div style={{ borderColor: C.hairline }} className="border-t my-1" />
+              <button onClick={() => { setActiveFilter({ type: "Urgencia", order: "desc" }); setOpenFilterKey(null); }}
+                style={{ color: activeFilter.type === "Urgencia" && activeFilter.order === "desc" ? C.signal : C.ink }}
+                className="w-full text-left px-3 py-1.5 text-sm">De mayor a menor</button>
+              <button onClick={() => { setActiveFilter({ type: "Urgencia", order: "asc" }); setOpenFilterKey(null); }}
+                style={{ color: activeFilter.type === "Urgencia" && activeFilter.order === "asc" ? C.signal : C.ink }}
+                className="w-full text-left px-3 py-1.5 text-sm">De menor a mayor</button>
+            </div>
+          )}
+        </div>
+
+        <div className="relative">
+          <button type="button" onClick={() => setOpenFilterKey((k) => k === "Categoria" ? null : "Categoria")}
+            style={{ borderColor: activeFilter.type === "Categoria" ? C.spine : C.hairline, background: activeFilter.type === "Categoria" ? C.spine : "transparent", color: activeFilter.type === "Categoria" ? C.paper : C.inkSoft }}
+            className="border px-2.5 py-1.5 text-xs whitespace-nowrap flex items-center gap-1">
+            Categoría <ChevronDown size={11} style={{ transform: openFilterKey === "Categoria" ? "rotate(180deg)" : "none" }} />
+          </button>
+          {openFilterKey === "Categoria" && (
+            <div style={{ borderColor: C.hairline, background: C.paper }} className="absolute left-0 top-full mt-1 border z-30 min-w-[180px] shadow-lg py-1 max-h-64 overflow-y-auto">
+              {categoryOptions.length === 0 && <div className="px-3 py-1.5 text-sm" style={{ color: C.inkSoft }}>Sin categorías todavía.</div>}
+              {categoryOptions.map((c) => (
+                <button key={c} onClick={() => { setActiveFilter({ type: "Categoria", value: c }); setOpenFilterKey(null); }}
+                  style={{ color: activeFilter.type === "Categoria" && activeFilter.value === c ? C.signal : C.ink }}
+                  className="w-full text-left px-3 py-1.5 text-sm">{c}</button>
+              ))}
+            </div>
+          )}
+        </div>
+
+        <div className="relative">
+          <button type="button" onClick={() => setOpenFilterKey((k) => k === "Deadline" ? null : "Deadline")}
+            style={{ borderColor: activeFilter.type === "Deadline" ? C.spine : C.hairline, background: activeFilter.type === "Deadline" ? C.spine : "transparent", color: activeFilter.type === "Deadline" ? C.paper : C.inkSoft }}
+            className="border px-2.5 py-1.5 text-xs whitespace-nowrap flex items-center gap-1">
+            Deadline <ChevronDown size={11} style={{ transform: openFilterKey === "Deadline" ? "rotate(180deg)" : "none" }} />
+          </button>
+          {openFilterKey === "Deadline" && (
+            <div style={{ borderColor: C.hairline, background: C.paper }} className="absolute left-0 top-full mt-1 border z-30 min-w-[180px] shadow-lg py-1">
+              <button onClick={() => { setActiveFilter({ type: "Deadline", order: "asc" }); setOpenFilterKey(null); }}
+                style={{ color: activeFilter.type === "Deadline" && activeFilter.order === "asc" ? C.signal : C.ink }}
+                className="w-full text-left px-3 py-1.5 text-sm">De mayor a menor</button>
+              <button onClick={() => { setActiveFilter({ type: "Deadline", order: "desc" }); setOpenFilterKey(null); }}
+                style={{ color: activeFilter.type === "Deadline" && activeFilter.order === "desc" ? C.signal : C.ink }}
+                className="w-full text-left px-3 py-1.5 text-sm">De menor a mayor</button>
+            </div>
+          )}
+        </div>
+
         <div className="flex items-center gap-1.5 ml-auto">
           {/* Lanzamiento del buscador — quitar esta leyenda después del 2026-08-31 */}
           {todayISO() === "2026-08-31" && (
@@ -1097,32 +1235,48 @@ export default function Dashboard() {
       </div>
 
       <div className="max-w-3xl mx-auto pb-16">
-        {Object.keys(byUrgency).length === 0 && <div className="text-center py-16" style={{ color: C.inkSoft }}><p className="text-sm">No hay pendientes que coincidan con el filtro.</p></div>}
-        {urgencyOrder.filter((u) => byUrgency[u]?.length).map((u) => {
-          const uInfo = URGENCIES.find((x) => x.label === u);
-          return (
-            <div key={u} className="mt-6">
-              <div style={{ borderColor: uInfo.color }} className="flex items-center gap-2 px-5 pb-1.5 border-b-2">
-                <Flag size={14} fill={uInfo.color} strokeWidth={0} style={{ color: uInfo.color }} />
-                <span style={{ color: uInfo.color, fontFamily: "Georgia, serif" }} className="text-base uppercase tracking-wide">{u}</span>
-                <span className="font-mono text-[11px]" style={{ color: C.inkSoft }}>{byUrgency[u].length}</span>
+        {flatDeadlineList ? (
+          <>
+            {flatDeadlineList.length === 0 && <div className="text-center py-16" style={{ color: C.inkSoft }}><p className="text-sm">No hay pendientes que coincidan con el filtro.</p></div>}
+            {flatDeadlineList.length > 0 && (
+              <div className="mt-6">
+                <div style={{ borderColor: C.hairline }} className="border-x border-t">
+                  {flatDeadlineList.map((t) => <TaskRow key={t.id} task={t} unreadComments={unreadCommentsByTask[t.id] || 0} onOpen={() => setSelected(t)} />)}
+                </div>
               </div>
-              <div style={{ borderColor: C.hairline }} className="border-x">
-                {byUrgency[u].map((t) => <TaskRow key={t.id} task={t} unreadComments={unreadCommentsByTask[t.id] || 0} onOpen={() => setSelected(t)} />)}
-              </div>
-            </div>
-          );
-        })}
+            )}
+          </>
+        ) : (
+          <>
+            {Object.keys(grouped).length === 0 && <div className="text-center py-16" style={{ color: C.inkSoft }}><p className="text-sm">No hay pendientes que coincidan con el filtro.</p></div>}
+            {groupOrder.filter((k) => grouped[k]?.length).map((k) => {
+              const color = groupIsStatus ? C.inkSoft : (URGENCIES.find((x) => x.label === k) || {}).color;
+              const StatusIcon = groupIsStatus ? STATUS_ICON[k] : null;
+              return (
+                <div key={k} className="mt-6">
+                  <div style={{ borderColor: color }} className="flex items-center gap-2 px-5 pb-1.5 border-b-2">
+                    {groupIsStatus ? <StatusIcon size={14} style={{ color }} /> : <Flag size={14} fill={color} strokeWidth={0} style={{ color }} />}
+                    <span style={{ color, fontFamily: "Georgia, serif" }} className="text-base uppercase tracking-wide">{k}</span>
+                    <span className="font-mono text-[11px]" style={{ color: C.inkSoft }}>{grouped[k].length}</span>
+                  </div>
+                  <div style={{ borderColor: C.hairline }} className="border-x">
+                    {grouped[k].map((t) => <TaskRow key={t.id} task={t} unreadComments={unreadCommentsByTask[t.id] || 0} onOpen={() => setSelected(t)} />)}
+                  </div>
+                </div>
+              );
+            })}
+          </>
+        )}
       </div>
       </>
       )}
 
-      {showNew && <NewTaskForm onClose={() => setShowNew(false)} onCreate={createTask} onCreatePopup={createPopup} profiles={assignableProfiles} profile={profile} isAdmin={isAdmin} tasks={tasks} subtasks={subtasks} />}
+      {showNew && <NewTaskForm onClose={() => { setShowNew(false); setAssignChangesFor(null); }} onCreate={createTask} onCreatePopup={createPopup} profiles={assignableProfiles} profile={profile} isAdmin={isAdmin} tasks={tasks} subtasks={subtasks} initialData={assignChangesFor} />}
       {popupQueue[0] && <PopupModal popup={popupQueue[0]} onClose={dismissPopup} tasks={tasks} subtasks={subtasks} profiles={profiles} onFinalizeTask={finalizeTask} />}
-      {selected && <TaskDetail task={selected} onClose={() => setSelected(null)} onUpdate={updateTask} onDelete={deleteTask} onDeleteRecurring={deleteRecurringTask} recurringTemplates={recurringTemplates} onFinalize={finalizeTask} onDeliver={deliverTask} profiles={profiles} assignableProfiles={assignableProfiles} profile={profile} notify={notify} subtasks={subtasks.filter((s) => s.task_id === selected.id)} onAddSubtask={addSubtask} onUpdateSubtaskStatus={updateSubtaskStatus} onUpdateSubtaskDescription={updateSubtaskDescription} viewerIsGerente={!!viewingAs && !isAdmin} onCommentsRead={reloadMyCommentReads} />}
+      {selected && <TaskDetail task={selected} onClose={() => setSelected(null)} onUpdate={updateTask} onDelete={deleteTask} onDeleteRecurring={deleteRecurringTask} recurringTemplates={recurringTemplates} onFinalize={finalizeTask} onDeliver={deliverTask} profiles={profiles} assignableProfiles={assignableProfiles} profile={profile} notify={notify} subtasks={subtasks.filter((s) => s.task_id === selected.id)} onAddSubtask={addSubtask} onUpdateSubtaskStatus={updateSubtaskStatus} onUpdateSubtaskDescription={updateSubtaskDescription} onAssignChanges={startAssignChanges} viewerIsGerente={!!viewingAs && !isAdmin} onCommentsRead={reloadMyCommentReads} />}
       {showTeam && <TeamPanel onClose={() => setShowTeam(false)} profiles={assignableProfiles} tasks={tasks} />}
       {showActivity && <ActivityPanel onClose={() => setShowActivity(false)} profile={profile} router={router} />}
-      {showNotifs && <NotificationsPanel onClose={() => setShowNotifs(false)} notifications={notifications} onOpenTask={(taskId) => { const t = tasks.find((x) => x.id === taskId); if (t) setSelected(t); setShowNotifs(false); }} onOpenFilter={(target) => { if (target === "requests:Entregado") { setPrimaryTab("requests"); setStatusFilter("Entregado"); } setShowNotifs(false); }} pushSupported={pushSupported} pushEnabled={pushEnabled} onEnablePush={enablePush} />}
+      {showNotifs && <NotificationsPanel onClose={() => setShowNotifs(false)} notifications={notifications} onOpenTask={(taskId) => { const t = tasks.find((x) => x.id === taskId); if (t) setSelected(t); setShowNotifs(false); }} onOpenFilter={(target) => { if (target === "requests:Entregado") { setPrimaryTab("requests"); setActiveFilter({ type: "Estado", value: "Entregado" }); } setShowNotifs(false); }} pushSupported={pushSupported} pushEnabled={pushEnabled} onEnablePush={enablePush} />}
       {showSearch && <SearchModal onClose={() => setShowSearch(false)} tasks={myTasks} profiles={profiles} onOpenTask={(t) => { setSelected(t); setShowSearch(false); }} />}
     </div>
   );
@@ -1150,6 +1304,9 @@ function TaskRow({ task, onOpen, unreadComments = 0 }) {
             <span className="font-mono text-[9px] uppercase tracking-wider px-1.5 py-0.5 flex items-center gap-1" style={{ background: C.signalSoft, color: C.signal, border: `1px solid ${C.signal}` }}><Clock size={10} /> Programado</span>
           )}
           <span style={{ color: C.ink, textDecoration: isDone ? "line-through" : "none", opacity: isDone ? 0.6 : 1 }} className="text-sm font-medium truncate">{task.title}</span>
+          {task.changes_round > 0 && (
+            <span className="font-mono text-[9px] uppercase tracking-wider px-1.5 py-0.5" style={{ background: C.signalSoft, color: C.signal, border: `1px solid ${C.signal}` }}>Cambios Ronda {task.changes_round}</span>
+          )}
           {unreadComments > 0 && (
             <span className="relative inline-flex" style={{ flexShrink: 0 }}>
               <MessageSquare size={14} style={{ color: C.inkSoft }} />
@@ -1176,10 +1333,10 @@ function TaskRow({ task, onOpen, unreadComments = 0 }) {
   );
 }
 
-function NewTaskForm({ onClose, onCreate, onCreatePopup, profiles, profile, isAdmin, tasks, subtasks }) {
+function NewTaskForm({ onClose, onCreate, onCreatePopup, profiles, profile, isAdmin, tasks, subtasks, initialData }) {
   const [mode, setMode] = useState("pendiente"); // "pendiente" | "popup" (solo admins ven el selector)
   const [taskType, setTaskType] = useState("individual"); // individual | personal | colaborativo
-  const [title, setTitle] = useState(""), [description, setDescription] = useState("");
+  const [title, setTitle] = useState(initialData?.title || ""), [description, setDescription] = useState("");
   const [category, setCategory] = useState(DEFAULT_CATEGORIES[0]), [newCategory, setNewCategory] = useState("");
   const [deadline, setDeadline] = useState("");
   const [urgency, setUrgency] = useState("Media"), [assignedToId, setAssignedToId] = useState("");
@@ -1264,14 +1421,15 @@ function NewTaskForm({ onClose, onCreate, onCreatePopup, profiles, profile, isAd
   const submit = () => {
     if (!title.trim()) return;
     const finalCategory = newCategory.trim() || category;
+    const changesRound = initialData?.changesRound || null;
     if (taskType === "individual") {
       if (!assignedToId || deadlineError) return;
-      onCreate({ title, description, category: finalCategory, taskType, requestedById: profile.id, coRequesterIds, deadline, urgency, assignedToId, subtasks: subtaskRows, scheduling, scheduledDate, repeatMode });
+      onCreate({ title, description, category: finalCategory, taskType, requestedById: profile.id, coRequesterIds, deadline, urgency, assignedToId, subtasks: subtaskRows, scheduling, scheduledDate, repeatMode, changesRound });
     } else if (taskType === "personal") {
-      onCreate({ title, description, category: finalCategory, taskType, requestedById: profile.id, deadline, urgency, assignedToId: profile.id });
+      onCreate({ title, description, category: finalCategory, taskType, requestedById: profile.id, deadline, urgency, assignedToId: profile.id, changesRound });
     } else if (taskType === "colaborativo") {
       if (teamMemberIds.length < 2 || deadlineError || missingSubtaskCoverage) return;
-      onCreate({ title, description, category: finalCategory, taskType, requestedById: profile.id, coRequesterIds, deadline, urgency, teamMemberIds, subtasks: subtaskRows, scheduling, scheduledDate, repeatMode });
+      onCreate({ title, description, category: finalCategory, taskType, requestedById: profile.id, coRequesterIds, deadline, urgency, teamMemberIds, subtasks: subtaskRows, scheduling, scheduledDate, repeatMode, changesRound });
     }
   };
 
@@ -1384,8 +1542,8 @@ function NewTaskForm({ onClose, onCreate, onCreatePopup, profiles, profile, isAd
               ))}
             </div>
 
-            <div><label className="font-mono text-[10px] uppercase tracking-widest" style={{ color: C.inkSoft }}>Título</label>
-              <input value={title} onChange={(e) => setTitle(e.target.value)} style={{ borderColor: C.hairline, background: C.panel }} className="w-full border px-3 py-2 text-sm mt-1 outline-none" /></div>
+            <div><label className="font-mono text-[10px] uppercase tracking-widest" style={{ color: C.inkSoft }}>Título{initialData && <span className="ml-1.5" style={{ color: C.signal }}>· Cambios Ronda {initialData.changesRound}</span>}</label>
+              <input value={title} onChange={(e) => !initialData && setTitle(e.target.value)} readOnly={!!initialData} style={{ borderColor: C.hairline, background: initialData ? C.panel : C.panel, color: initialData ? C.inkSoft : C.ink, cursor: initialData ? "not-allowed" : "text" }} className="w-full border px-3 py-2 text-sm mt-1 outline-none" /></div>
             <div><label className="font-mono text-[10px] uppercase tracking-widest" style={{ color: C.inkSoft }}>Descripción</label>
               <textarea value={description} onChange={(e) => setDescription(e.target.value)} rows={3} style={{ borderColor: C.hairline, background: C.panel }} className="w-full border px-3 py-2 text-sm mt-1 outline-none" /></div>
 
@@ -2050,13 +2208,178 @@ function PopupModal({ popup, onClose, tasks, subtasks, profiles, onFinalizeTask 
   );
 }
 
-function TaskDetail({ task, onClose, onUpdate, onDelete, onDeleteRecurring, recurringTemplates, onFinalize, onDeliver, profiles, assignableProfiles, profile, notify, subtasks, onAddSubtask, onUpdateSubtaskStatus, onUpdateSubtaskDescription, viewerIsGerente, onCommentsRead }) {
+// CHANGES.md #9: convertir un pendiente individual a colaborativo abre esta
+// ventana completa (como crear un pendiente nuevo, pero solo la parte
+// colaborativa) en vez de solo agregar gente al equipo. Título fijo — todo
+// lo demás (descripción, categoría, deadline, urgencia, solicitantes,
+// equipo, subtareas) se puede editar antes de convertir.
+function ConvertToColaborativoModal({ task, profiles, profile, onClose, onConvert }) {
+  const categoryIsCustom = !DEFAULT_CATEGORIES.includes(task.category);
+  const [description, setDescription] = useState(task.description || "");
+  const [category, setCategory] = useState(categoryIsCustom ? DEFAULT_CATEGORIES[0] : (task.category || DEFAULT_CATEGORIES[0]));
+  const [newCategory, setNewCategory] = useState(categoryIsCustom ? task.category || "" : "");
+  const [deadline, setDeadline] = useState(task.deadline || "");
+  const [urgency, setUrgency] = useState(task.urgency || "Media");
+  const [teamMemberIds, setTeamMemberIds] = useState(task.assigned_to_id ? [task.assigned_to_id] : []);
+  const [subtaskRows, setSubtaskRows] = useState([]);
+  const [showSubtaskRule, setShowSubtaskRule] = useState(false);
+  const existingCoRequesterIds = Array.from(new Set([...(task.co_requester_ids || []), ...(task.responsible_id ? [task.responsible_id] : [])]));
+  const [coRequesterIds, setCoRequesterIds] = useState(existingCoRequesterIds);
+  const [showRequesterPicker, setShowRequesterPicker] = useState(false);
+  const [saving, setSaving] = useState(false);
+
+  const toggleCoRequester = (id) => setCoRequesterIds((prev) => prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]);
+  const toggleTeamMember = (id) => {
+    const removing = teamMemberIds.includes(id);
+    setTeamMemberIds((prev) => removing ? prev.filter((x) => x !== id) : [...prev, id]);
+    if (removing) setSubtaskRows((rows) => rows.map((r) => (r.assignedToId === id ? { ...r, assignedToId: "" } : r)));
+  };
+  const addSubtaskRow = () => setSubtaskRows((rows) => [...rows, { title: "", description: "", assignedToId: "", deadline: "" }]);
+  const updateSubtaskRow = (i, field, value) => setSubtaskRows((rows) => rows.map((r, idx) => idx === i ? { ...r, [field]: value } : r));
+  const removeSubtaskRow = (i) => setSubtaskRows((rows) => rows.filter((_, idx) => idx !== i));
+
+  // Misma regla que al crear un colaborativo nuevo: cada persona del equipo
+  // necesita al menos una subtarea propia, si no nadie podrá marcar su parte
+  // como entregada y el pendiente no se podría finalizar.
+  const missingSubtaskCoverage = teamMemberIds.some((id) => !subtaskRows.some((r) => r.assignedToId === id && r.title.trim()));
+  const todayStr = todayISO();
+  const subtaskDeadlines = subtaskRows.map((r) => r.deadline).filter(Boolean);
+  const maxSubtaskDeadline = subtaskDeadlines.length ? subtaskDeadlines.reduce((a, b) => (a > b ? a : b)) : null;
+  const minGeneralDeadline = maxSubtaskDeadline && maxSubtaskDeadline > todayStr ? maxSubtaskDeadline : todayStr;
+
+  const submit = async () => {
+    if (teamMemberIds.length < 2 || !deadline || missingSubtaskCoverage || saving) return;
+    setSaving(true);
+    await onConvert({ description, category: newCategory.trim() || category, deadline, urgency, teamMemberIds, coRequesterIds, subtaskRows });
+    setSaving(false);
+  };
+  const handleConvertClick = () => {
+    if (missingSubtaskCoverage) { setShowSubtaskRule(true); return; }
+    submit();
+  };
+
+  return (
+    <div className="fixed inset-0 z-[70] flex items-center justify-center p-4" style={{ background: "rgba(20,24,31,0.55)" }}>
+      <div style={{ background: C.paper, borderColor: C.hairline }} className="w-full max-w-lg border max-h-[90vh] overflow-y-auto">
+        <div style={{ borderColor: C.hairline }} className="border-b px-5 py-4 flex items-center justify-between">
+          <h2 style={{ color: C.ink, fontFamily: "Georgia, serif" }} className="text-lg">Convertir a Colaborativo</h2>
+          <button onClick={onClose}><X size={18} style={{ color: C.inkSoft }} /></button>
+        </div>
+        <div className="p-5 flex flex-col gap-4">
+          <div><label className="font-mono text-[10px] uppercase tracking-widest" style={{ color: C.inkSoft }}>Título</label>
+            <input value={task.title} readOnly style={{ borderColor: C.hairline, background: C.panel, color: C.inkSoft, cursor: "not-allowed" }} className="w-full border px-3 py-2 text-sm mt-1 outline-none" /></div>
+          <div><label className="font-mono text-[10px] uppercase tracking-widest" style={{ color: C.inkSoft }}>Descripción</label>
+            <textarea value={description} onChange={(e) => setDescription(e.target.value)} rows={3} style={{ borderColor: C.hairline, background: C.panel }} className="w-full border px-3 py-2 text-sm mt-1 outline-none" /></div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <div><label className="font-mono text-[10px] uppercase tracking-widest" style={{ color: C.inkSoft }}>Categoría</label>
+              <select value={category} onChange={(e) => { setCategory(e.target.value); setNewCategory(""); }} style={{ borderColor: C.hairline, background: C.panel }} className="w-full border px-3 py-2 text-sm mt-1 outline-none">
+                {DEFAULT_CATEGORIES.map((c) => <option key={c} value={c}>{c}</option>)}
+              </select></div>
+            <div><label className="font-mono text-[10px] uppercase tracking-widest" style={{ color: C.inkSoft }}>...o nueva</label>
+              <input value={newCategory} onChange={(e) => setNewCategory(e.target.value)} style={{ borderColor: C.hairline, background: C.panel }} className="w-full border px-3 py-2 text-sm mt-1 outline-none" /></div>
+          </div>
+
+          <div>
+            <label className="font-mono text-[10px] uppercase tracking-widest flex items-center gap-1.5" style={{ color: C.inkSoft }}>
+              Solicita
+              <button type="button" onClick={() => setShowRequesterPicker((v) => !v)} title="Agregar más solicitantes" style={{ borderColor: C.signal, color: C.signal }} className="border rounded-full w-3.5 h-3.5 flex items-center justify-center leading-none"><Plus size={9} /></button>
+            </label>
+            <div style={{ borderColor: C.hairline, background: C.panel, color: C.inkSoft }} className="w-full border px-3 py-2 text-sm mt-1">
+              {task.requested_by}{coRequesterIds.length > 0 ? ` + ${coRequesterIds.map((id) => profiles.find((p) => p.id === id)?.name).filter(Boolean).join(", ")}` : ""}
+            </div>
+          </div>
+          {showRequesterPicker && (
+            <div style={{ borderColor: C.hairline }} className="border p-2.5 flex flex-col gap-1.5">
+              <div className="flex flex-wrap gap-1.5">
+                {profiles.filter((p) => p.id !== task.requested_by_id).map((p) => (
+                  <button key={p.id} type="button" onClick={() => toggleCoRequester(p.id)}
+                    style={{ borderColor: coRequesterIds.includes(p.id) ? C.signal : C.hairline, background: coRequesterIds.includes(p.id) ? C.signal : "transparent", color: coRequesterIds.includes(p.id) ? "#fff" : C.ink }}
+                    className="border px-2.5 py-1 text-xs">{p.name}</button>
+                ))}
+              </div>
+              <p className="text-[11px]" style={{ color: C.inkSoft }}>Las personas que selecciones aparecerán junto a {task.requested_by} como solicitantes.</p>
+            </div>
+          )}
+
+          <div>
+            <label className="font-mono text-[10px] uppercase tracking-widest" style={{ color: C.inkSoft }}>Equipo de trabajo</label>
+            <div className="flex flex-wrap gap-1.5 mt-1.5">
+              {profiles.map((p) => (
+                <button key={p.id} type="button" onClick={() => toggleTeamMember(p.id)}
+                  style={{ borderColor: teamMemberIds.includes(p.id) ? C.signal : C.hairline, background: teamMemberIds.includes(p.id) ? C.signal : "transparent", color: teamMemberIds.includes(p.id) ? "#fff" : C.ink }}
+                  className="border px-2.5 py-1 text-xs">{p.name}</button>
+              ))}
+            </div>
+            {teamMemberIds.length < 2 && <p className="text-[11px] mt-1.5" style={{ color: C.urgent }}>Selecciona al menos 2 personas del equipo.</p>}
+          </div>
+
+          <div>
+            <div className="flex items-center justify-between">
+              <label className="font-mono text-[10px] uppercase tracking-widest" style={{ color: C.inkSoft }}>Subtareas</label>
+              <button type="button" onClick={addSubtaskRow} disabled={teamMemberIds.length === 0} style={{ color: C.signal }} className="text-xs flex items-center gap-1 disabled:opacity-40"><Plus size={12} /> Agregar subtarea</button>
+            </div>
+            <div className="flex flex-col gap-2 mt-2">
+              {subtaskRows.map((row, i) => (
+                <div key={i} style={{ borderColor: C.hairline }} className="border p-2.5 flex flex-col gap-1.5">
+                  <div className="flex gap-1.5">
+                    <input value={row.title} onChange={(e) => updateSubtaskRow(i, "title", e.target.value)} placeholder="Título de la subtarea" style={{ borderColor: C.hairline, background: C.panel }} className="flex-1 border px-2 py-1.5 text-xs outline-none" />
+                    <button type="button" onClick={() => removeSubtaskRow(i)}><X size={14} style={{ color: C.inkSoft }} /></button>
+                  </div>
+                  <textarea value={row.description} onChange={(e) => updateSubtaskRow(i, "description", e.target.value)} placeholder="Descripción (opcional)" rows={2} style={{ borderColor: C.hairline, background: C.panel }} className="border px-2 py-1.5 text-xs outline-none resize-y" />
+                  <div className="grid grid-cols-2 gap-1.5">
+                    <select value={row.assignedToId} onChange={(e) => updateSubtaskRow(i, "assignedToId", e.target.value)} style={{ borderColor: C.hairline, background: C.panel }} className="border px-2 py-1.5 text-xs outline-none">
+                      <option value="">Asignar a...</option>
+                      {profiles.filter((p) => teamMemberIds.includes(p.id)).map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
+                    </select>
+                    <input type="date" value={row.deadline} min={todayStr} max={deadline || undefined} onChange={(e) => updateSubtaskRow(i, "deadline", e.target.value)} style={{ borderColor: C.hairline, background: C.panel }} className="border px-2 py-1.5 text-xs outline-none" />
+                  </div>
+                </div>
+              ))}
+              {subtaskRows.length === 0 && <p className="text-[11px]" style={{ color: C.inkSoft }}>Sin subtarea con deadline propio, hereda el deadline general de abajo.</p>}
+            </div>
+            {missingSubtaskCoverage && (
+              <p className="text-[11px] mt-1.5" style={{ color: C.urgent }}>
+                Falta asignar subtarea a: {teamMemberIds.filter((id) => !subtaskRows.some((r) => r.assignedToId === id && r.title.trim())).map((id) => profiles.find((p) => p.id === id)?.name).filter(Boolean).join(", ")}
+              </p>
+            )}
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <div><label className="font-mono text-[10px] uppercase tracking-widest" style={{ color: C.inkSoft }}>Deadline general</label>
+              <input type="date" value={deadline} min={minGeneralDeadline} onChange={(e) => setDeadline(e.target.value)} style={{ borderColor: C.hairline, background: C.panel }} className="w-full border px-3 py-2 text-sm mt-1 outline-none" /></div>
+            <div><label className="font-mono text-[10px] uppercase tracking-widest" style={{ color: C.inkSoft }}>Urgencia</label>
+              <select value={urgency} onChange={(e) => setUrgency(e.target.value)} style={{ borderColor: C.hairline, background: C.panel }} className="w-full border px-3 py-2 text-sm mt-1 outline-none">
+                {SELECTABLE_URGENCIES.map((u) => <option key={u.label} value={u.label}>{u.label}</option>)}
+              </select></div>
+          </div>
+        </div>
+        <div style={{ borderColor: C.hairline }} className="border-t px-5 py-4 flex justify-end gap-2">
+          <button onClick={onClose} style={{ color: C.inkSoft }} className="px-4 py-2 text-sm">Cancelar</button>
+          <button onClick={handleConvertClick} disabled={teamMemberIds.length < 2 || !deadline || saving} style={{ background: C.spine, color: C.paper, opacity: (teamMemberIds.length < 2 || !deadline || saving) ? 0.5 : 1 }} className="px-4 py-2 text-sm disabled:cursor-not-allowed">{saving ? "..." : "Convertir a Colaborativo"}</button>
+        </div>
+      </div>
+      {showSubtaskRule && (
+        <div className="fixed inset-0 z-[80] flex items-center justify-center p-4" style={{ background: "rgba(20,24,31,0.6)" }} onClick={() => setShowSubtaskRule(false)}>
+          <div style={{ background: C.paper, borderColor: C.hairline }} className="border max-w-xs p-4" onClick={(e) => e.stopPropagation()}>
+            <p className="text-sm font-semibold" style={{ color: C.urgent }}>Tienes que asignar subtareas</p>
+            <p className="text-sm mt-2" style={{ color: C.ink }}>Si no asignas subtareas los de tu equipo no podrán seleccionar que ya entregaron su parte y el pendiente no se podrá finalizar.</p>
+            <button onClick={() => setShowSubtaskRule(false)} style={{ background: C.spine, color: C.paper }} className="mt-3 px-3 py-1.5 text-xs w-full">Entendido</button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function TaskDetail({ task, onClose, onUpdate, onDelete, onDeleteRecurring, recurringTemplates, onFinalize, onDeliver, profiles, assignableProfiles, profile, notify, subtasks, onAddSubtask, onUpdateSubtaskStatus, onUpdateSubtaskDescription, onAssignChanges, viewerIsGerente, onCommentsRead }) {
   const recurringTpl = task.recurring_template_id ? (recurringTemplates || []).find((r) => r.id === task.recurring_template_id) : null;
   const [comment, setComment] = useState(""), [comments, setComments] = useState([]);
   const [history, setHistory] = useState([]), [showHistory, setShowHistory] = useState(false);
   const [delegateId, setDelegateId] = useState(""), [confirmDelete, setConfirmDelete] = useState(false);
   const [responsibleIds, setResponsibleIds] = useState([]);
   const [confirmFinalize, setConfirmFinalize] = useState(false);
+  const [confirmAssignChanges, setConfirmAssignChanges] = useState(false);
   const [reminderTargetId, setReminderTargetId] = useState("");
   const [showAddSubtask, setShowAddSubtask] = useState(false);
   const [expandedSubtaskId, setExpandedSubtaskId] = useState(null);
@@ -2065,12 +2388,12 @@ function TaskDetail({ task, onClose, onUpdate, onDelete, onDeleteRecurring, recu
   const [categoryDraft, setCategoryDraft] = useState(task.category || "");
   const [newCategoryDraft, setNewCategoryDraft] = useState("");
   const [showAttachments, setShowAttachments] = useState(false);
-  const [showAddTeam, setShowAddTeam] = useState(false);
-  const [newTeamIds, setNewTeamIds] = useState([]);
+  const [showConvertModal, setShowConvertModal] = useState(false);
   const [editingDescription, setEditingDescription] = useState(false);
   const [descriptionDraft, setDescriptionDraft] = useState(task.description || "");
   const [editingSubtaskId, setEditingSubtaskId] = useState(null);
   const [subtaskDescriptionDraft, setSubtaskDescriptionDraft] = useState("");
+  const [confirmLeave, setConfirmLeave] = useState(false);
   const assignee = profiles.find((p) => p.id === task.assigned_to_id);
 
   const isColaborativo = task.task_type === "colaborativo";
@@ -2101,6 +2424,31 @@ function TaskDetail({ task, onClose, onUpdate, onDelete, onDeleteRecurring, recu
     newSubtask.deadline < todayISO() ? "La fecha no puede ser antes de hoy." :
     (task.deadline && newSubtask.deadline > task.deadline) ? "No puede ser después del deadline general." :
     "";
+
+  // CHANGES.md #13: un solicitante puede salirse del pendiente, siempre y
+  // cuando quede al menos otro solicitante — nunca se puede quedar sin nadie.
+  const totalRequesters = 1 + (task.responsible_id ? 1 : 0) + (task.co_requester_ids || []).length;
+  const canLeaveAsRequester = isAnyRequester && totalRequesters > 1 && !isFinalized && !viewerIsGerente;
+  const leaveTask = async () => {
+    if (!canLeaveAsRequester) return;
+    const others = (task.co_requester_ids || []).map((id, i) => ({ id, name: (task.co_requester_names || [])[i] }));
+    if (task.responsible_id) others.push({ id: task.responsible_id, name: task.responsible_name });
+    let patch;
+    if (task.requested_by_id === profile.id) {
+      const [newPrimary, ...rest] = others;
+      patch = {
+        requested_by_id: newPrimary.id, requested_by: newPrimary.name,
+        co_requester_ids: rest.map((p) => p.id), co_requester_names: rest.map((p) => p.name),
+        responsible_id: null, responsible_name: null,
+      };
+    } else {
+      const rest = others.filter((p) => p.id !== profile.id);
+      patch = { co_requester_ids: rest.map((p) => p.id), co_requester_names: rest.map((p) => p.name), responsible_id: null, responsible_name: null };
+    }
+    await onUpdate(task, patch, `${profile.name} se salió del pendiente como solicitante`);
+    setConfirmLeave(false);
+    onClose();
+  };
 
   const loadExtras = useCallback(async () => {
     const { data: c } = await supabase.from("task_comments").select("*").eq("task_id", task.id).order("created_at");
@@ -2149,17 +2497,31 @@ function TaskDetail({ task, onClose, onUpdate, onDelete, onDeleteRecurring, recu
     const patch = task.overdue_notified ? { deadline: d, overdue_notified: false } : { deadline: d };
     onUpdate(task, patch, `${profile.name} cambió el deadline a ${fmtDate(d)}`);
   };
-  const toggleNewTeamId = (id) => setNewTeamIds((prev) => prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]);
-  const convertToColaborativo = async () => {
-    if (isFinalized || viewerIsGerente || newTeamIds.length === 0) return;
-    const finalTeam = Array.from(new Set([task.assigned_to_id, ...newTeamIds].filter(Boolean)));
-    const addedNames = newTeamIds.map((id) => profiles.find((p) => p.id === id)?.name).filter(Boolean).join(", ");
-    await onUpdate(task, { task_type: "colaborativo", team_member_ids: finalTeam, assigned_to_id: null, assigned_to_name: "" }, `${profile.name} convirtió el pendiente a Colaborativo y agregó a ${addedNames} al equipo`);
-    for (const id of newTeamIds) {
-      if (id !== profile.id) await notify(id, task.id, `Te agregaron al equipo del pendiente colaborativo "${task.title}"`);
+  // CHANGES.md #9: convertir individual a colaborativo abre una ventana
+  // completa (ConvertToColaborativoModal) en vez de solo agregar gente al
+  // equipo — permite editar descripción/categoría/deadline/urgencia,
+  // agregar solicitantes, equipo de trabajo y subtareas antes de convertir.
+  const submitConvertToColaborativo = async ({ description, category, deadline, urgency, teamMemberIds, coRequesterIds, subtaskRows }) => {
+    if (isFinalized || viewerIsGerente) return;
+    const finalTeam = Array.from(new Set([task.assigned_to_id, ...teamMemberIds].filter(Boolean)));
+    const coRequesters = coRequesterIds.map((id) => profiles.find((p) => p.id === id)).filter(Boolean);
+    const addedTeamNames = finalTeam.filter((id) => !(task.team_member_ids || []).includes(id)).map((id) => profiles.find((p) => p.id === id)?.name).filter(Boolean).join(", ");
+    await onUpdate(task, {
+      task_type: "colaborativo", team_member_ids: finalTeam, assigned_to_id: null, assigned_to_name: "",
+      description, category, deadline, urgency,
+      co_requester_ids: coRequesters.map((p) => p.id), co_requester_names: coRequesters.map((p) => p.name),
+    }, `${profile.name} convirtió el pendiente a Colaborativo${addedTeamNames ? ` y agregó a ${addedTeamNames} al equipo` : ""}`);
+    for (const id of finalTeam) {
+      if (id !== profile.id && id !== task.assigned_to_id) await notify(id, task.id, `Te agregaron al equipo del pendiente colaborativo "${task.title}"`);
     }
-    setNewTeamIds([]);
-    setShowAddTeam(false);
+    for (const p of coRequesters) {
+      if (p.id !== profile.id && !(task.co_requester_ids || []).includes(p.id)) await notify(p.id, task.id, `Te agregaron como solicitante del pendiente "${task.title}"`);
+    }
+    for (const st of subtaskRows) {
+      if (!st.title.trim() || !st.assignedToId) continue;
+      await onAddSubtask(task.id, { title: st.title, description: st.description, assignedToId: st.assignedToId, deadline: st.deadline || null });
+    }
+    setShowConvertModal(false);
   };
   const saveCategory = async () => {
     const val = newCategoryDraft.trim() || categoryDraft;
@@ -2314,7 +2676,12 @@ function TaskDetail({ task, onClose, onUpdate, onDelete, onDeleteRecurring, recu
                 </div>
               </div>
             )}
-            <h2 style={{ color: C.ink, fontFamily: "Georgia, serif" }} className="text-lg leading-tight">{task.title}</h2></div>
+            <h2 style={{ color: C.ink, fontFamily: "Georgia, serif" }} className="text-lg leading-tight">
+              {task.title}
+              {task.changes_round > 0 && (
+                <span className="font-mono text-[10px] uppercase tracking-wider ml-2" style={{ color: C.signal, fontFamily: "inherit" }}>Cambios Ronda {task.changes_round}</span>
+              )}
+            </h2></div>
           <button onClick={onClose}><X size={18} style={{ color: C.inkSoft }} /></button>
         </div>
         <div className="p-5 flex flex-col gap-5">
@@ -2347,7 +2714,10 @@ function TaskDetail({ task, onClose, onUpdate, onDelete, onDeleteRecurring, recu
               <div className="col-span-2"><div className="font-mono text-[10px] uppercase tracking-widest mb-0.5" style={{ color: C.inkSoft }}>Tipo</div><div style={{ color: C.ink }}>Pendiente personal (solo tuyo)</div></div>
             ) : (
               <>
-                <div><div className="font-mono text-[10px] uppercase tracking-widest mb-0.5" style={{ color: C.inkSoft }}>Solicita</div><div style={{ color: C.ink }}>{task.requested_by}{coRequesterNames.length ? ` + ${coRequesterNames.join(", ")}` : ""}</div></div>
+                <div>
+                  <div className="font-mono text-[10px] uppercase tracking-widest mb-0.5" style={{ color: C.inkSoft }}>Solicita</div>
+                  <div style={{ color: C.ink }}>{task.requested_by}{coRequesterNames.length ? ` + ${coRequesterNames.join(", ")}` : ""}</div>
+                </div>
                 {isColaborativo ? (
                   <div><div className="font-mono text-[10px] uppercase tracking-widest mb-0.5" style={{ color: C.inkSoft }}>Equipo</div><div style={{ color: C.ink }} className="text-xs leading-relaxed">{teamProfiles.map((p) => p.name).join(", ") || "—"}</div></div>
                 ) : (
@@ -2355,7 +2725,7 @@ function TaskDetail({ task, onClose, onUpdate, onDelete, onDeleteRecurring, recu
                     <div className="font-mono text-[10px] uppercase tracking-widest mb-0.5 flex items-center gap-1" style={{ color: C.inkSoft }}>
                       Asignado a
                       {task.task_type === "individual" && isRequester && !isFinalized && !viewerIsGerente && (
-                        <button type="button" onClick={() => setShowAddTeam((v) => !v)} title="Agregar más personas (pasa a Colaborativo)" style={{ borderColor: C.signal, color: C.signal }} className="border rounded-full w-3.5 h-3.5 flex items-center justify-center leading-none"><Plus size={9} /></button>
+                        <button type="button" onClick={() => setShowConvertModal(true)} title="Convertir a Colaborativo" style={{ borderColor: C.signal, color: C.signal }} className="border rounded-full w-3.5 h-3.5 flex items-center justify-center leading-none"><Plus size={9} /></button>
                       )}
                     </div>
                     <div style={{ color: C.ink }}>{task.assigned_to_name}</div>
@@ -2385,21 +2755,14 @@ function TaskDetail({ task, onClose, onUpdate, onDelete, onDeleteRecurring, recu
             </div>
           </div>
 
-          {showAddTeam && (
-            <div style={{ borderColor: C.hairline }} className="border p-3 flex flex-col gap-2">
-              <p className="text-xs" style={{ color: C.ink }}>Agrega más personas del equipo — el pendiente pasará a ser <strong>Colaborativo</strong>.</p>
-              <div className="flex flex-wrap gap-1.5">
-                {assignableProfiles.filter((p) => p.id !== task.assigned_to_id).map((p) => (
-                  <button key={p.id} type="button" onClick={() => toggleNewTeamId(p.id)}
-                    style={{ borderColor: newTeamIds.includes(p.id) ? C.signal : C.hairline, background: newTeamIds.includes(p.id) ? C.signal : "transparent", color: newTeamIds.includes(p.id) ? "#fff" : C.ink }}
-                    className="border px-2.5 py-1 text-xs">{p.name}</button>
-                ))}
-              </div>
-              <div className="flex justify-end gap-2">
-                <button type="button" onClick={() => { setShowAddTeam(false); setNewTeamIds([]); }} className="text-xs" style={{ color: C.inkSoft }}>Cancelar</button>
-                <button type="button" onClick={convertToColaborativo} disabled={newTeamIds.length === 0} style={{ background: C.spine, color: C.paper }} className="text-xs px-3 py-1.5 disabled:opacity-40">Convertir a Colaborativo</button>
-              </div>
-            </div>
+          {showConvertModal && (
+            <ConvertToColaborativoModal
+              task={task}
+              profiles={assignableProfiles}
+              profile={profile}
+              onClose={() => setShowConvertModal(false)}
+              onConvert={submitConvertToColaborativo}
+            />
           )}
 
           {!isColaborativo && !hasSubtasks && (
@@ -2525,6 +2888,20 @@ function TaskDetail({ task, onClose, onUpdate, onDelete, onDeleteRecurring, recu
           )}
           {!isAdmin && !isFinalized && !allSubtasksDelivered && ((isColaborativo && isAnyRequester) || (task.task_type === "individual" && hasSubtasks && isRequester)) && (
             <p className="text-[11px]" style={{ color: C.inkSoft }}>Se podrá finalizar cuando todas las subtareas queden en "Entregado".</p>
+          )}
+
+          {isFinalized && isAnyRequester && !viewerIsGerente && (
+            !confirmAssignChanges ? (
+              <button onClick={() => setConfirmAssignChanges(true)} style={{ background: C.spine, color: C.paper }} className="px-3 py-2 text-sm flex items-center justify-center gap-2"><ArrowRightLeft size={14} /> Asignar cambios</button>
+            ) : (
+              <div style={{ borderColor: C.hairline, background: C.panel }} className="border px-3 py-2.5 flex items-center justify-between gap-2">
+                <span className="text-xs" style={{ color: C.ink }}>Crearás un nuevo pendiente para solicitar estos cambios.</span>
+                <div className="flex gap-2 flex-shrink-0">
+                  <button onClick={() => setConfirmAssignChanges(false)} style={{ color: C.inkSoft }} className="text-xs">Cancelar</button>
+                  <button onClick={() => { setConfirmAssignChanges(false); onAssignChanges(task); }} style={{ background: C.spine, color: C.paper }} className="text-xs px-2.5 py-1">Aceptar</button>
+                </div>
+              </div>
+            )
           )}
 
           {!isColaborativo && isPersonalSolo && !viewerIsGerente && (
@@ -2668,9 +3045,17 @@ function TaskDetail({ task, onClose, onUpdate, onDelete, onDeleteRecurring, recu
             </div>
           )}
 
-          {!viewerIsGerente && (isAnyRequester || isAdmin) && (!confirmDelete ? (
-            <button onClick={() => setConfirmDelete(true)} className="text-xs flex items-center gap-1.5 mt-1 self-start" style={{ color: C.urgent }}><Trash2 size={13} /> Eliminar pendiente</button>
-          ) : task.recurring_template_id ? (
+          {((!viewerIsGerente && (isAnyRequester || isAdmin) && !confirmDelete) || (canLeaveAsRequester && !confirmLeave)) && (
+            <div className="flex items-center gap-4 mt-1">
+              {!viewerIsGerente && (isAnyRequester || isAdmin) && !confirmDelete && (
+                <button onClick={() => setConfirmDelete(true)} className="text-xs flex items-center gap-1.5 self-start" style={{ color: C.urgent }}><Trash2 size={13} /> Eliminar pendiente</button>
+              )}
+              {canLeaveAsRequester && !confirmLeave && (
+                <button onClick={() => setConfirmLeave(true)} className="text-xs flex items-center gap-1.5 self-start" style={{ color: C.urgent }}><LogOut size={13} /> Abandonar</button>
+              )}
+            </div>
+          )}
+          {confirmDelete && (task.recurring_template_id ? (
             <div style={{ borderColor: C.urgent, background: C.urgentSoft }} className="border px-3 py-2.5 flex flex-col gap-2 mt-1">
               <span className="text-xs" style={{ color: C.urgent }}>Este pendiente es de frecuencia. No se puede deshacer.</span>
               <div className="flex gap-2 flex-wrap items-center">
@@ -2689,6 +3074,15 @@ function TaskDetail({ task, onClose, onUpdate, onDelete, onDeleteRecurring, recu
               </div>
             </div>
           ))}
+          {confirmLeave && (
+            <div style={{ borderColor: C.urgent, background: C.urgentSoft }} className="border px-3 py-2.5 flex items-center justify-between gap-2 mt-1">
+              <span className="text-xs" style={{ color: C.urgent }}>Dejarás de ser responsable de este pendiente.</span>
+              <div className="flex gap-2 flex-shrink-0">
+                <button onClick={() => setConfirmLeave(false)} style={{ color: C.inkSoft }} className="text-xs">Cancelar</button>
+                <button onClick={leaveTask} style={{ background: C.urgent, color: "#fff" }} className="text-xs px-2.5 py-1">Sí, abandonar</button>
+              </div>
+            </div>
+          )}
         </div>
       </div>
     </div>
