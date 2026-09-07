@@ -213,6 +213,9 @@ El botón "Eliminar pendiente" del desglose ahora solo lo ve y puede
 usar el solicitante del pendiente (o cualquiera de los
 co-solicitantes) y el admin — el asignado ya no puede eliminarlo.
 
+_Revertido 2026-09-05:_ vuelve a verlo y poder usarlo cualquiera con
+acceso al desglose, como antes de esta solicitud.
+
 ### [x] 15. Poder editar la descripción del pendiente y de las subtareas ya creadas
 _Aplicada 2026-09-03 — PR #48._
 
@@ -302,3 +305,21 @@ automáticamente.
 _Ajustado 2026-09-05:_ el botón vive hasta abajo del desglose, junto a
 "Eliminar pendiente" — se llama "Abandonar" y pide confirmación
 ("Dejarás de ser responsable de este pendiente.").
+
+### [x] 16. Terminar el pop up de bienvenida ("always_welcome")
+_Aplicada 2026-09-07._
+
+Había un pop up ("¡Te damos la bienvenida!") y una columna
+`always_welcome` ya en la base de datos, de un pop up pensado para
+salirle a cualquier usuario sin importar la fecha (a diferencia de los
+demás, que necesitan `scheduled_date`) — pero el dashboard nunca tenía
+la lógica para mostrarlo. Ahora sí: el pop up con `always_welcome =
+true` le sale a quien no lo haya cerrado todavía, cualquier día, igual
+de dismissible que los demás (vía `popup_dismissed`, una vez por
+persona).
+
+También se ajustó la restricción `popups_date_or_welcome` (agregada
+sin migración por otra sesión) para que además de "tiene fecha" o "es
+de bienvenida", se sigan permitiendo los borradores creados a mano sin
+fecha todavía (los de la pestaña "Nuevos" — solicitud #3), que esa
+restricción rompía.

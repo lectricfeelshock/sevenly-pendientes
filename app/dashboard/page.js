@@ -654,12 +654,14 @@ export default function Dashboard() {
     (async () => {
       const today = todayISO();
       const nowHHMM = new Date().toTimeString().slice(0, 5);
+      // "always_welcome": pop up de bienvenida, sin fecha — le sale a
+      // cualquiera que no lo haya cerrado todavía, sin importar el día.
       const { data: pops } = await supabase.from("popups").select("*")
-        .eq("scheduled_date", today)
+        .or(`scheduled_date.eq.${today},always_welcome.eq.true`)
         .order("created_at", { ascending: true });
       if (!pops || pops.length === 0) { setPopupQueue([]); return; }
       const forMe = pops.filter((p) => !p.target_user_ids || p.target_user_ids.length === 0 || p.target_user_ids.includes(profile.id));
-      const dueNow = forMe.filter((p) => !p.scheduled_time || p.scheduled_time.slice(0, 5) <= nowHHMM);
+      const dueNow = forMe.filter((p) => p.always_welcome || !p.scheduled_time || p.scheduled_time.slice(0, 5) <= nowHHMM);
       if (dueNow.length === 0) { setPopupQueue([]); return; }
       const { data: dismissed } = await supabase.from("popup_dismissed").select("popup_id").eq("user_id", profile.id);
       const dismissedIds = new Set((dismissed || []).map((d) => d.popup_id));
@@ -3045,9 +3047,9 @@ function TaskDetail({ task, onClose, onUpdate, onDelete, onDeleteRecurring, recu
             </div>
           )}
 
-          {((!viewerIsGerente && (isAnyRequester || isAdmin) && !confirmDelete) || (canLeaveAsRequester && !confirmLeave)) && (
+          {((!viewerIsGerente && !confirmDelete) || (canLeaveAsRequester && !confirmLeave)) && (
             <div className="flex items-center gap-4 mt-1">
-              {!viewerIsGerente && (isAnyRequester || isAdmin) && !confirmDelete && (
+              {!viewerIsGerente && !confirmDelete && (
                 <button onClick={() => setConfirmDelete(true)} className="text-xs flex items-center gap-1.5 self-start" style={{ color: C.urgent }}><Trash2 size={13} /> Eliminar pendiente</button>
               )}
               {canLeaveAsRequester && !confirmLeave && (
