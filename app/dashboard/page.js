@@ -3047,16 +3047,6 @@ function TaskDetail({ task, onClose, onUpdate, onDelete, onDeleteRecurring, recu
             </div>
           )}
 
-          {((!viewerIsGerente && !confirmDelete) || (canLeaveAsRequester && !confirmLeave)) && (
-            <div className="flex items-center gap-4 mt-1">
-              {!viewerIsGerente && !confirmDelete && (
-                <button onClick={() => setConfirmDelete(true)} className="text-xs flex items-center gap-1.5 self-start" style={{ color: C.urgent }}><Trash2 size={13} /> Eliminar pendiente</button>
-              )}
-              {canLeaveAsRequester && !confirmLeave && (
-                <button onClick={() => setConfirmLeave(true)} className="text-xs flex items-center gap-1.5 self-start" style={{ color: C.urgent }}><LogOut size={13} /> Abandonar</button>
-              )}
-            </div>
-          )}
           {confirmDelete && (task.recurring_template_id ? (
             <div style={{ borderColor: C.urgent, background: C.urgentSoft }} className="border px-3 py-2.5 flex flex-col gap-2 mt-1">
               <span className="text-xs" style={{ color: C.urgent }}>Este pendiente es de frecuencia. No se puede deshacer.</span>
@@ -3083,6 +3073,16 @@ function TaskDetail({ task, onClose, onUpdate, onDelete, onDeleteRecurring, recu
                 <button onClick={() => setConfirmLeave(false)} style={{ color: C.inkSoft }} className="text-xs">Cancelar</button>
                 <button onClick={leaveTask} style={{ background: C.urgent, color: "#fff" }} className="text-xs px-2.5 py-1">Sí, abandonar</button>
               </div>
+            </div>
+          )}
+          {((!viewerIsGerente && !confirmDelete) || (canLeaveAsRequester && !confirmLeave)) && (
+            <div className="flex items-center gap-4 mt-1">
+              {!viewerIsGerente && !confirmDelete && (
+                <button onClick={() => setConfirmDelete(true)} className="text-xs flex items-center gap-1.5 self-start" style={{ color: C.urgent }}><Trash2 size={13} /> Eliminar pendiente</button>
+              )}
+              {canLeaveAsRequester && !confirmLeave && (
+                <button onClick={() => setConfirmLeave(true)} className="text-xs flex items-center gap-1.5 self-start" style={{ color: C.urgent }}><LogOut size={13} /> Abandonar</button>
+              )}
             </div>
           )}
         </div>
