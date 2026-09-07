@@ -56,6 +56,14 @@ mi propio pendiente general en partes más chicas, no para repartirlo
 con nadie más (el pendiente se queda individual, solo se trata de
 organizarme mejor).
 
+### 17. Widget de Pomodoro timer en el perfil
+En la página de perfil, agregar un widget de temporizador Pomodoro
+(ciclos de trabajo/descanso) para quien quiera usarlo mientras trabaja
+en sus pendientes. Aún sin definir bien — duración de los ciclos,
+si suena alguna alerta al terminar cada uno, si se puede personalizar,
+etc. Lo dejo como opción por ahora; cuando lo tenga más claro lo
+detallo.
+
 ## Historial (aplicadas)
 
 <!-- Aquí se van moviendo las solicitudes ya aplicadas, con fecha y commit. -->
