@@ -66,6 +66,32 @@ detallo.
 
 ## Historial (aplicadas)
 
+### [x] 18. Pendientes vencidos: quitar "Muy urgente", tarjeta negra, recordatorio diario y strikes a 7 días
+_Aplicada 2026-09-08 — PR #55._
+
+a. **Se quita por completo la urgencia "Muy urgente"**: un pendiente
+   vencido (Individual, Personal o Colaborativo — antes los
+   Colaborativos no aplicaban) ya no cambia de urgencia. En vez de eso,
+   su tarjeta en el dashboard se pone **negra**.
+
+b. **El aviso de "se venció" llega cada día**, no solo una vez, a quien
+   no ha entregado. En Colaborativo, solo le llega a quien no entregó su
+   propia subtarea — si alguien del equipo sí entregó pero otro no,
+   solo a ese otro le sigue llegando. La notificación dice:
+   > ¿Aún no has entregado "(título del pendiente)"?
+   > Revisa si este pendiente ya fue y dale en "Entregado" para que
+   > alguien pueda finalizártelo.
+
+   Al darle clic abre directo el desglose de ese pendiente.
+
+c. **A los 7 días de vencido sin entregarse**, el pendiente se borra
+   automáticamente y se le marca un strike a quien no entregó — se
+   guarda en una tabla nueva (`strikes`), sin apartado en el perfil
+   todavía, para poder mostrarlo ahí más adelante. Si es Colaborativo,
+   a quien sí entregó su subtarea se le cuenta como si el pendiente se
+   hubiera finalizado (queda en su registro de finalizados); solo a
+   quien no entregó la suya se le marca el strike.
+
 <!-- Aquí se van moviendo las solicitudes ya aplicadas, con fecha y commit. -->
 
 ### [x] 1. Buscador en lupa con filtro avanzado (dashboard)
