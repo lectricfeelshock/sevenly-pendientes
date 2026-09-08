@@ -1,7 +1,12 @@
 import { createClient } from "@supabase/supabase-js";
 
-// CHANGES.md #4 (c, d, f) — corre una vez al día (ver vercel.json):
+// CHANGES.md #4 (c, d, f) y #18 — corre una vez al día (ver vercel.json):
 //
+// 0. Auto-borra pendientes vencidos hace 7+ días que nunca se entregaron, y
+//    marca un strike a quien no entregó (tabla "strikes", sin apartado en
+//    el perfil todavía). En Colaborativo, a quien sí entregó su subtarea se
+//    le cuenta como si el pendiente se hubiera finalizado (finalized_log) —
+//    solo a quien no entregó la suya se le marca el strike.
 // 1. Auto-finaliza pendientes "Entregado" hace 7+ días sin que el
 //    solicitante los finalice, y los borra de inmediato (el registro en
 //    "Mi actividad" del asignado se queda, vía finalized_log).
@@ -57,6 +62,31 @@ export async function GET(req) {
 
   const nowIso = new Date().toISOString();
   const todayISO = nowIso.slice(0, 10);
+
+  // 0) Auto-borrado a los 7 días de vencido sin entregarse + strike.
+  const sevenDaysAgoDate = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+  const { data: overdueCandidates } = await supabaseAdmin.from("tasks").select("*").not("deadline", "is", null).lte("deadline", sevenDaysAgoDate);
+  const overdueUnfulfilled = (overdueCandidates || []).filter((t) => !["Entregado", "Finalizado"].includes(t.status));
+  let autoDeletedOverdue = 0, strikesGiven = 0;
+  for (const t of overdueUnfulfilled) {
+    if (t.task_type === "colaborativo") {
+      const { data: teamSubtasks } = await supabaseAdmin.from("subtasks").select("*").eq("task_id", t.id);
+      for (const s of teamSubtasks || []) {
+        if (!s.assigned_to_id) continue;
+        if (s.status === "Entregado") {
+          await supabaseAdmin.from("finalized_log").insert({ user_id: s.assigned_to_id, task_title: t.title, delivered_at: s.delivered_at || null });
+        } else {
+          await supabaseAdmin.from("strikes").insert({ user_id: s.assigned_to_id, task_title: t.title });
+          strikesGiven++;
+        }
+      }
+    } else if (t.assigned_to_id) {
+      await supabaseAdmin.from("strikes").insert({ user_id: t.assigned_to_id, task_title: t.title });
+      strikesGiven++;
+    }
+    await supabaseAdmin.from("tasks").delete().eq("id", t.id);
+    autoDeletedOverdue++;
+  }
 
   // 1) Auto-finalizado a los 7 días de entregado → se borra de inmediato.
   const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
@@ -123,5 +153,5 @@ export async function GET(req) {
     }
   }
 
-  return Response.json({ ok: true, autoFinalized, autoDeleted: staleIds.length, cancelled, scheduled });
+  return Response.json({ ok: true, autoDeletedOverdue, strikesGiven, autoFinalized, autoDeleted: staleIds.length, cancelled, scheduled });
 }
