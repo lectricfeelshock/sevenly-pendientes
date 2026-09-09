@@ -804,6 +804,12 @@ export default function Dashboard() {
     const assignee = profiles.find((p) => p.id === form.assignedToId);
     const requester = profiles.find((p) => p.id === form.requestedById);
     const coRequesters = (form.coRequesterIds || []).map((id) => profiles.find((p) => p.id === id)).filter(Boolean);
+    // Si se programó para una fecha futura, todavía no se "publica" — las
+    // notificaciones de "te asignaron / te agregaron" deben esperar hasta el
+    // Día programado (las manda el cron /api/publish-scheduled ese día), no
+    // salir desde que se programó. assignment_notified deja registro de si
+    // ya se mandaron o siguen pendientes.
+    const isPublishedNow = !(form.scheduling && form.scheduledDate && form.scheduledDate > todayISO());
 
     const { data, error } = await supabase.from("tasks").insert({
       title: form.title, description: form.description, category: form.category,
@@ -819,6 +825,7 @@ export default function Dashboard() {
       ...(form.scheduling && form.scheduledDate ? { request_date: form.scheduledDate } : {}),
       ...(form.changesRound ? { changes_round: form.changesRound } : {}),
       created_by: profile.id,
+      assignment_notified: isPublishedNow,
     }).select().single();
 
     if (!error && data) {
@@ -826,13 +833,17 @@ export default function Dashboard() {
       if (data.request_date && data.deadline && data.request_date === data.deadline) {
         await addHistory(data.id, `⚠️ Pendiente "de hoy para hoy" — se solicitó y se necesita entregar el mismo día`);
       }
-      if (assignee && assignee.id !== profile.id) await notify(assignee.id, data.id, `Te asignaron "${data.title}"`);
-      for (const p of coRequesters) {
-        if (p.id !== profile.id) await notify(p.id, data.id, `Te agregaron como solicitante del pendiente "${data.title}"`);
+      if (isPublishedNow && assignee && assignee.id !== profile.id) await notify(assignee.id, data.id, `Te asignaron "${data.title}"`);
+      if (isPublishedNow) {
+        for (const p of coRequesters) {
+          if (p.id !== profile.id) await notify(p.id, data.id, `Te agregaron como solicitante del pendiente "${data.title}"`);
+        }
       }
       if (form.taskType === "colaborativo") {
-        for (const id of form.teamMemberIds || []) {
-          if (id !== profile.id) await notify(id, data.id, `Te agregaron al equipo del pendiente colaborativo "${data.title}"`);
+        if (isPublishedNow) {
+          for (const id of form.teamMemberIds || []) {
+            if (id !== profile.id) await notify(id, data.id, `Te agregaron al equipo del pendiente colaborativo "${data.title}"`);
+          }
         }
         for (const st of form.subtasks || []) {
           if (!st.title.trim() || !st.assignedToId) continue;
@@ -842,7 +853,7 @@ export default function Dashboard() {
             assigned_to_id: st.assignedToId, assigned_to_name: stAssignee ? stAssignee.name : "",
             deadline: st.deadline || null,
           });
-          if (st.assignedToId !== profile.id) await notify(st.assignedToId, data.id, `Te asignaron la subtarea "${st.title}" dentro de "${data.title}"`);
+          if (isPublishedNow && st.assignedToId !== profile.id) await notify(st.assignedToId, data.id, `Te asignaron la subtarea "${st.title}" dentro de "${data.title}"`);
         }
       } else if (form.taskType === "individual") {
         for (const st of form.subtasks || []) {
@@ -920,11 +931,36 @@ export default function Dashboard() {
     await refreshSelected(task.id);
   };
 
-  const deleteTask = async (id) => { await supabase.from("tasks").delete().eq("id", id); setSelected(null); loadAll(); };
+  // Si alguien borra un pendiente a mano (o llega a borrarse solo) mientras
+  // seguía "Entregado" sin finalizar, quien sí entregó no debe perder ese
+  // trabajo de su registro de "Mi actividad" — se le cuenta como si se
+  // hubiera finalizado, igual que ya hacían los borrados automáticos
+  // (finalize-lifecycle). En Colaborativo, solo a quien de verdad entregó su
+  // subtarea (una por una, no a todo el equipo).
+  const backfillFinalizedCredit = async (task) => {
+    if (!task) return;
+    if (task.task_type === "colaborativo") {
+      const teamSubtasks = subtasks.filter((s) => s.task_id === task.id && s.status === "Entregado");
+      for (const s of teamSubtasks) {
+        if (!s.assigned_to_id) continue;
+        await supabase.from("finalized_log").insert({ user_id: s.assigned_to_id, task_title: task.title, delivered_at: s.delivered_at || null });
+      }
+    } else if (task.status === "Entregado") {
+      await supabase.from("finalized_log").insert({ user_id: task.assigned_to_id || task.requested_by_id, task_title: task.title, delivered_at: task.delivered_at || null });
+    }
+  };
+
+  const deleteTask = async (id) => {
+    await backfillFinalizedCredit(tasks.find((t) => t.id === id));
+    await supabase.from("tasks").delete().eq("id", id);
+    setSelected(null);
+    loadAll();
+  };
   // "Borrar pendientes programados": borra esta instancia Y detiene la
   // recurrencia (la plantilla deja de generar nuevas). "Borrar" solo pasa
   // por deleteTask de arriba, sin tocar la plantilla.
   const deleteRecurringTask = async (id, templateId) => {
+    await backfillFinalizedCredit(tasks.find((t) => t.id === id));
     await supabase.from("recurring_templates").update({ active: false }).eq("id", templateId);
     await supabase.from("tasks").delete().eq("id", id);
     setSelected(null);
@@ -1429,13 +1465,16 @@ function NewTaskForm({ onClose, onCreate, onCreatePopup, profiles, profile, isAd
   const subtaskDeadlines = usesDeadlineRules ? subtaskRows.map((r) => r.deadline).filter(Boolean) : [];
   const maxSubtaskDeadline = subtaskDeadlines.length ? subtaskDeadlines.reduce((a, b) => (a > b ? a : b)) : null;
   const minGeneralDeadline = maxSubtaskDeadline && maxSubtaskDeadline > baseDateStr ? maxSubtaskDeadline : baseDateStr;
+  // Ya no se puede crear ni asignar un pendiente sin ponerle deadline —
+  // antes solo era obligatorio si se programaba con repetición.
   const deadlineError = !usesDeadlineRules ? "" :
     scheduling && !scheduledDate ? "Elige el día programado." :
-    scheduling && repeatMode !== "none" && !deadline ? "Elige el deadline general." :
-    deadline && deadline < baseDateStr ? `El deadline general no puede ser antes de ${scheduling ? "el día programado" : "hoy"}.` :
+    !deadline ? "Elige el deadline." :
+    deadline < baseDateStr ? `El deadline general no puede ser antes de ${scheduling ? "el día programado" : "hoy"}.` :
     subtaskDeadlines.some((d) => d < baseDateStr) ? `El deadline de una subtarea no puede ser antes de ${scheduling ? "el día programado" : "hoy"}.` :
-    (deadline && maxSubtaskDeadline && deadline < maxSubtaskDeadline) ? "El deadline general no puede ser antes que el de alguna subtarea." :
+    (maxSubtaskDeadline && deadline < maxSubtaskDeadline) ? "El deadline general no puede ser antes que el de alguna subtarea." :
     "";
+  const personalDeadlineError = taskType === "personal" && !deadline ? "Elige el deadline." : "";
 
   const submit = () => {
     if (!title.trim()) return;
@@ -1445,6 +1484,7 @@ function NewTaskForm({ onClose, onCreate, onCreatePopup, profiles, profile, isAd
       if (!assignedToId || deadlineError) return;
       onCreate({ title, description, category: finalCategory, taskType, requestedById: profile.id, coRequesterIds, deadline, urgency, assignedToId, subtasks: subtaskRows, scheduling, scheduledDate, repeatMode, changesRound });
     } else if (taskType === "personal") {
+      if (personalDeadlineError) return;
       onCreate({ title, description, category: finalCategory, taskType, requestedById: profile.id, deadline, urgency, assignedToId: profile.id, changesRound });
     } else if (taskType === "colaborativo") {
       if (teamMemberIds.length < 2 || deadlineError || missingSubtaskCoverage) return;
@@ -1668,6 +1708,7 @@ function NewTaskForm({ onClose, onCreate, onCreatePopup, profiles, profile, isAd
                   <select value={urgency} onChange={(e) => setUrgency(e.target.value)} style={{ borderColor: C.hairline, background: C.panel }} className="w-full border px-3 py-2 text-sm mt-1 outline-none">
                     {URGENCIES.map((u) => <option key={u.label} value={u.label}>{u.label}</option>)}
                   </select></div>
+                {personalDeadlineError && <p className="col-span-2 text-[11px]" style={{ color: C.urgent }}>{personalDeadlineError}</p>}
               </div>
             )}
 
@@ -1778,7 +1819,7 @@ function NewTaskForm({ onClose, onCreate, onCreatePopup, profiles, profile, isAd
           {mode === "popup" && isAdmin ? (
             <button onClick={() => setShowPopupConfirm(true)} disabled={!popupTitle.trim() || popupSaving || !!popupImageError} style={{ background: C.spine, color: C.paper, opacity: popupSaving ? 0.6 : 1 }} className="px-4 py-2 text-sm disabled:cursor-not-allowed">¿Listo?</button>
           ) : (
-            <button onClick={handleCreateClick} disabled={usesDeadlineRules && !!deadlineError} style={{ background: C.spine, color: C.paper, opacity: usesDeadlineRules && deadlineError ? 0.5 : 1 }} className="px-4 py-2 text-sm disabled:cursor-not-allowed">Crear pendiente</button>
+            <button onClick={handleCreateClick} disabled={(usesDeadlineRules && !!deadlineError) || !!personalDeadlineError} style={{ background: C.spine, color: C.paper, opacity: (usesDeadlineRules && deadlineError) || personalDeadlineError ? 0.5 : 1 }} className="px-4 py-2 text-sm disabled:cursor-not-allowed">Crear pendiente</button>
           )}
         </div>
       </div>
@@ -2505,6 +2546,7 @@ function TaskDetail({ task, onClose, onUpdate, onDelete, onDeleteRecurring, recu
   };
   const changeDeadline = (d) => {
     if (!canEditDeadline) return;
+    if (!d) return; // ya no se puede dejar un pendiente sin deadline
     if (showSubtasks && d) {
       if (d < todayISO()) return;
       if (latestSubtaskDeadline && d < latestSubtaskDeadline) return;

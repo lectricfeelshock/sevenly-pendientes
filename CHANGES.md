@@ -66,6 +66,43 @@ detallo.
 
 ## Historial (aplicadas)
 
+### [x] 19. No perder el crédito de "Mi actividad" al borrar un pendiente entregado, no notificar pendientes Programados hasta que se publican, y deadline obligatorio
+_Aplicada 2026-09-09._
+
+a. **Borrar un pendiente ya no le quita el crédito a quien sí entregó.**
+   El botón "Eliminar pendiente" (o "Borrar" en un pendiente programado)
+   solo borraba la fila sin más — si alguien ya le había dado
+   "Entregado" (individual) o entregado su subtarea (Colaborativo) y el
+   pendiente se borraba antes de finalizarse, ese trabajo desaparecía sin
+   dejar rastro en "Mi actividad". Ahora, justo antes de borrar, se
+   revisa: si es individual y está "Entregado", o si es Colaborativo y
+   alguna subtarea está "Entregada", se guarda esa persona en
+   `finalized_log` (igual que ya hacían los borrados automáticos) antes
+   de borrar la fila. Se detectó por esto exactamente: "CORRECCIONES
+   W37" (colaborativo, de Pamela) se borró manualmente el 9 de
+   septiembre con la subtarea de Fer ya entregada desde el día 5 — se le
+   restauró el crédito a mano en `finalized_log` con la fecha real en
+   que entregó.
+
+b. **Un pendiente "Programado" ya no notifica desde que se programa.**
+   "Te asignaron...", "Te agregaron al equipo...", "Te agregaron como
+   solicitante..." y "Te asignaron la subtarea..." se mandaban en cuanto
+   se creaba el pendiente, aunque su Día programado fuera hasta varios
+   días después — llegaban mucho antes de que el pendiente se publicara
+   de verdad. Ahora, si el pendiente nace con un Día programado futuro,
+   esas notificaciones se quedan pendientes (columna nueva
+   `tasks.assignment_notified`) y las manda el cron nuevo
+   `/api/publish-scheduled` hasta el día que de verdad se publica. Se
+   detectó con "Correcciones W38" (de Pamela, programado para el 11 de
+   septiembre): Fer recibió el "Te asignaron" el mismo día que se creó,
+   6 días antes de tiempo.
+
+c. **Deadline obligatorio en todo pendiente nuevo** (Individual,
+   Personal y Colaborativo) — antes solo era obligatorio si se programaba
+   con repetición; el resto del tiempo se podía crear (y asignar) un
+   pendiente sin deadline. También se bloqueó poder borrarle el deadline
+   a un pendiente ya existente desde el desglose.
+
 ### [x] 18. Pendientes vencidos: quitar "Muy urgente", tarjeta negra, recordatorio diario y strikes a 7 días
 _Aplicada 2026-09-08 — PR #55._
 
