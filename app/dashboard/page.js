@@ -920,7 +920,18 @@ export default function Dashboard() {
     await supabase.from("tasks").update({ status: "Finalizado", finalized_at: new Date().toISOString() }).eq("id", task.id);
     await addHistory(task.id, `${profile.name} finalizó el pendiente`);
     await notifyFollowers(task, `${profile.name} finalizó "${task.title}"`);
-    await supabase.from("finalized_log").insert({ user_id: task.assigned_to_id || task.requested_by_id, task_title: task.title, delivered_at: task.delivered_at || null });
+    // En Colaborativo no hay un solo "assigned_to_id" — el crédito es de
+    // quien entregó cada subtarea, no del solicitante (antes, al no haber
+    // assigned_to_id, se le acreditaba por error al solicitante).
+    if (task.task_type === "colaborativo") {
+      const teamSubtasks = subtasks.filter((s) => s.task_id === task.id && s.status === "Entregado");
+      for (const s of teamSubtasks) {
+        if (!s.assigned_to_id) continue;
+        await supabase.from("finalized_log").insert({ user_id: s.assigned_to_id, task_title: task.title, delivered_at: s.delivered_at || null });
+      }
+    } else {
+      await supabase.from("finalized_log").insert({ user_id: task.assigned_to_id || task.requested_by_id, task_title: task.title, delivered_at: task.delivered_at || null });
+    }
     await refreshSelected(task.id);
   };
 

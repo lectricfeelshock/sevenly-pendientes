@@ -66,6 +66,20 @@ detallo.
 
 ## Historial (aplicadas)
 
+### [x] 20. "Finalizar pendiente" en Colaborativo le acreditaba mal a "Mi actividad"
+_Aplicada 2026-09-14._
+
+Mismo problema de fondo que el punto 19a, pero en otro lugar: al finalizar
+un pendiente Colaborativo a mano (botón "Finalizar pendiente"), o cuando
+el cron lo auto-finaliza a los 7 días de entregado, `finalized_log` se
+llenaba con `assigned_to_id || requested_by_id` — como Colaborativo no
+tiene un solo `assigned_to_id`, terminaba acreditándole el trabajo al
+**solicitante**, no a quien de verdad entregó cada subtarea. Ahora, en
+Colaborativo, se guarda un registro por cada subtarea "Entregada", a
+quien la entregó, con su propia fecha. Se detectó al finalizar
+"Contenido Presentación" (de Pamela, con Fer y Michelle en el equipo) —
+se les acreditó a mano a los dos con su fecha real de entrega.
+
 ### [x] 19. No perder el crédito de "Mi actividad" al borrar un pendiente entregado, no notificar pendientes Programados hasta que se publican, y deadline obligatorio
 _Aplicada 2026-09-09._
 

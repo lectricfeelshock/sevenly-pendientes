@@ -93,7 +93,19 @@ export async function GET(req) {
   const { data: overdue } = await supabaseAdmin.from("tasks").select("*").eq("status", "Entregado").lte("delivered_at", sevenDaysAgo);
   let autoFinalized = 0;
   for (const t of overdue || []) {
-    await supabaseAdmin.from("finalized_log").insert({ user_id: t.assigned_to_id || t.requested_by_id, task_title: t.title, delivered_at: t.delivered_at });
+    // En Colaborativo no hay un solo "assigned_to_id" — status "Entregado"
+    // a nivel general solo significa que TODAS las subtareas se
+    // entregaron; el crédito es de quien entregó cada una (con su propia
+    // fecha), no del solicitante.
+    if (t.task_type === "colaborativo") {
+      const { data: teamSubtasks } = await supabaseAdmin.from("subtasks").select("*").eq("task_id", t.id);
+      for (const s of teamSubtasks || []) {
+        if (!s.assigned_to_id || s.status !== "Entregado") continue;
+        await supabaseAdmin.from("finalized_log").insert({ user_id: s.assigned_to_id, task_title: t.title, delivered_at: s.delivered_at || null });
+      }
+    } else {
+      await supabaseAdmin.from("finalized_log").insert({ user_id: t.assigned_to_id || t.requested_by_id, task_title: t.title, delivered_at: t.delivered_at });
+    }
     await supabaseAdmin.from("tasks").delete().eq("id", t.id);
     autoFinalized++;
   }
