@@ -382,6 +382,15 @@ function matchesSearchQuery(task, rawQuery, profiles) {
   return haystacks.some((h) => normalizeText(h).includes(q));
 }
 
+// CHANGES.md #2h: la lupa del dashboard también encuentra recursos de la
+// Biblioteca — mismo criterio que el buscador de Biblioteca (#2g): nombre y etiquetas.
+function matchesResourceQuery(resource, rawQuery) {
+  const q = normalizeText(rawQuery.trim());
+  if (!q) return false;
+  const haystacks = [resource.title, ...(resource.tags || [])];
+  return haystacks.some((h) => normalizeText(h).includes(q));
+}
+
 function activityMsg(n) {
   if (!n) return "Aún no finalizas pendientes hoy.";
   if (n <= 2) return "Vas bien.";
@@ -454,16 +463,21 @@ export default function Dashboard() {
   const [watchers, setWatchers] = useState([]); // gerentes que me están observando a mí ahora mismo
   const [taskComments, setTaskComments] = useState([]); // { id, task_id, created_at } de todos los pendientes
   const [commentReads, setCommentReads] = useState([]); // { task_id, last_read_at } del usuario actual
+  const [resources, setResources] = useState([]); // recursos de Biblioteca visibles para mí (CHANGES.md #2h)
 
   const loadAll = useCallback(async () => {
     const { data: t } = await supabase.from("tasks").select("*").order("created_at", { ascending: false });
     const { data: p } = await supabase.from("profiles").select("*");
     const { data: st } = await supabase.from("subtasks").select("*").order("created_at", { ascending: true });
     const { data: rt } = await supabase.from("recurring_templates").select("*");
+    // CHANGES.md #2h: la lupa del dashboard también busca en la Biblioteca —
+    // RLS ya limita esto a generales + propios + compartidos conmigo.
+    const { data: res } = await supabase.from("resources").select("*");
     setTasks(t || []);
     setProfiles(p || []);
     setSubtasks(st || []);
     setRecurringTemplates(rt || []);
+    setResources(res || []);
   }, []);
 
   const loadNotifications = useCallback(async (userId) => {
@@ -1292,7 +1306,7 @@ export default function Dashboard() {
       {showTeam && <TeamPanel onClose={() => setShowTeam(false)} profiles={assignableProfiles} tasks={tasks} />}
       {showActivity && <ActivityPanel onClose={() => setShowActivity(false)} profile={profile} router={router} />}
       {showNotifs && <NotificationsPanel onClose={() => setShowNotifs(false)} notifications={notifications} onOpenTask={(taskId) => { const t = tasks.find((x) => x.id === taskId); if (t) setSelected(t); setShowNotifs(false); }} onOpenFilter={(target) => { if (target === "requests:Entregado") { setPrimaryTab("requests"); setActiveFilter({ type: "Estado", value: "Entregado" }); } setShowNotifs(false); }} pushSupported={pushSupported} pushEnabled={pushEnabled} onEnablePush={enablePush} />}
-      {showSearch && <SearchModal onClose={() => setShowSearch(false)} tasks={myTasks} profiles={profiles} onOpenTask={(t) => { setSelected(t); setShowSearch(false); }} />}
+      {showSearch && <SearchModal onClose={() => setShowSearch(false)} tasks={myTasks} profiles={profiles} resources={resources} onOpenTask={(t) => { setSelected(t); setShowSearch(false); }} onOpenResource={(r) => { setShowSearch(false); router.push(`/biblioteca?open=${r.id}`); }} />}
     </div>
   );
 }
@@ -2430,6 +2444,10 @@ function TaskDetail({ task, onClose, onUpdate, onDelete, onDeleteRecurring, recu
   const teamProfiles = profiles.filter((p) => (task.team_member_ids || []).includes(p.id));
   const coRequesterNames = (task.co_requester_names || []).length > 0 ? task.co_requester_names : (task.responsible_name ? [task.responsible_name] : []);
   const showSubtasks = isColaborativo || task.task_type === "individual";
+  // CHANGES.md #10: en un Individual, además del/los solicitante(s), el
+  // propio asignado puede agregarse subtareas a sí mismo para dividir su
+  // pendiente — no reparte nada, targetAssignedToId sigue fijo a él mismo.
+  const canAddSubtask = !isFinalized && !viewerIsGerente && (isAnyRequester || (task.task_type === "individual" && isAssignee));
   const sameDay = task.request_date && task.deadline && task.request_date === task.deadline;
   const hasSubtasks = subtasks.length > 0;
   const allSubtasksDelivered = hasSubtasks && subtasks.every((s) => s.status === "Entregado");
@@ -2811,7 +2829,7 @@ function TaskDetail({ task, onClose, onUpdate, onDelete, onDeleteRecurring, recu
               <div className="flex items-center justify-between mb-2">
                 <div className="flex items-center gap-1.5">
                   <span className="font-mono text-[10px] uppercase tracking-widest" style={{ color: C.inkSoft }}>Subtareas ({subtasks.filter((s) => s.status === "Entregado").length}/{subtasks.length})</span>
-                  {isAnyRequester && !isFinalized && !viewerIsGerente && (
+                  {canAddSubtask && (
                     <button onClick={() => setShowAddSubtask((v) => !v)} title="Agregar subtarea" style={{ borderColor: C.signal, color: C.signal }} className="border rounded-full w-4 h-4 flex items-center justify-center leading-none"><Plus size={10} /></button>
                   )}
                 </div>
@@ -3107,9 +3125,11 @@ function TaskDetail({ task, onClose, onUpdate, onDelete, onDeleteRecurring, recu
 // pendientes (solicitados o asignados), sin importar la pestaña activa, por
 // nombre, estado, urgencia, categoría, título, tipo de pendiente, o
 // "hoy"/"mañana" contra el deadline.
-function SearchModal({ onClose, tasks, profiles, onOpenTask }) {
+function SearchModal({ onClose, tasks, profiles, resources, onOpenTask, onOpenResource }) {
   const [query, setQuery] = useState("");
   const results = query.trim() ? tasks.filter((t) => matchesSearchQuery(t, query, profiles)) : [];
+  // CHANGES.md #2h: además de pendientes, busca recursos de Biblioteca.
+  const resourceResults = query.trim() ? (resources || []).filter((r) => matchesResourceQuery(r, query)) : [];
 
   return (
     <div className="fixed inset-0 z-50 flex items-start justify-center p-4" style={{ background: "rgba(20,24,31,0.5)" }} onClick={onClose}>
@@ -3121,11 +3141,20 @@ function SearchModal({ onClose, tasks, profiles, onOpenTask }) {
           <button onClick={onClose}><X size={16} style={{ color: C.inkSoft }} /></button>
         </div>
         <div className="p-2">
-          {query.trim() && results.length === 0 && <div className="text-xs px-2 py-4" style={{ color: C.inkSoft }}>Sin resultados para "{query}".</div>}
+          {query.trim() && results.length === 0 && resourceResults.length === 0 && <div className="text-xs px-2 py-4" style={{ color: C.inkSoft }}>Sin resultados para "{query}".</div>}
           {results.map((t) => (
             <button key={t.id} onClick={() => onOpenTask(t)} style={{ borderColor: C.hairline }} className="w-full text-left border-b last:border-b-0 px-2.5 py-2.5 flex flex-col gap-0.5">
               <span className="text-sm font-medium truncate" style={{ color: C.ink }}>{t.title}</span>
               <span className="font-mono text-[10px]" style={{ color: C.inkSoft }}>{t.status} · {t.category} · solicita {t.requested_by} → {t.task_type === "colaborativo" ? "equipo" : t.assigned_to_name}</span>
+            </button>
+          ))}
+          {resourceResults.length > 0 && (
+            <div className="font-mono text-[10px] uppercase tracking-widest px-2.5 pt-3 pb-1" style={{ color: C.inkSoft }}>Biblioteca</div>
+          )}
+          {resourceResults.map((r) => (
+            <button key={r.id} onClick={() => onOpenResource(r)} style={{ borderColor: C.hairline }} className="w-full text-left border-b last:border-b-0 px-2.5 py-2.5 flex flex-col gap-0.5">
+              <span className="text-sm font-medium truncate flex items-center gap-1.5" style={{ color: C.ink }}><BookOpen size={12} style={{ color: C.signal, flexShrink: 0 }} /> {r.title}</span>
+              <span className="font-mono text-[10px]" style={{ color: C.inkSoft }}>{r.is_general ? "Recurso general" : "Mis recursos"}{(r.tags || []).length > 0 ? ` · ${r.tags.join(", ")}` : ""}</span>
             </button>
           ))}
         </div>

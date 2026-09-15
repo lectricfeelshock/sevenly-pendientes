@@ -8,39 +8,6 @@ se hizo).
 
 ## Pendientes
 
-### 2. Biblioteca: recursos generales vs. individuales, compartir, y subir archivos
-Hoy en Biblioteca solo el admin puede agregar recursos, y todos son
-"generales" (le sirven a todo el equipo). Cambios deseados:
-
-a. **Mantener "Recursos generales"**: los que sirven a todo el equipo.
-   Por ahora los sigue agregando el admin (a futuro, cuando cada persona
-   o gerente tenga su propia cuenta, cada gerente podrá agregar recursos
-   generales para su propio equipo).
-b. **Nueva sección "Mis recursos"**: recursos personales — los que yo
-   agregué, más los que otros me compartieron.
-c. **Botón "Agregar nuevo recurso" para cualquier usuario** (no solo
-   admin), con título, descripción, y la opción de poner un link **o**
-   subir un archivo.
-d. **Investigar si es viable subir archivos** a donde sea que se
-   guarden (hoy solo se agregan links a SharePoint por miedo a llenar el
-   almacenamiento con archivos, sobre todo muchos archivos pequeños).
-   Tipos de archivo permitidos: imágenes, PDFs, documentos (Word) y
-   hojas de cálculo (Excel). Confirmar los límites de almacenamiento
-   disponibles antes de habilitarlo.
-e. **Los recursos nuevos son individuales por default**, con una opción
-   "Compartir" para compartirlos con el equipo — al compartir, el
-   recurso aparece también en "Mis recursos" de la gente con quien se
-   compartió (sin volverse "general").
-f. **Desde "Recursos generales"**, cada recurso debe tener un botón
-   "Añadir a mis recursos" para copiarlo a la lista personal de quien lo
-   ve.
-g. **Buscador (lupa) dentro de Biblioteca**, que busque solo por:
-   - Nombre del recurso
-   - Etiqueta del recurso
-   - Buscando tanto en "Recursos generales" como en "Mis recursos"
-h. **La lupa del dashboard** (solicitud #1) también debe poder
-   encontrar estos recursos de Biblioteca entre sus resultados.
-
 ### 8. Apartado de FAQ (dudas frecuentes)
 Un apartado nuevo con preguntas frecuentes y sus respuestas, para que el
 equipo pueda resolver dudas comunes sin tener que preguntar. Aún sin
@@ -48,13 +15,6 @@ definir bien — ni las preguntas, ni dónde vive dentro de la app (¿pestaña
 propia? ¿dentro de Biblioteca? ¿accesible desde el menú de arriba?), ni
 quién la puede editar. Lo dejo como opción por ahora; cuando lo tenga más
 claro lo detallo.
-
-### 10. Poder agregarte subtareas a ti mismo en un pendiente individual que te asignaron
-En un pendiente **individual** que a mí me asignaron, que yo (el
-asignado) pueda agregarme subtareas a mí mismo — es para poder dividir
-mi propio pendiente general en partes más chicas, no para repartirlo
-con nadie más (el pendiente se queda individual, solo se trata de
-organizarme mejor).
 
 ### 17. Widget de Pomodoro timer en el perfil
 En la página de perfil, agregar un widget de temporizador Pomodoro
@@ -65,6 +25,48 @@ etc. Lo dejo como opción por ahora; cuando lo tenga más claro lo
 detallo.
 
 ## Historial (aplicadas)
+
+### [x] 10. Poder agregarte subtareas a ti mismo en un pendiente individual que te asignaron
+_Aplicada 2026-09-15._
+
+En un pendiente **individual**, además del/los solicitante(s), ahora
+también el asignado puede darle a "+" junto a "Subtareas" y agregarse
+subtareas a sí mismo — siguen asignándose siempre a él mismo (no hay
+forma de repartirlas a otra persona desde ahí), el pendiente se queda
+individual.
+
+### [x] 2. Biblioteca: recursos generales vs. individuales, compartir, y subir archivos
+_Aplicada 2026-09-15._
+
+a. **"Recursos generales"** se queda igual — solo el admin los agrega,
+   edita y borra (botón "Agregar recurso" en esa sección).
+b. **Nueva sección "Mis recursos"**: junta los que cada quien agregó
+   (`owner_id`) más los que le compartieron (`shared_with`) — nunca los
+   ve nadie más.
+c. **Botón "Agregar nuevo recurso"** disponible para cualquier usuario
+   en la sección "Mis recursos", con título, descripción, etiquetas, y
+   un selector "Link" / "Subir archivo" (uno u otro, no los dos).
+d. **Investigación de almacenamiento**: el proyecto está en el plan
+   Free de Supabase (1 GB de storage incluido, 0 bytes usados al
+   momento de habilitarlo) — sí es viable. Se habilitó un bucket
+   (`resource-files`) que solo acepta imágenes, PDF, Word o Excel, con
+   20 MB máximo por archivo. Si el equipo sube muchos archivos pesados,
+   vale la pena revisar el uso en Supabase → Settings → Billing → Usage
+   antes de que se acerque a ese 1 GB.
+e. Todo recurso nuevo entra como personal (`is_general = false`). Desde
+   su desglose, el dueño tiene un botón "Compartir" que abre una lista
+   del equipo para elegir con quién — aparece en "Mis recursos" de esa
+   gente sin volverse general, y el dueño puede quitarle el compartido
+   a alguien reabriendo "Compartir" y desmarcándolo.
+f. Cada recurso de "Recursos generales" tiene, en su desglose, un botón
+   "Añadir a mis recursos" que crea una copia personal (se desactiva
+   solo si ya existe esa copia, para no duplicarla dos veces).
+g. La Biblioteca tiene su propia lupa (arriba a la derecha) que busca
+   por nombre y etiqueta, tanto en "Recursos generales" como en "Mis
+   recursos".
+h. La lupa del dashboard (solicitud #1) ahora también encuentra estos
+   recursos — al darle clic a uno, abre la Biblioteca directo en el
+   desglose de ese recurso.
 
 ### [x] 18. Pendientes vencidos: quitar "Muy urgente", tarjeta negra, recordatorio diario y strikes a 7 días
 _Aplicada 2026-09-08 — PR #55._
