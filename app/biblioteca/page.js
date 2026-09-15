@@ -122,6 +122,7 @@ function BibliotecaPageInner() {
   const [editing, setEditing] = useState(null);
   const [selected, setSelected] = useState(null);
   const [sharing, setSharing] = useState(null);
+  const [view, setView] = useState("general"); // "general" | "mine"
   const [activeTags, setActiveTags] = useState([]);
   const [searchOpen, setSearchOpen] = useState(false);
   const [query, setQuery] = useState("");
@@ -168,10 +169,13 @@ function BibliotecaPageInner() {
   const isAdmin = profile?.role === "admin";
   const generalResources = resources.filter((r) => r.is_general);
   const myResources = resources.filter((r) => !r.is_general);
-  const allTags = Array.from(new Set(resources.flatMap((r) => r.tags || []))).sort();
+  const currentList = view === "general" ? generalResources : myResources;
+  const allTags = Array.from(new Set(currentList.flatMap((r) => r.tags || []))).sort();
   const byTags = (list) => activeTags.length === 0 ? list : list.filter((r) => (r.tags || []).some((t) => activeTags.includes(t)));
   const searching = query.trim().length > 0;
   const searchResults = searching ? resources.filter((r) => matchesQuery(r, query)) : [];
+
+  const changeView = (v) => { setView(v); setActiveTags([]); };
 
   const openNewGeneral = () => { setEditing(null); setFormIsGeneral(true); setShowForm(true); };
   const openNewPersonal = () => { setEditing(null); setFormIsGeneral(false); setShowForm(true); };
@@ -256,6 +260,23 @@ function BibliotecaPageInner() {
           <>
             <p className="text-sm mb-5" style={{ color: C.inkSoft }}>Todo lo que necesitas para crear, en un solo lugar.</p>
 
+            <div className="flex gap-1.5 mb-4">
+              <button
+                onClick={() => changeView("general")}
+                style={{ borderColor: view === "general" ? C.spine : C.hairline, background: view === "general" ? C.spine : "transparent", color: view === "general" ? C.paper : C.ink }}
+                className="border px-3 py-1.5 text-sm flex-1"
+              >
+                Recursos generales
+              </button>
+              <button
+                onClick={() => changeView("mine")}
+                style={{ borderColor: view === "mine" ? C.spine : C.hairline, background: view === "mine" ? C.spine : "transparent", color: view === "mine" ? C.paper : C.ink }}
+                className="border px-3 py-1.5 text-sm flex-1"
+              >
+                Mis recursos
+              </button>
+            </div>
+
             {allTags.length > 0 && (
               <div className="flex flex-wrap gap-1.5 mb-6">
                 <button
@@ -281,36 +302,38 @@ function BibliotecaPageInner() {
               </div>
             )}
 
-            <section className="mb-8">
-              <div className="flex items-center justify-between mb-3">
-                <h2 style={{ color: C.ink, fontFamily: "Georgia, serif" }} className="text-base">Recursos generales</h2>
-                {isAdmin && (
-                  <button onClick={openNewGeneral} style={{ background: C.spine, color: C.paper }} className="px-3 py-1.5 text-xs flex items-center gap-1.5">
-                    <Plus size={13} /> Agregar recurso
+            {view === "general" ? (
+              <section>
+                <div className="flex items-center justify-between mb-3">
+                  <h2 style={{ color: C.ink, fontFamily: "Georgia, serif" }} className="text-base">Recursos generales</h2>
+                  {isAdmin && (
+                    <button onClick={openNewGeneral} style={{ background: C.spine, color: C.paper }} className="px-3 py-1.5 text-xs flex items-center gap-1.5">
+                      <Plus size={13} /> Agregar recurso
+                    </button>
+                  )}
+                </div>
+                {generalResources.length === 0 && <p className="text-sm" style={{ color: C.inkSoft }}>Todavía no hay recursos generales{isAdmin ? " — dale a \"Agregar recurso\" para el primero." : "."}</p>}
+                {generalResources.length > 0 && byTags(generalResources).length === 0 && <p className="text-sm" style={{ color: C.inkSoft }}>Nada con esas etiquetas todavía.</p>}
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                  {byTags(generalResources).map((r) => <ResourceCard key={r.id} r={r} profiles={profiles} profile={profile} onOpen={() => setSelected(r)} />)}
+                </div>
+              </section>
+            ) : (
+              <section>
+                <div className="flex items-center justify-between mb-3">
+                  <h2 style={{ color: C.ink, fontFamily: "Georgia, serif" }} className="text-base">Mis recursos</h2>
+                  <button onClick={openNewPersonal} style={{ background: C.spine, color: C.paper }} className="px-3 py-1.5 text-xs flex items-center gap-1.5">
+                    <Plus size={13} /> Agregar nuevo recurso
                   </button>
-                )}
-              </div>
-              {generalResources.length === 0 && <p className="text-sm" style={{ color: C.inkSoft }}>Todavía no hay recursos generales{isAdmin ? " — dale a \"Agregar recurso\" para el primero." : "."}</p>}
-              {generalResources.length > 0 && byTags(generalResources).length === 0 && <p className="text-sm" style={{ color: C.inkSoft }}>Nada con esas etiquetas todavía.</p>}
-              <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-                {byTags(generalResources).map((r) => <ResourceCard key={r.id} r={r} profiles={profiles} profile={profile} onOpen={() => setSelected(r)} />)}
-              </div>
-            </section>
-
-            <section>
-              <div className="flex items-center justify-between mb-3">
-                <h2 style={{ color: C.ink, fontFamily: "Georgia, serif" }} className="text-base">Mis recursos</h2>
-                <button onClick={openNewPersonal} style={{ background: C.spine, color: C.paper }} className="px-3 py-1.5 text-xs flex items-center gap-1.5">
-                  <Plus size={13} /> Agregar nuevo recurso
-                </button>
-              </div>
-              <p className="text-[11px] mb-3" style={{ color: C.inkSoft }}>Los que tú agregaste, más los que te compartieron.</p>
-              {myResources.length === 0 && <p className="text-sm" style={{ color: C.inkSoft }}>Todavía no tienes recursos personales — dale a "Agregar nuevo recurso".</p>}
-              {myResources.length > 0 && byTags(myResources).length === 0 && <p className="text-sm" style={{ color: C.inkSoft }}>Nada con esas etiquetas todavía.</p>}
-              <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-                {byTags(myResources).map((r) => <ResourceCard key={r.id} r={r} profiles={profiles} profile={profile} onOpen={() => setSelected(r)} />)}
-              </div>
-            </section>
+                </div>
+                <p className="text-[11px] mb-3" style={{ color: C.inkSoft }}>Los que tú agregaste, más los que te compartieron.</p>
+                {myResources.length === 0 && <p className="text-sm" style={{ color: C.inkSoft }}>Todavía no tienes recursos personales — dale a "Agregar nuevo recurso".</p>}
+                {myResources.length > 0 && byTags(myResources).length === 0 && <p className="text-sm" style={{ color: C.inkSoft }}>Nada con esas etiquetas todavía.</p>}
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                  {byTags(myResources).map((r) => <ResourceCard key={r.id} r={r} profiles={profiles} profile={profile} onOpen={() => setSelected(r)} />)}
+                </div>
+              </section>
+            )}
           </>
         )}
       </div>
@@ -343,7 +366,7 @@ function BibliotecaPageInner() {
       {sharing && (
         <ShareResourceModal
           resource={sharing}
-          profiles={profiles.filter((p) => p.id !== profile.id)}
+          profiles={profiles.filter((p) => p.id !== profile.id && p.role !== "admin")}
           onClose={() => setSharing(null)}
           onSave={saveShare}
         />
