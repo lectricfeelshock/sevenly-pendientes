@@ -2443,11 +2443,15 @@ function TaskDetail({ task, onClose, onUpdate, onDelete, onDeleteRecurring, recu
   const canEditUrgency = isColaborativo ? isAnyRequester : isAssignee;
   const teamProfiles = profiles.filter((p) => (task.team_member_ids || []).includes(p.id));
   const coRequesterNames = (task.co_requester_names || []).length > 0 ? task.co_requester_names : (task.responsible_name ? [task.responsible_name] : []);
-  const showSubtasks = isColaborativo || task.task_type === "individual";
+  // effectiveTaskType, no task.task_type: un Personal delegado a otra
+  // persona se ve y se comporta como Individual en cuanto se le asigna
+  // (ver effectiveTaskType), así que también debe poder llevar subtareas.
+  const effType = effectiveTaskType(task);
+  const showSubtasks = isColaborativo || effType === "individual";
   // CHANGES.md #10: en un Individual, además del/los solicitante(s), el
   // propio asignado puede agregarse subtareas a sí mismo para dividir su
   // pendiente — no reparte nada, targetAssignedToId sigue fijo a él mismo.
-  const canAddSubtask = !isFinalized && !viewerIsGerente && (isAnyRequester || (task.task_type === "individual" && isAssignee));
+  const canAddSubtask = !isFinalized && !viewerIsGerente && (isAnyRequester || (effType === "individual" && isAssignee));
   const sameDay = task.request_date && task.deadline && task.request_date === task.deadline;
   const hasSubtasks = subtasks.length > 0;
   const allSubtasksDelivered = hasSubtasks && subtasks.every((s) => s.status === "Entregado");
@@ -2811,7 +2815,7 @@ function TaskDetail({ task, onClose, onUpdate, onDelete, onDeleteRecurring, recu
             </div>
           )}
 
-          {(isColaborativo || (task.task_type === "individual" && hasSubtasks)) && (
+          {(isColaborativo || (effType === "individual" && hasSubtasks)) && (
             <div>
               <div className="font-mono text-[10px] uppercase tracking-widest mb-2" style={{ color: C.inkSoft }}>Estado general</div>
               <div className="flex items-center gap-1.5">
@@ -2918,7 +2922,7 @@ function TaskDetail({ task, onClose, onUpdate, onDelete, onDeleteRecurring, recu
               </div>
             )
           )}
-          {!isAdmin && !isFinalized && !allSubtasksDelivered && ((isColaborativo && isAnyRequester) || (task.task_type === "individual" && hasSubtasks && isRequester)) && (
+          {!isAdmin && !isFinalized && !allSubtasksDelivered && ((isColaborativo && isAnyRequester) || (effType === "individual" && hasSubtasks && isRequester)) && (
             <p className="text-[11px]" style={{ color: C.inkSoft }}>Se podrá finalizar cuando todas las subtareas queden en "Entregado".</p>
           )}
 
