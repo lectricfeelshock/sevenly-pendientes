@@ -68,6 +68,12 @@ h. La lupa del dashboard (solicitud #1) ahora también encuentra estos
    recursos — al darle clic a uno, abre la Biblioteca directo en el
    desglose de ese recurso.
 
+_Ajustado 2026-09-15:_ arriba de los filtros de etiqueta ahora hay dos
+botones — "Recursos generales" y "Mis recursos" — para ver una sección
+a la vez en vez de las dos apiladas; los filtros de etiqueta se aplican
+sobre la que esté activa. Y en la ventana de "Compartir", el admin ya
+no aparece en la lista de gente con quien compartir.
+
 ### [x] 18. Pendientes vencidos: quitar "Muy urgente", tarjeta negra, recordatorio diario y strikes a 7 días
 _Aplicada 2026-09-08 — PR #55._
 
