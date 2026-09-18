@@ -24,6 +24,24 @@ si suena alguna alerta al terminar cada uno, si se puede personalizar,
 etc. Lo dejo como opción por ahora; cuando lo tenga más claro lo
 detallo.
 
+### 19. Quitar el tipo "Personal": que Individual pueda cubrir ese caso
+La idea es dejar de necesitar el tipo "Personal" (donde tú te asignas
+un pendiente a ti mismo), haciendo que "Individual" pueda hacer lo
+mismo:
+
+a. Al crear un pendiente **Individual**, en "Solicita" podrás elegir a
+   otra persona del equipo como solicitante — ya no tienes que ser
+   siempre tú el que solicita.
+b. En "Asignar a", tu propio nombre también aparecerá como opción (hoy
+   se excluye).
+c. Con esas dos, puedes armar un Individual con solicitante = tú y
+   asignado = tú — igual que hacía "Personal" — y ya no haría falta
+   tener el tipo aparte.
+
+Falta decidir qué pasa con los pendientes "Personal" que ya existen
+(¿se migran a Individual, o se dejan convivir sin que se puedan crear
+nuevos?) — lo dejo pendiente de aterrizar antes de construirlo.
+
 ## Historial (aplicadas)
 
 ### [x] 10. Poder agregarte subtareas a ti mismo en un pendiente individual que te asignaron
