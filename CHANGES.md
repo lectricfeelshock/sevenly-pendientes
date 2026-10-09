@@ -42,26 +42,28 @@ Falta decidir qué pasa con los pendientes "Personal" que ya existen
 (¿se migran a Individual, o se dejan convivir sin que se puedan crear
 nuevos?) — lo dejo pendiente de aterrizar antes de construirlo.
 
-### 20. Cronograma: tabla para organizar en el tiempo tus pendientes ya asignados
-Una sección nueva donde cada persona vea solo SUS pendientes ya
-asignados, le ponga a cada uno cuánto tiempo le va a tomar, y los pueda
-ir acomodando en una tabla/tablero donde se arrastran de lugar — como
-armar a mano el orden en que vas a hacer tu día (o tu semana), no algo
-que la app calcule sola.
+### 20. Cronograma diario: línea de tiempo con tus pendientes como bloques que arrastras
+Un apartado nuevo (tipo "mi día") donde eliges de tus pendientes ya
+asignados cuáles vas a trabajar hoy, le pones a cada uno cuánto tiempo
+calculas que te va a tomar, y se te muestra como una línea de tiempo
+con las horas del día — cada pendiente es un rectángulo que ocupa ese
+bloque de horas, y lo puedes arrastrar para moverlo de lugar (algo
+visual tipo Trello, pero para organizar tu tiempo, no un cálculo
+automático de la app).
 
 Aún sin definir bien — lo dejo como opción, cuando lo tenga más claro
 lo detallo. Preguntas abiertas antes de construirlo:
-- ¿Es una tabla por día, por semana, o un bloque de tiempo libre que tú
-  armas (sin fechas fijas de por medio)?
-- El "cuánto tiempo le tomará" — ¿se guarda como dato nuevo del
-  pendiente (visible para todos), o es algo privado solo de mi
-  cronograma?
-- Si lo que acomodas no alcanza a caber antes del deadline del
-  pendiente, ¿hace falta alguna alerta, o es solo una herramienta visual
-  sin validaciones?
-- ¿Se pueden acomodar ahí también los pendientes que yo solicité (para
+- El "cuánto tiempo le tomará" a cada pendiente, ¿se guarda como dato
+  nuevo del pendiente (visible para todos) o es privado, solo de mi
+  cronograma del día?
+- Si los bloques que acomodas no alcanzan a caber antes del deadline
+  de un pendiente, ¿hace falta alguna alerta, o es solo una
+  herramienta visual sin validaciones?
+- ¿Se pueden meter ahí también los pendientes que yo solicité (para
   ver cuándo los va a hacer la otra persona), o solo los que a mí me
   asignaron?
+- ¿Es solo para hoy (se reinicia cada día) o también se puede armar el
+  de días futuros, tipo semana?
 
 ## Historial (aplicadas)
 
