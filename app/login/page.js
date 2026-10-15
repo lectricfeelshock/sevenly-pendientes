@@ -85,9 +85,9 @@ export default function LoginPage() {
           <div
             style={{ width: 60, height: 60, borderRadius: R.xl, background: C.ink, color: C.paper, fontFamily: FONT_SERIF, fontSize: 30, fontWeight: 500, boxShadow: SH.float }}
             className="flex items-center justify-center"
-          >S</div>
+          >T</div>
           <div className="flex flex-col items-center gap-2">
-            <div style={{ fontFamily: FONT_SERIF, fontSize: 34, fontWeight: 500, letterSpacing: "-0.01em" }}>Sevenly</div>
+            <div style={{ fontFamily: FONT_SERIF, fontSize: 34, fontWeight: 500, letterSpacing: "-0.01em" }}>Terregal</div>
             <div style={{ fontSize: 14.5, color: C.inkSoft }} className="text-center">Los pendientes del equipo, en orden.</div>
           </div>
         </div>
@@ -159,7 +159,7 @@ export default function LoginPage() {
         </button>
 
         <div style={{ color: "#B6B2A8", fontSize: 11.5, fontWeight: 600, letterSpacing: "0.14em" }} className="mt-10">
-          SEVENLY · EQUIPO DE CONTENIDO
+          TERREGAL · EQUIPO DE CONTENIDO
         </div>
       </div>
     </div>

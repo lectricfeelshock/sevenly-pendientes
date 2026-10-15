@@ -222,7 +222,7 @@ function BibliotecaPageInner() {
   return (
     <div style={{ background: C.paper, minHeight: "100vh" }} className="w-full font-sans pb-28 md:pb-10 md:pl-[248px]">
       <div className="px-5 pt-4 pb-1 flex items-center justify-between md:hidden">
-        <div className="text-[11px] font-bold tracking-[0.18em]" style={{ color: C.inkSoft }}>SEVENLY</div>
+        <div className="text-[11px] font-bold tracking-[0.18em]" style={{ color: C.inkSoft }}>TERREGAL</div>
       </div>
 
       <div className="max-w-3xl mx-auto p-5 md:pt-10">

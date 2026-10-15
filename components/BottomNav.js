@@ -50,8 +50,8 @@ export default function BottomNav({ active, profile, onEquipo }) {
         className="hidden md:flex fixed left-0 top-0 bottom-0 z-30 flex-col p-4"
       >
         <button onClick={() => router.push("/dashboard")} className="flex items-center gap-[11px] px-1.5">
-          <div style={{ width: 34, height: 34, borderRadius: 11, background: C.ink, color: C.paper, fontFamily: FONT_SERIF, fontSize: 18, fontWeight: 500 }} className="flex items-center justify-center">S</div>
-          <span style={{ fontSize: 16.5, fontWeight: 700, letterSpacing: "-0.01em" }}>Sevenly</span>
+          <div style={{ width: 34, height: 34, borderRadius: 11, background: C.ink, color: C.paper, fontFamily: FONT_SERIF, fontSize: 18, fontWeight: 500 }} className="flex items-center justify-center">T</div>
+          <span style={{ fontSize: 16.5, fontWeight: 700, letterSpacing: "-0.01em" }}>Terregal</span>
         </button>
 
         <div className="flex flex-col gap-1 mt-6">

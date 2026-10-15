@@ -407,6 +407,18 @@ function DeadlineBadge({ deadline, status, hideToday, dark }) {
   );
 }
 
+// Fila de la tarjeta de info del Desglose (Solicita / Asignado a / Fecha de
+// solicitud / Deadline general): etiqueta a la izquierda, valor a la
+// derecha, línea divisoria entre filas salvo la última.
+function InfoRow({ label, value, last }) {
+  return (
+    <div style={{ boxShadow: last ? "none" : `inset 0 -1px 0 ${C.hairlineSoft}` }} className="flex items-center justify-between gap-3 px-4 py-3">
+      <span className="text-[13.5px]" style={{ color: C.inkSoft }}>{label}</span>
+      <span className="text-[14px] font-semibold text-right" style={{ color: C.ink }}>{value}</span>
+    </div>
+  );
+}
+
 function urlBase64ToUint8Array(base64String) {
   const padding = "=".repeat((4 - (base64String.length % 4)) % 4);
   const base64 = (base64String + padding).replace(/-/g, "+").replace(/_/g, "/");
@@ -739,7 +751,7 @@ export default function Dashboard() {
   const addHistory = async (taskId, text) => { await supabase.from("task_history").insert({ task_id: taskId, text }); };
   const notify = async (userId, taskId, message, title, target) => {
     await supabase.from("notifications").insert({ user_id: userId, task_id: taskId, message, ...(title ? { title } : {}), ...(target ? { target } : {}) });
-    fetch("/api/send-push", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ userId, title: title || "Sevenly", body: message, url: "/dashboard" }) }).catch(() => {});
+    fetch("/api/send-push", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ userId, title: title || "Terregal", body: message, url: "/dashboard" }) }).catch(() => {});
   };
 
   const createTask = async (form) => {
@@ -1094,10 +1106,16 @@ export default function Dashboard() {
   const unreadCount = notifications.filter((n) => !n.read).length;
   const bellLabel = unreadCount === 0 ? null : unreadCount > 3 ? "+3" : String(unreadCount);
 
+  // Resumen bajo el título: activos y cuántos se entregan hoy — sobre el
+  // universo de la pestaña actual (base), sin que los filtros secundarios
+  // (Estado/Urgencia/...) lo muevan.
+  const activeInTab = base.filter((t) => !DONE_STATUSES.includes(t.status));
+  const dueTodayCount = activeInTab.filter((t) => t.deadline === todayISO()).length;
+
   return (
     <div style={{ background: C.paper, minHeight: "100vh" }} className="w-full font-sans pb-28 md:pb-10 md:pl-[248px]">
       <div className="px-5 pt-4 pb-1 flex items-center justify-between gap-3">
-        <div className="text-[11px] font-bold tracking-[0.18em] md:hidden" style={{ color: C.inkSoft }}>SEVENLY</div>
+        <div className="text-[11px] font-bold tracking-[0.18em] md:hidden" style={{ color: C.inkSoft }}>TERREGAL</div>
         <div className="flex items-center gap-2 ml-auto">
           <button onClick={() => setShowActivity(true)} title={profile.name}
             style={{ width: 40, height: 40, borderRadius: R.pill, background: C.panel, boxShadow: SH.soft, color: C.inkMedium }}
@@ -1109,8 +1127,17 @@ export default function Dashboard() {
           </button>
         </div>
       </div>
-      <div className="px-5 pt-3 flex items-center justify-between gap-3">
+      <div className="px-5 pt-3">
         <h1 style={{ color: C.ink, fontFamily: FONT_SERIF, fontSize: 32, fontWeight: 500, letterSpacing: "-0.01em" }} className="leading-[1.08]">Pendientes</h1>
+        <div className="flex items-center gap-2 mt-1.5 text-[13.5px]" style={{ color: C.inkSoft }}>
+          <span>{activeInTab.length} activo{activeInTab.length === 1 ? "" : "s"}</span>
+          {dueTodayCount > 0 && (
+            <>
+              <span style={{ width: 3, height: 3, borderRadius: R.pill, background: "#C3C0B8" }} />
+              <span style={{ color: C.urgent, fontWeight: 600 }}>{dueTodayCount} se entrega{dueTodayCount === 1 ? "" : "n"} hoy</span>
+            </>
+          )}
+        </div>
       </div>
 
       <div className="px-5 pt-5 flex flex-wrap items-center gap-2 relative">
@@ -2661,7 +2688,7 @@ function TaskDetail({ task, onClose, onUpdate, onDelete, onDeleteRecurring, recu
   const sendReminderEmail = async () => {
     if (!reminderRecipient) return;
     const subject = encodeURIComponent(`Recordatorio: ${task.title}`);
-    const body = encodeURIComponent(`Hola ${reminderRecipient.name},\n\nRecordatorio del pendiente "${task.title}" (${task.category}).\nDeadline: ${fmtDate(task.deadline)}\nEstado: ${task.status}\n\nDe parte de ${profile.name}, panel Sevenly.`);
+    const body = encodeURIComponent(`Hola ${reminderRecipient.name},\n\nRecordatorio del pendiente "${task.title}" (${task.category}).\nDeadline: ${fmtDate(task.deadline)}\nEstado: ${task.status}\n\nDe parte de ${profile.name}, panel Terregal.`);
     const to = encodeURIComponent(reminderRecipient.email || "");
     window.open(`https://outlook.office.com/mail/deeplink/compose?to=${to}&subject=${subject}&body=${body}`, "_blank");
     await onUpdate(task, {}, `${profile.name} envió recordatorio por correo a ${reminderRecipient.name}`);
@@ -2669,7 +2696,7 @@ function TaskDetail({ task, onClose, onUpdate, onDelete, onDeleteRecurring, recu
   const sendReminderWhatsapp = async () => {
     if (!reminderRecipient || !reminderRecipient.phone) return;
     const cleanPhone = reminderRecipient.phone.replace(/\D/g, "");
-    const text = encodeURIComponent(`Hola ${reminderRecipient.name}, recordatorio: "${task.title}" (${task.category}). Deadline: ${fmtDate(task.deadline)}. Estado: ${task.status}. — ${profile.name}, Sevenly`);
+    const text = encodeURIComponent(`Hola ${reminderRecipient.name}, recordatorio: "${task.title}" (${task.category}). Deadline: ${fmtDate(task.deadline)}. Estado: ${task.status}. — ${profile.name}, Terregal`);
     window.open(`https://wa.me/${cleanPhone}?text=${text}`, "_blank");
     await onUpdate(task, {}, `${profile.name} envió recordatorio por WhatsApp a ${reminderRecipient.name}`);
   };
@@ -2738,6 +2765,32 @@ function TaskDetail({ task, onClose, onUpdate, onDelete, onDeleteRecurring, recu
             className="flex items-center justify-center"><X size={17} /></button>
         </div>
         <div className="p-5 flex flex-col gap-5">
+          {(() => {
+            const legend = dueLegend(task.deadline, task.status);
+            const urg = URGENCIES.find((u) => u.label === task.urgency) || URGENCIES[0];
+            const legendPill = legend && (
+              legend.color === C.amber ? { background: C.amberSoft, color: C.amberInk } :
+              legend.color === C.urgent ? { background: C.urgentSoft, color: C.urgentInk } :
+              null
+            );
+            if (!legend && !canEditUrgency) return null;
+            return (
+              <div className="flex items-center gap-2.5 -mt-2">
+                {legend && (legendPill ? (
+                  <span style={{ ...legendPill, borderRadius: R.pill, fontWeight: 700 }} className="text-[11.5px] px-3 py-1.5">{legend.text}</span>
+                ) : (
+                  <span className="text-[12.5px]" style={{ color: C.inkSoft }}>{legend.text}</span>
+                ))}
+                {canEditUrgency && !isFinalized && !viewerIsGerente ? (
+                  <select value={task.urgency} onChange={(e) => changeUrgency(e.target.value)} style={{ background: C.paper, borderRadius: R.pill, color: urg.color }} className="px-3 py-1.5 text-[12.5px] font-semibold outline-none">
+                    {URGENCIES.map((u) => <option key={u.label} value={u.label}>{u.label}</option>)}
+                  </select>
+                ) : (
+                  <UrgencyFlag urgency={task.urgency} />
+                )}
+              </div>
+            );
+          })()}
           {editingDescription ? (
             <div className="flex flex-col gap-1.5">
               <textarea value={descriptionDraft} onChange={(e) => setDescriptionDraft(e.target.value)} rows={3} style={{ borderColor: C.hairline, background: C.panel, color: C.ink }} className="w-full px-3.5 py-2.5 text-sm outline-none resize-y" />
@@ -2762,51 +2815,40 @@ function TaskDetail({ task, onClose, onUpdate, onDelete, onDeleteRecurring, recu
               </div>
             )
           )}
-          <div className="grid grid-cols-2 gap-3 text-sm">
+          {isOverdueUrgent(task) && canEditUrgency && !isFinalized && !viewerIsGerente && (
+            <div className="text-[11px] font-semibold -mt-3" style={{ color: C.urgent }}>Venció — aún sin entregar</div>
+          )}
+
+          <div style={{ background: C.panel, borderRadius: R.xl, boxShadow: SH.card }} className="overflow-hidden">
             {isPersonalSolo ? (
-              <div className="col-span-2"><div className="text-[11.5px] font-bold tracking-[0.09em] mb-0.5" style={{ color: C.inkSoft }}>Tipo</div><div style={{ color: C.ink }}>Pendiente personal (solo tuyo)</div></div>
+              <InfoRow label="Tipo" value="Pendiente personal (solo tuyo)" />
             ) : (
               <>
-                <div>
-                  <div className="text-[11.5px] font-bold tracking-[0.09em] mb-0.5" style={{ color: C.inkSoft }}>Solicita</div>
-                  <div style={{ color: C.ink }}>{task.requested_by}{coRequesterNames.length ? ` + ${coRequesterNames.join(", ")}` : ""}</div>
-                </div>
+                <InfoRow label="Solicita" value={`${task.requested_by}${coRequesterNames.length ? ` + ${coRequesterNames.join(", ")}` : ""}`} />
                 {isColaborativo ? (
-                  <div><div className="text-[11.5px] font-bold tracking-[0.09em] mb-0.5" style={{ color: C.inkSoft }}>Equipo</div><div style={{ color: C.ink }} className="text-xs leading-relaxed">{teamProfiles.map((p) => p.name).join(", ") || "—"}</div></div>
+                  <InfoRow label="Equipo" value={teamProfiles.map((p) => p.name).join(", ") || "—"} />
                 ) : (
-                  <div>
-                    <div className="text-[11.5px] font-bold tracking-[0.09em] mb-0.5 flex items-center gap-1" style={{ color: C.inkSoft }}>
-                      Asignado a
+                  <InfoRow
+                    label={<span className="flex items-center gap-1.5">Asignado a
                       {task.task_type === "individual" && isRequester && !isFinalized && !viewerIsGerente && (
-                        <button type="button" onClick={() => setShowConvertModal(true)} title="Convertir a Colaborativo" style={{ borderColor: C.signal, color: C.signal }} className="border rounded-full w-3.5 h-3.5 flex items-center justify-center leading-none"><Plus size={9} /></button>
+                        <button type="button" onClick={() => setShowConvertModal(true)} title="Convertir a Colaborativo" style={{ background: C.signalSoft, color: C.signal }} className="rounded-full w-4 h-4 flex items-center justify-center leading-none"><Plus size={10} /></button>
                       )}
-                    </div>
-                    <div style={{ color: C.ink }}>{task.assigned_to_name}</div>
-                  </div>
+                    </span>}
+                    value={task.assigned_to_name}
+                  />
                 )}
               </>
             )}
-            <div><div className="text-[11.5px] font-bold tracking-[0.09em] mb-0.5" style={{ color: C.inkSoft }}>Fecha de solicitud</div><div style={{ color: C.ink }}>{fmtDate(task.request_date)}</div></div>
-            <div></div>
-            <div>
-              <div className="text-[11.5px] font-bold tracking-[0.09em] mb-0.5" style={{ color: C.inkSoft }}>Deadline{showSubtasks ? " general" : ""}</div>
-              {canEditDeadline ? (
-                <input type="date" value={task.deadline || ""} min={showSubtasks ? minGeneralDeadline : undefined} onChange={(e) => changeDeadline(e.target.value)} style={{ background: C.paper, borderRadius: R.md }} className="px-2.5 py-1.5 text-xs outline-none" />
-              ) : <div style={{ color: C.ink }}>{fmtDate(task.deadline)}</div>}
-              {sameDay && <div className="text-[11px] font-semibold uppercase tracking-wider mt-1" style={{ color: C.urgent }}>De hoy para hoy 💀</div>}
-            </div>
-            <div>
-              <div className="text-[11.5px] font-bold tracking-[0.09em] mb-0.5" style={{ color: C.inkSoft }}>Urgencia</div>
-              {canEditUrgency && !isFinalized && !viewerIsGerente ? (
-                <>
-                  <select value={task.urgency} onChange={(e) => changeUrgency(e.target.value)} style={{ background: C.paper, borderRadius: R.md }} className="px-2.5 py-1.5 text-xs outline-none">
-                    {URGENCIES.map((u) => <option key={u.label} value={u.label}>{u.label}</option>)}
-                  </select>
-                  {isOverdueUrgent(task) && <div className="text-[10px] font-semibold mt-1" style={{ color: C.urgent }}>Venció — aún sin entregar</div>}
-                </>
-              ) : <UrgencyFlag urgency={task.urgency} />}
-            </div>
+            <InfoRow label="Fecha de solicitud" value={fmtDate(task.request_date)} />
+            <InfoRow
+              label={`Deadline${showSubtasks ? " general" : ""}`}
+              value={canEditDeadline ? (
+                <input type="date" value={task.deadline || ""} min={showSubtasks ? minGeneralDeadline : undefined} onChange={(e) => changeDeadline(e.target.value)} style={{ background: C.paper, borderRadius: R.sm }} className="px-2.5 py-1.5 text-xs outline-none" />
+              ) : fmtDate(task.deadline)}
+              last
+            />
           </div>
+          {sameDay && <div className="text-[11px] font-bold -mt-3 text-right" style={{ color: C.urgent }}>De hoy para hoy 💀</div>}
 
           {showConvertModal && (
             <ConvertToColaborativoModal

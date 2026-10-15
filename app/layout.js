@@ -1,8 +1,8 @@
 import "./globals.css";
 
 export const metadata = {
-  title: "Sevenly · Panel de pendientes",
-  description: "Control de pendientes del equipo Sevenly",
+  title: "Terregal · Panel de pendientes",
+  description: "Control de pendientes del equipo Terregal",
   manifest: "/manifest.json",
 };
 
@@ -17,7 +17,7 @@ export default function RootLayout({ children }) {
         <link rel="apple-touch-icon" href="/icons/icon-192.png" />
         <meta name="apple-mobile-web-app-capable" content="yes" />
         <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
-        <meta name="apple-mobile-web-app-title" content="Sevenly" />
+        <meta name="apple-mobile-web-app-title" content="Terregal" />
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
         <link

@@ -2,9 +2,16 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabaseClient";
-import { ChevronRight, Eye, EyeOff, LogOut } from "lucide-react";
+import { ChevronRight, Eye, EyeOff, LogOut, Download } from "lucide-react";
 import { C, R, SH, FONT_SERIF } from "@/lib/theme";
 import BottomNav from "@/components/BottomNav";
+
+function activityMsg(n) {
+  if (!n) return "Aún no finalizas pendientes hoy.";
+  if (n <= 2) return "Vas bien.";
+  if (n <= 5) return "¡Bien hecho, buen ritmo!";
+  return "Ha estado pesado hoy — tómate un respiro.";
+}
 
 export default function PerfilPage() {
   const router = useRouter();
@@ -14,6 +21,7 @@ export default function PerfilPage() {
   const [error, setError] = useState("");
   const [info, setInfo] = useState("");
   const [saving, setSaving] = useState(false);
+  const [log, setLog] = useState([]);
 
   useEffect(() => {
     (async () => {
@@ -25,6 +33,14 @@ export default function PerfilPage() {
     })();
   }, [router]);
 
+  useEffect(() => {
+    if (!profile?.id) return;
+    (async () => {
+      const { data } = await supabase.from("finalized_log").select("*").eq("user_id", profile.id).order("finalized_at", { ascending: false }).limit(100);
+      setLog(data || []);
+    })();
+  }, [profile?.id]);
+
   const startEdit = (field) => { setEditing(field); setError(""); setInfo(""); };
   const cancelEdit = () => { setEditing(null); setError(""); };
   const logout = async () => { await supabase.auth.signOut(); router.replace("/login"); };
@@ -35,10 +51,33 @@ export default function PerfilPage() {
 
   const initial = (profile.name || "?").trim().charAt(0).toUpperCase();
 
+  // CHANGES.md #4e: un pendiente finalizado cuenta con la fecha en que se
+  // ENTREGÓ, no la que se finalizó.
+  const days = Array.from({ length: 7 }).map((_, i) => {
+    const dt = new Date(); dt.setDate(dt.getDate() - (6 - i));
+    const iso = dt.toISOString().slice(0, 10);
+    const count = log.filter((l) => (l.delivered_at || l.finalized_at).slice(0, 10) === iso).length;
+    return { iso, label: dt.toLocaleDateString("es-MX", { weekday: "short" }), count, isToday: i === 6 };
+  });
+  const todayCount = days[days.length - 1].count;
+  const maxDayCount = Math.max(1, ...days.map((d) => d.count));
+
+  const downloadLog = () => {
+    const lines = [
+      `Pendientes finalizados por ${profile.name}`, `Total histórico: ${log.length}`, "",
+      ...log.map((l) => `[${new Date(l.delivered_at || l.finalized_at).toLocaleString("es-MX")}] ${l.task_title}`),
+    ];
+    const blob = new Blob([lines.join("\n")], { type: "text/plain" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url; a.download = `finalizados_${profile.name.replace(/[^a-z0-9]/gi, "_")}.txt`;
+    a.click(); URL.revokeObjectURL(url);
+  };
+
   return (
     <div style={{ background: C.paper, minHeight: "100vh" }} className="w-full font-sans pb-28 md:pb-10 md:pl-[248px]">
       <div className="px-5 pt-4 md:hidden">
-        <div className="text-[11px] font-bold tracking-[0.18em]" style={{ color: C.inkSoft }}>SEVENLY</div>
+        <div className="text-[11px] font-bold tracking-[0.18em]" style={{ color: C.inkSoft }}>TERREGAL</div>
       </div>
 
       <div className="max-w-lg mx-auto md:pt-10">
@@ -53,7 +92,32 @@ export default function PerfilPage() {
           </div>
         </div>
 
-        <div className="px-5 mt-6 flex flex-col gap-3">
+        <div className="px-5 mt-6">
+          <div style={{ background: C.panel, borderRadius: R.xl, boxShadow: SH.card }} className="p-[18px] flex flex-col gap-4">
+            <div className="flex items-center justify-between">
+              <span className="text-[11.5px] font-bold tracking-[0.11em]" style={{ color: C.inkSoft }}>MI ACTIVIDAD</span>
+              <span className="text-[12.5px] font-semibold" style={{ color: C.inkSoft }}>Últimos 7 días</span>
+            </div>
+            <div style={{ background: C.signalSoft, color: C.signal, borderRadius: R.md }} className="px-3.5 py-3 text-[13.5px] leading-snug">
+              Hoy: <strong>{todayCount}</strong> finalizado(s). {activityMsg(todayCount)}
+            </div>
+            <div className="flex items-end gap-2.5 h-16">
+              {days.map((d) => (
+                <div key={d.iso} className="flex-1 flex flex-col items-center gap-1.5">
+                  <div style={{ width: "100%", height: Math.max(8, (d.count / maxDayCount) * 42), borderRadius: 7, background: d.count > 0 ? "#CFE3DA" : "#EDEAE3" }} />
+                  <span className="text-[10.5px] capitalize" style={{ color: C.gray, fontWeight: d.isToday ? 700 : 400 }}>{d.isToday ? "hoy" : d.label}</span>
+                </div>
+              ))}
+            </div>
+            <button onClick={downloadLog} disabled={log.length === 0}
+              style={{ background: C.subtle, color: C.inkMedium, borderRadius: R.pill }}
+              className="h-10 text-xs font-semibold flex items-center justify-center gap-2 disabled:opacity-40">
+              <Download size={14} /> Descargar mi lista de finalizados
+            </button>
+          </div>
+        </div>
+
+        <div className="px-5 mt-3 flex flex-col gap-3">
           <ProfileRow label="Nombre" value={profile.name} editing={editing === "name"}
             onEdit={() => startEdit("name")} onCancel={cancelEdit}>
             <NameField profile={profile} setProfile={setProfile} setInfo={setInfo} setError={setError} setEditing={setEditing} saving={saving} setSaving={setSaving} />
