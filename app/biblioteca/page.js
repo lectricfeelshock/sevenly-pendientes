@@ -256,7 +256,7 @@ function BibliotecaPageInner() {
           <>
             <div className="text-[11.5px] font-bold tracking-[0.09em] mb-3" style={{ color: C.inkSoft }}>RESULTADOS ({searchResults.length})</div>
             {searchResults.length === 0 && <p className="text-sm" style={{ color: C.inkSoft }}>Nada para "{query}".</p>}
-            <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
               {searchResults.map((r) => <ResourceCard key={r.id} r={r} profiles={profiles} profile={profile} onOpen={() => setSelected(r)} />)}
             </div>
           </>
@@ -311,10 +311,10 @@ function BibliotecaPageInner() {
               <section>
                 {generalResources.length === 0 && <p className="text-sm mb-3" style={{ color: C.inkSoft }}>Todavía no hay recursos generales{isAdmin ? " — dale a \"Agregar recurso\" para el primero." : "."}</p>}
                 {generalResources.length > 0 && byTags(generalResources).length === 0 && <p className="text-sm mb-3" style={{ color: C.inkSoft }}>Nada con esas etiquetas todavía.</p>}
-                <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
                   {byTags(generalResources).map((r) => <ResourceCard key={r.id} r={r} profiles={profiles} profile={profile} onOpen={() => setSelected(r)} />)}
                   {isAdmin && (
-                    <button onClick={openNewGeneral} style={{ background: C.subtle, color: C.inkSoft, borderRadius: R.xxl, borderColor: C.hairline }} className="aspect-square flex flex-col items-center justify-center gap-2 border-2 border-dashed">
+                    <button onClick={openNewGeneral} style={{ background: C.subtle, color: C.inkSoft, borderRadius: R.xxl, borderColor: C.hairline }} className="aspect-[4/3] flex flex-col items-center justify-center gap-2 border-2 border-dashed">
                       <Plus size={20} />
                       <span className="text-xs font-medium">Agregar recurso</span>
                     </button>
@@ -326,9 +326,9 @@ function BibliotecaPageInner() {
                 <p className="text-[11px] mb-3" style={{ color: C.inkSoft }}>Los que tú agregaste, más los que te compartieron.</p>
                 {myResources.length === 0 && <p className="text-sm mb-3" style={{ color: C.inkSoft }}>Todavía no tienes recursos personales — dale a "Agregar recurso".</p>}
                 {myResources.length > 0 && byTags(myResources).length === 0 && <p className="text-sm mb-3" style={{ color: C.inkSoft }}>Nada con esas etiquetas todavía.</p>}
-                <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
                   {byTags(myResources).map((r) => <ResourceCard key={r.id} r={r} profiles={profiles} profile={profile} onOpen={() => setSelected(r)} />)}
-                  <button onClick={openNewPersonal} style={{ background: C.subtle, color: C.inkSoft, borderRadius: R.xxl, borderColor: C.hairline }} className="aspect-square flex flex-col items-center justify-center gap-2 border-2 border-dashed">
+                  <button onClick={openNewPersonal} style={{ background: C.subtle, color: C.inkSoft, borderRadius: R.xxl, borderColor: C.hairline }} className="aspect-[4/3] flex flex-col items-center justify-center gap-2 border-2 border-dashed">
                     <Plus size={20} />
                     <span className="text-xs font-medium">Agregar recurso</span>
                   </button>
@@ -389,7 +389,7 @@ function ResourceCard({ r, profiles, profile, onOpen }) {
     <button
       onClick={onOpen}
       style={{ borderRadius: R.xxl, background: C.panel, boxShadow: SH.card, backgroundImage: thumbnail ? `url(${thumbnail})` : undefined, backgroundSize: "cover", backgroundPosition: "center" }}
-      className="relative p-4 text-left flex flex-col gap-2 aspect-square justify-between hover:brightness-[0.98] overflow-hidden"
+      className="relative p-4 text-left flex flex-col gap-2 aspect-[4/3] justify-between hover:brightness-[0.98] overflow-hidden"
     >
       {thumbnail && <div className="absolute inset-0" style={{ background: "linear-gradient(to top, rgba(27,30,36,0.75), rgba(27,30,36,0.15))" }} />}
       <div className="relative flex items-center justify-between">
