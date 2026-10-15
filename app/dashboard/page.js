@@ -1535,9 +1535,73 @@ function NewTaskForm({ onClose, onCreate, onCreatePopup, profiles, profile, isAd
     if (result?.uploadError) alert(`El pop up se creó, pero el archivo no se pudo subir (${result.uploadError}). Revisa en Supabase que el bucket "popups" permita ese tipo de archivo y tamaño.`);
   };
 
+  // Campos reutilizados entre individual y colaborativo (columna derecha)
+  const solicitaField = (
+    <div>
+      <label className="text-[11.5px] font-bold tracking-[0.09em] flex items-center gap-1.5" style={{ color: C.inkSoft }}>
+        Solicita
+        <button type="button" onClick={() => setShowRequesterPicker((v) => !v)} title="Agregar más solicitantes" style={{ background: C.signalSoft, color: C.signal }} className="rounded-full w-4 h-4 flex items-center justify-center leading-none"><Plus size={9} /></button>
+      </label>
+      <div style={{ background: C.paper, borderRadius: R.md, color: C.inkSoft }} className="w-full px-3.5 py-2.5 text-sm mt-1.5">
+        {profile.name} (tú){coRequesterIds.length > 0 ? ` + ${coRequesterIds.map((id) => profiles.find((p) => p.id === id)?.name).filter(Boolean).join(", ")}` : ""}
+      </div>
+      {showRequesterPicker && (
+        <div style={{ background: C.panel, borderRadius: R.md, boxShadow: SH.soft }} className="p-3 mt-1.5 flex flex-col gap-1.5">
+          <div className="flex flex-wrap gap-1.5">
+            {profiles.filter((p) => p.id !== profile.id).map((p) => (
+              <button key={p.id} type="button" onClick={() => toggleCoRequester(p.id)}
+                style={{ background: coRequesterIds.includes(p.id) ? C.ink : C.panel, boxShadow: coRequesterIds.includes(p.id) ? "none" : SH.soft, color: coRequesterIds.includes(p.id) ? C.paper : C.inkMedium, fontWeight: coRequesterIds.includes(p.id) ? 600 : 500 }}
+                className="h-[30px] px-3 rounded-full text-xs">{p.name}</button>
+            ))}
+          </div>
+          <p className="text-[11px]" style={{ color: C.inkSoft }}>Las personas que selecciones aparecerán contigo como solicitantes.</p>
+        </div>
+      )}
+    </div>
+  );
+
+  const repeatField = usesDeadlineRules ? (
+    <div className="relative">
+      <label className="text-[11.5px] font-bold tracking-[0.09em]" style={{ color: C.inkSoft }}>Se repite</label>
+      <button type="button" onClick={() => setShowRepeatMenu((v) => !v)}
+        style={{ background: C.paper, borderRadius: R.md }}
+        className="w-full h-[46px] px-3.5 mt-1.5 flex items-center justify-between text-sm outline-none">
+        <span>{REPEAT_MODES.find((m) => m.value === repeatMode)?.label}</span>
+        <ChevronDown size={15} style={{ color: C.gray, transform: showRepeatMenu ? "rotate(180deg)" : "none" }} />
+      </button>
+      {showRepeatMenu && (
+        <div style={{ background: C.panel, borderRadius: R.lg, boxShadow: SH.card }} className="absolute left-0 right-0 top-full mt-1.5 z-20 p-1.5">
+          {REPEAT_MODES.map((m) => (
+            <button key={m.value} type="button"
+              onClick={() => { setRepeatMode(m.value); setScheduling(m.value !== "none"); setShowRepeatMenu(false); }}
+              style={{ color: repeatMode === m.value ? C.signal : C.ink }}
+              className="w-full text-left px-3 py-2 text-sm rounded-md">{m.label}</button>
+          ))}
+        </div>
+      )}
+    </div>
+  ) : null;
+
+  const scheduledDateField = scheduling ? (
+    <div><label className="text-[11.5px] font-bold tracking-[0.09em]" style={{ color: C.inkSoft }}>Día programado</label>
+      <input type="date" value={scheduledDate} min={todayStr} onChange={(e) => setScheduledDate(e.target.value)} style={{ background: C.paper, borderRadius: R.md }} className="w-full px-3.5 py-2.5 text-sm mt-1.5 outline-none" /></div>
+  ) : null;
+
+  const generalDeadlineUrgencyField = (
+    <div className="grid grid-cols-2 gap-3">
+      <div><label className="text-[11.5px] font-bold tracking-[0.09em]" style={{ color: C.inkSoft }}>Deadline{scheduling ? " general" : ""}</label>
+        <input type="date" value={deadline} min={minGeneralDeadline} onChange={(e) => setDeadline(e.target.value)} style={{ background: C.paper, borderRadius: R.md }} className="w-full px-3.5 py-2.5 text-sm mt-1.5 outline-none" /></div>
+      <div><label className="text-[11.5px] font-bold tracking-[0.09em]" style={{ color: C.inkSoft }}>Urgencia</label>
+        <select value={urgency} onChange={(e) => setUrgency(e.target.value)} style={{ background: C.paper, borderRadius: R.md }} className="w-full px-3.5 py-2.5 text-sm mt-1.5 outline-none">
+          {URGENCIES.map((u) => <option key={u.label} value={u.label}>{u.label}</option>)}
+        </select></div>
+      {deadlineError && <p className="col-span-2 text-[11px]" style={{ color: C.urgent }}>{deadlineError}</p>}
+    </div>
+  );
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: "rgba(27,30,36,0.55)" }}>
-      <div style={{ background: C.paper, borderRadius: R.xxl, boxShadow: SH.card }} className="w-full max-w-2xl max-h-[90vh] overflow-y-auto">
+      <div style={{ background: C.panel, borderRadius: R.xxl, boxShadow: SH.card }} className="w-full max-w-2xl max-h-[90vh] overflow-y-auto">
         <div style={{ boxShadow: `inset 0 -1px 0 ${C.hairline}` }} className="px-5 py-4 flex items-center justify-between">
           {isAdmin ? (
             <div style={{ background: C.subtle, borderRadius: R.pill }} className="flex gap-1 p-1">
@@ -1611,237 +1675,150 @@ function NewTaskForm({ onClose, onCreate, onCreatePopup, profiles, profile, isAd
               ))}
             </div>
 
-            <div className={taskType === "individual" ? "grid grid-cols-2 gap-3" : ""}>
-              <div><label className="text-[11.5px] font-bold tracking-[0.09em]" style={{ color: C.inkSoft }}>Título{initialData && <span className="ml-1.5" style={{ color: C.signal }}>· Cambios Ronda {initialData.changesRound}</span>}</label>
-                <input value={title} onChange={(e) => !initialData && setTitle(e.target.value)} readOnly={!!initialData} style={{ background: C.paper, borderRadius: R.md, color: initialData ? C.inkSoft : C.ink, cursor: initialData ? "not-allowed" : "text" }} className="w-full px-3.5 py-2.5 text-sm mt-1.5 outline-none" /></div>
-              {taskType === "individual" && (
-                <div className="relative">
-                  <label className="text-[11.5px] font-bold tracking-[0.09em]" style={{ color: C.inkSoft }}>Asignar a</label>
-                  <button type="button" onClick={() => setShowAssignPicker((v) => !v)}
-                    style={{ background: C.paper, borderRadius: R.md }}
-                    className="w-full h-[46px] px-3 mt-1.5 flex items-center gap-2.5 text-sm outline-none">
-                    {assignedToProfile ? (
-                      <>
-                        <span style={{ width: 24, height: 24, borderRadius: R.pill, background: C.subtle, color: "#6F747E" }} className="flex-shrink-0 flex items-center justify-center text-[11px] font-bold">{(assignedToProfile.name || "?").trim().charAt(0).toUpperCase()}</span>
-                        <span className="font-semibold truncate" style={{ color: C.ink }}>{assignedToProfile.name}</span>
-                      </>
-                    ) : (
-                      <span style={{ color: C.inkFaint }}>Elegir persona...</span>
-                    )}
-                    <ChevronDown size={15} style={{ color: C.gray, marginLeft: "auto", flexShrink: 0, transform: showAssignPicker ? "rotate(180deg)" : "none" }} />
-                  </button>
-                  {showAssignPicker && (
-                    <div style={{ background: C.panel, borderRadius: R.lg, boxShadow: SH.card }} className="absolute left-0 right-0 top-full mt-1.5 z-20 p-1.5 max-h-56 overflow-y-auto">
-                      {individualAssignable.map((p) => (
-                        <button key={p.id} type="button" onClick={() => { setAssignedToId(p.id); setShowAssignPicker(false); }}
-                          style={{ background: assignedToId === p.id ? C.subtle : "transparent" }}
-                          className="w-full flex items-center gap-2.5 px-3 py-2 rounded-md text-left">
-                          <span style={{ width: 24, height: 24, borderRadius: R.pill, background: C.subtle, color: "#6F747E" }} className="flex-shrink-0 flex items-center justify-center text-[11px] font-bold">{(p.name || "?").trim().charAt(0).toUpperCase()}</span>
-                          <span className="text-sm font-semibold" style={{ color: C.ink }}>{p.name}</span>
-                        </button>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              )}
-            </div>
-            <div className={usesDeadlineRules ? "grid grid-cols-2 gap-3" : ""}>
-              <div><label className="text-[11.5px] font-bold tracking-[0.09em]" style={{ color: C.inkSoft }}>Descripción</label>
-                <textarea value={description} onChange={(e) => setDescription(e.target.value)} rows={3} style={{ background: C.paper, borderRadius: R.md }} className="w-full px-3.5 py-2.5 text-sm mt-1.5 outline-none" /></div>
-              {usesDeadlineRules && (
-                <div className="relative">
-                  <label className="text-[11.5px] font-bold tracking-[0.09em]" style={{ color: C.inkSoft }}>Se repite</label>
-                  <button type="button" onClick={() => setShowRepeatMenu((v) => !v)}
-                    style={{ background: C.paper, borderRadius: R.md }}
-                    className="w-full h-[46px] px-3.5 mt-1.5 flex items-center justify-between text-sm outline-none">
-                    <span>{REPEAT_MODES.find((m) => m.value === repeatMode)?.label}</span>
-                    <ChevronDown size={15} style={{ color: C.gray, transform: showRepeatMenu ? "rotate(180deg)" : "none" }} />
-                  </button>
-                  {showRepeatMenu && (
-                    <div style={{ background: C.panel, borderRadius: R.lg, boxShadow: SH.card }} className="absolute left-0 right-0 top-full mt-1.5 z-20 p-1.5">
-                      {REPEAT_MODES.map((m) => (
-                        <button key={m.value} type="button"
-                          onClick={() => { setRepeatMode(m.value); setScheduling(m.value !== "none"); setShowRepeatMenu(false); }}
-                          style={{ color: repeatMode === m.value ? C.signal : C.ink }}
-                          className="w-full text-left px-3 py-2 text-sm rounded-md">{m.label}</button>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              )}
-            </div>
+            <div className="grid grid-cols-2 gap-5">
+              <div className="flex flex-col gap-4">
+                <div><label className="text-[11.5px] font-bold tracking-[0.09em]" style={{ color: C.inkSoft }}>Título{initialData && <span className="ml-1.5" style={{ color: C.signal }}>· Cambios Ronda {initialData.changesRound}</span>}</label>
+                  <input value={title} onChange={(e) => !initialData && setTitle(e.target.value)} readOnly={!!initialData} style={{ background: C.paper, borderRadius: R.md, color: initialData ? C.inkSoft : C.ink, cursor: initialData ? "not-allowed" : "text" }} className="w-full px-3.5 py-2.5 text-sm mt-1.5 outline-none" /></div>
 
-            <div>
-              <label className="text-[11.5px] font-bold tracking-[0.09em]" style={{ color: C.inkSoft }}>Categoría</label>
-              <div className="flex flex-wrap gap-1.5 mt-1.5">
-                {DEFAULT_CATEGORIES.map((c) => (
-                  <button key={c} type="button" onClick={() => { setCategory(c); setNewCategory(""); setShowNewCategory(false); }}
-                    style={!showNewCategory && category === c ? { background: C.ink, color: C.paper, fontWeight: 600 } : { background: C.panel, color: C.inkMedium, boxShadow: SH.soft, fontWeight: 500 }}
-                    className="h-9 px-3.5 rounded-full text-[13px]">{c}</button>
-                ))}
-                <button type="button" onClick={() => setShowNewCategory((v) => !v)}
-                  style={showNewCategory ? { background: C.ink, color: C.paper, fontWeight: 600 } : { background: "transparent", color: C.inkSoft, fontWeight: 500, boxShadow: `inset 0 0 0 1.5px ${C.hairline}` }}
-                  className="h-9 px-3.5 rounded-full text-[13px] flex items-center gap-1"><Plus size={13} /> Nueva</button>
-              </div>
-              {showNewCategory && (
-                <input value={newCategory} onChange={(e) => setNewCategory(e.target.value)} placeholder="Escribe la categoría nueva" autoFocus
-                  style={{ background: C.paper, borderRadius: R.md }} className="w-full px-3.5 py-2.5 text-sm mt-2 outline-none" />
-              )}
-            </div>
-
-            {taskType === "individual" && (
-              <>
-                <div>
-                  <label className="text-[11.5px] font-bold tracking-[0.09em] flex items-center gap-1.5" style={{ color: C.inkSoft }}>
-                    Solicita
-                    <button type="button" onClick={() => setShowRequesterPicker((v) => !v)} title="Agregar más solicitantes" style={{ background: C.signalSoft, color: C.signal }} className="rounded-full w-4 h-4 flex items-center justify-center leading-none"><Plus size={9} /></button>
-                  </label>
-                  <div style={{ background: C.paper, borderRadius: R.md, color: C.inkSoft }} className="w-full px-3.5 py-2.5 text-sm mt-1.5">
-                    {profile.name} (tú){coRequesterIds.length > 0 ? ` + ${coRequesterIds.map((id) => profiles.find((p) => p.id === id)?.name).filter(Boolean).join(", ")}` : ""}
-                  </div>
-                </div>
-                {showRequesterPicker && (
-                  <div style={{ background: C.panel, borderRadius: R.md, boxShadow: SH.soft }} className="p-3 flex flex-col gap-1.5">
-                    <div className="flex flex-wrap gap-1.5">
-                      {profiles.filter((p) => p.id !== profile.id).map((p) => (
-                        <button key={p.id} type="button" onClick={() => toggleCoRequester(p.id)}
-                          style={{ background: coRequesterIds.includes(p.id) ? C.ink : C.panel, boxShadow: coRequesterIds.includes(p.id) ? "none" : SH.soft, color: coRequesterIds.includes(p.id) ? C.paper : C.inkMedium, fontWeight: coRequesterIds.includes(p.id) ? 600 : 500 }}
-                          className="h-[30px] px-3 rounded-full text-xs">{p.name}</button>
-                      ))}
-                    </div>
-                    <p className="text-[11px]" style={{ color: C.inkSoft }}>Las personas que selecciones aparecerán contigo como solicitantes.</p>
-                  </div>
-                )}
-
-                {scheduling && (
-                  <div><label className="text-[11.5px] font-bold tracking-[0.09em]" style={{ color: C.inkSoft }}>Día programado</label>
-                    <input type="date" value={scheduledDate} min={todayStr} onChange={(e) => setScheduledDate(e.target.value)} style={{ background: C.paper, borderRadius: R.md }} className="w-full px-3.5 py-2.5 text-sm mt-1.5 outline-none" /></div>
-                )}
-                <div className="grid grid-cols-2 gap-3">
-                  <div><label className="text-[11.5px] font-bold tracking-[0.09em]" style={{ color: C.inkSoft }}>Deadline{scheduling ? " general" : ""}</label>
-                    <input type="date" value={deadline} min={minGeneralDeadline} onChange={(e) => setDeadline(e.target.value)} style={{ background: C.paper, borderRadius: R.md }} className="w-full px-3.5 py-2.5 text-sm mt-1.5 outline-none" /></div>
-                  <div><label className="text-[11.5px] font-bold tracking-[0.09em]" style={{ color: C.inkSoft }}>Urgencia</label>
-                    <select value={urgency} onChange={(e) => setUrgency(e.target.value)} style={{ background: C.paper, borderRadius: R.md }} className="w-full px-3.5 py-2.5 text-sm mt-1.5 outline-none">
-                      {URGENCIES.map((u) => <option key={u.label} value={u.label}>{u.label}</option>)}
-                    </select></div>
-                  {deadlineError && <p className="col-span-2 text-[11px]" style={{ color: C.urgent }}>{deadlineError}</p>}
-                </div>
+                <div><label className="text-[11.5px] font-bold tracking-[0.09em]" style={{ color: C.inkSoft }}>Descripción</label>
+                  <textarea value={description} onChange={(e) => setDescription(e.target.value)} rows={3} style={{ background: C.paper, borderRadius: R.md }} className="w-full px-3.5 py-2.5 text-sm mt-1.5 outline-none" /></div>
 
                 <div>
-                  <div className="flex flex-col gap-2 mb-2">
-                    {subtaskRows.map((row, i) => (
-                      <div key={i} style={{ background: C.panel, borderRadius: R.md, boxShadow: SH.soft }} className="p-3 flex flex-col gap-1.5">
-                        <div className="flex gap-1.5">
-                          <input value={row.title} onChange={(e) => updateSubtaskRow(i, "title", e.target.value)} placeholder="Título de la subtarea" style={{ background: C.paper, borderRadius: R.md }} className="flex-1 px-3 py-2 text-xs outline-none" />
-                          <button type="button" onClick={() => removeSubtaskRow(i)}><X size={14} style={{ color: C.inkSoft }} /></button>
-                        </div>
-                        <textarea value={row.description} onChange={(e) => updateSubtaskRow(i, "description", e.target.value)} placeholder="Descripción (opcional)" rows={2} style={{ background: C.paper, borderRadius: R.md }} className="px-3 py-2 text-xs outline-none resize-y" />
-                        <input type="date" value={row.deadline} min={baseDateStr} max={deadline || undefined} onChange={(e) => updateSubtaskRow(i, "deadline", e.target.value)} style={{ background: C.paper, borderRadius: R.md }} className="px-3 py-2 text-xs outline-none" />
-                      </div>
-                    ))}
-                  </div>
-                  <button type="button" onClick={addSubtaskRow} disabled={!assignedToId}
-                    style={{ borderRadius: R.md, boxShadow: `inset 0 0 0 1.5px ${C.hairline}`, color: C.inkSoft }}
-                    className="w-full h-12 flex items-center justify-center gap-1.5 text-sm font-medium disabled:opacity-40">
-                    <Plus size={15} /> Agregar subtarea
-                  </button>
-                  {subtaskRows.length === 0 && <p className="text-[11px] mt-1.5" style={{ color: C.inkSoft }}>Sin subtarea con deadline propio, hereda el deadline general de arriba. Se asignarán a {assignedToId ? (individualAssignable.find((p) => p.id === assignedToId)?.name || "la persona asignada") : "la persona que asignes"}.</p>}
-                </div>
-              </>
-            )}
-
-            {taskType === "personal" && (
-              <div className="grid grid-cols-2 gap-3">
-                <div><label className="text-[11.5px] font-bold tracking-[0.09em]" style={{ color: C.inkSoft }}>Deadline</label>
-                  <input type="date" value={deadline} onChange={(e) => setDeadline(e.target.value)} style={{ background: C.paper, borderRadius: R.md }} className="w-full px-3.5 py-2.5 text-sm mt-1.5 outline-none" /></div>
-                <div><label className="text-[11.5px] font-bold tracking-[0.09em]" style={{ color: C.inkSoft }}>Urgencia</label>
-                  <select value={urgency} onChange={(e) => setUrgency(e.target.value)} style={{ background: C.paper, borderRadius: R.md }} className="w-full px-3.5 py-2.5 text-sm mt-1.5 outline-none">
-                    {URGENCIES.map((u) => <option key={u.label} value={u.label}>{u.label}</option>)}
-                  </select></div>
-              </div>
-            )}
-
-            {taskType === "colaborativo" && (
-              <>
-                <div>
-                  <label className="text-[11.5px] font-bold tracking-[0.09em] flex items-center gap-1.5" style={{ color: C.inkSoft }}>
-                    Solicita
-                    <button type="button" onClick={() => setShowRequesterPicker((v) => !v)} title="Agregar más solicitantes" style={{ background: C.signalSoft, color: C.signal }} className="rounded-full w-4 h-4 flex items-center justify-center leading-none"><Plus size={9} /></button>
-                  </label>
-                  <div style={{ background: C.paper, borderRadius: R.md, color: C.inkSoft }} className="w-full px-3.5 py-2.5 text-sm mt-1.5">
-                    {profile.name} (tú){coRequesterIds.length > 0 ? ` + ${coRequesterIds.map((id) => profiles.find((p) => p.id === id)?.name).filter(Boolean).join(", ")}` : ""}
-                  </div>
-                </div>
-                {showRequesterPicker && (
-                  <div style={{ background: C.panel, borderRadius: R.md, boxShadow: SH.soft }} className="p-3 flex flex-col gap-1.5">
-                    <div className="flex flex-wrap gap-1.5">
-                      {profiles.filter((p) => p.id !== profile.id).map((p) => (
-                        <button key={p.id} type="button" onClick={() => toggleCoRequester(p.id)}
-                          style={{ background: coRequesterIds.includes(p.id) ? C.ink : C.panel, boxShadow: coRequesterIds.includes(p.id) ? "none" : SH.soft, color: coRequesterIds.includes(p.id) ? C.paper : C.inkMedium, fontWeight: coRequesterIds.includes(p.id) ? 600 : 500 }}
-                          className="h-[30px] px-3 rounded-full text-xs">{p.name}</button>
-                      ))}
-                    </div>
-                    <p className="text-[11px]" style={{ color: C.inkSoft }}>Las personas que selecciones aparecerán contigo como solicitantes.</p>
-                  </div>
-                )}
-                <div>
-                  <label className="text-[11.5px] font-bold tracking-[0.09em]" style={{ color: C.inkSoft }}>Equipo de trabajo</label>
+                  <label className="text-[11.5px] font-bold tracking-[0.09em]" style={{ color: C.inkSoft }}>Categoría</label>
                   <div className="flex flex-wrap gap-1.5 mt-1.5">
-                    {profiles.map((p) => (
-                      <button key={p.id} type="button" onClick={() => toggleTeamMember(p.id)}
-                        style={{ background: teamMemberIds.includes(p.id) ? C.ink : C.panel, boxShadow: teamMemberIds.includes(p.id) ? "none" : SH.soft, color: teamMemberIds.includes(p.id) ? C.paper : C.inkMedium, fontWeight: teamMemberIds.includes(p.id) ? 600 : 500 }}
-                        className="h-[30px] px-3 rounded-full text-xs">{p.name}</button>
+                    {DEFAULT_CATEGORIES.map((c) => (
+                      <button key={c} type="button" onClick={() => { setCategory(c); setNewCategory(""); setShowNewCategory(false); }}
+                        style={!showNewCategory && category === c ? { background: C.ink, color: C.paper, fontWeight: 600 } : { background: C.panel, color: C.inkMedium, boxShadow: SH.soft, fontWeight: 500 }}
+                        className="h-9 px-3.5 rounded-full text-[13px]">{c}</button>
                     ))}
+                    <button type="button" onClick={() => setShowNewCategory((v) => !v)}
+                      style={showNewCategory ? { background: C.ink, color: C.paper, fontWeight: 600 } : { background: "transparent", color: C.inkSoft, fontWeight: 500, boxShadow: `inset 0 0 0 1.5px ${C.hairline}` }}
+                      className="h-9 px-3.5 rounded-full text-[13px] flex items-center gap-1"><Plus size={13} /> Nueva</button>
                   </div>
-                  {teamMemberIds.length < 2 && <p className="text-[11px] mt-1.5" style={{ color: C.urgent }}>Selecciona al menos 2 personas del equipo.</p>}
-                </div>
-                {scheduling && (
-                  <div><label className="text-[11.5px] font-bold tracking-[0.09em]" style={{ color: C.inkSoft }}>Día programado</label>
-                    <input type="date" value={scheduledDate} min={todayStr} onChange={(e) => setScheduledDate(e.target.value)} style={{ background: C.paper, borderRadius: R.md }} className="w-full px-3.5 py-2.5 text-sm mt-1.5 outline-none" /></div>
-                )}
-                <div className="grid grid-cols-2 gap-3">
-                  <div><label className="text-[11.5px] font-bold tracking-[0.09em]" style={{ color: C.inkSoft }}>Deadline{scheduling ? " general" : ""}</label>
-                    <input type="date" value={deadline} min={minGeneralDeadline} onChange={(e) => setDeadline(e.target.value)} style={{ background: C.paper, borderRadius: R.md }} className="w-full px-3.5 py-2.5 text-sm mt-1.5 outline-none" /></div>
-                  <div><label className="text-[11.5px] font-bold tracking-[0.09em]" style={{ color: C.inkSoft }}>Urgencia</label>
-                    <select value={urgency} onChange={(e) => setUrgency(e.target.value)} style={{ background: C.paper, borderRadius: R.md }} className="w-full px-3.5 py-2.5 text-sm mt-1.5 outline-none">
-                      {URGENCIES.map((u) => <option key={u.label} value={u.label}>{u.label}</option>)}
-                    </select></div>
-                  {deadlineError && <p className="col-span-2 text-[11px]" style={{ color: C.urgent }}>{deadlineError}</p>}
-                </div>
-
-                <div>
-                  <div className="flex flex-col gap-2 mb-2">
-                    {subtaskRows.map((row, i) => (
-                      <div key={i} style={{ background: C.panel, borderRadius: R.md, boxShadow: SH.soft }} className="p-3 flex flex-col gap-1.5">
-                        <div className="flex gap-1.5">
-                          <input value={row.title} onChange={(e) => updateSubtaskRow(i, "title", e.target.value)} placeholder="Título de la subtarea" style={{ background: C.paper, borderRadius: R.md }} className="flex-1 px-3 py-2 text-xs outline-none" />
-                          <button type="button" onClick={() => removeSubtaskRow(i)}><X size={14} style={{ color: C.inkSoft }} /></button>
-                        </div>
-                        <textarea value={row.description} onChange={(e) => updateSubtaskRow(i, "description", e.target.value)} placeholder="Descripción (opcional)" rows={2} style={{ background: C.paper, borderRadius: R.md }} className="px-3 py-2 text-xs outline-none resize-y" />
-                        <div className="grid grid-cols-2 gap-1.5">
-                          <select value={row.assignedToId} onChange={(e) => updateSubtaskRow(i, "assignedToId", e.target.value)} style={{ background: C.paper, borderRadius: R.md }} className="px-3 py-2 text-xs outline-none">
-                            <option value="">Asignar a...</option>
-                            {profiles.filter((p) => teamMemberIds.includes(p.id)).map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
-                          </select>
-                          <input type="date" value={row.deadline} min={baseDateStr} max={deadline || undefined} onChange={(e) => updateSubtaskRow(i, "deadline", e.target.value)} style={{ background: C.paper, borderRadius: R.md }} className="px-3 py-2 text-xs outline-none" />
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                  <button type="button" onClick={addSubtaskRow} disabled={teamMemberIds.length === 0}
-                    style={{ borderRadius: R.md, boxShadow: `inset 0 0 0 1.5px ${C.hairline}`, color: C.inkSoft }}
-                    className="w-full h-12 flex items-center justify-center gap-1.5 text-sm font-medium disabled:opacity-40">
-                    <Plus size={15} /> Agregar subtarea
-                  </button>
-                  {subtaskRows.length === 0 && <p className="text-[11px] mt-1.5" style={{ color: C.inkSoft }}>Sin subtarea con deadline propio, hereda el deadline general de arriba.</p>}
-                  {missingSubtaskCoverage && (
-                    <p className="text-[11px] mt-1.5" style={{ color: C.urgent }}>
-                      Falta asignar subtarea a: {teamMemberIds.filter((id) => !subtaskRows.some((r) => r.assignedToId === id && r.title.trim())).map((id) => profiles.find((p) => p.id === id)?.name).filter(Boolean).join(", ")}
-                    </p>
+                  {showNewCategory && (
+                    <input value={newCategory} onChange={(e) => setNewCategory(e.target.value)} placeholder="Escribe la categoría nueva" autoFocus
+                      style={{ background: C.paper, borderRadius: R.md }} className="w-full px-3.5 py-2.5 text-sm mt-2 outline-none" />
                   )}
                 </div>
-              </>
-            )}
+              </div>
+
+              <div className="flex flex-col gap-4">
+                {taskType === "individual" && (
+                  <>
+                    <div className="relative">
+                      <label className="text-[11.5px] font-bold tracking-[0.09em]" style={{ color: C.inkSoft }}>Asignar a</label>
+                      <button type="button" onClick={() => setShowAssignPicker((v) => !v)}
+                        style={{ background: C.paper, borderRadius: R.md }}
+                        className="w-full h-[46px] px-3 mt-1.5 flex items-center gap-2.5 text-sm outline-none">
+                        {assignedToProfile ? (
+                          <>
+                            <span style={{ width: 24, height: 24, borderRadius: R.pill, background: C.subtle, color: "#6F747E" }} className="flex-shrink-0 flex items-center justify-center text-[11px] font-bold">{(assignedToProfile.name || "?").trim().charAt(0).toUpperCase()}</span>
+                            <span className="font-semibold truncate" style={{ color: C.ink }}>{assignedToProfile.name}</span>
+                          </>
+                        ) : (
+                          <span style={{ color: C.inkFaint }}>Elegir persona...</span>
+                        )}
+                        <ChevronDown size={15} style={{ color: C.gray, marginLeft: "auto", flexShrink: 0, transform: showAssignPicker ? "rotate(180deg)" : "none" }} />
+                      </button>
+                      {showAssignPicker && (
+                        <div style={{ background: C.panel, borderRadius: R.lg, boxShadow: SH.card }} className="absolute left-0 right-0 top-full mt-1.5 z-20 p-1.5 max-h-56 overflow-y-auto">
+                          {individualAssignable.map((p) => (
+                            <button key={p.id} type="button" onClick={() => { setAssignedToId(p.id); setShowAssignPicker(false); }}
+                              style={{ background: assignedToId === p.id ? C.subtle : "transparent" }}
+                              className="w-full flex items-center gap-2.5 px-3 py-2 rounded-md text-left">
+                              <span style={{ width: 24, height: 24, borderRadius: R.pill, background: C.subtle, color: "#6F747E" }} className="flex-shrink-0 flex items-center justify-center text-[11px] font-bold">{(p.name || "?").trim().charAt(0).toUpperCase()}</span>
+                              <span className="text-sm font-semibold" style={{ color: C.ink }}>{p.name}</span>
+                            </button>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+
+                    {solicitaField}
+                    {repeatField}
+                    {scheduledDateField}
+                    {generalDeadlineUrgencyField}
+
+                    <div>
+                      <div className="flex flex-col gap-2 mb-2">
+                        {subtaskRows.map((row, i) => (
+                          <div key={i} style={{ background: C.panel, borderRadius: R.md, boxShadow: SH.soft }} className="p-3 flex flex-col gap-1.5">
+                            <div className="flex gap-1.5">
+                              <input value={row.title} onChange={(e) => updateSubtaskRow(i, "title", e.target.value)} placeholder="Título de la subtarea" style={{ background: C.paper, borderRadius: R.md }} className="flex-1 px-3 py-2 text-xs outline-none" />
+                              <button type="button" onClick={() => removeSubtaskRow(i)}><X size={14} style={{ color: C.inkSoft }} /></button>
+                            </div>
+                            <textarea value={row.description} onChange={(e) => updateSubtaskRow(i, "description", e.target.value)} placeholder="Descripción (opcional)" rows={2} style={{ background: C.paper, borderRadius: R.md }} className="px-3 py-2 text-xs outline-none resize-y" />
+                            <input type="date" value={row.deadline} min={baseDateStr} max={deadline || undefined} onChange={(e) => updateSubtaskRow(i, "deadline", e.target.value)} style={{ background: C.paper, borderRadius: R.md }} className="px-3 py-2 text-xs outline-none" />
+                          </div>
+                        ))}
+                      </div>
+                      <button type="button" onClick={addSubtaskRow} disabled={!assignedToId}
+                        style={{ borderRadius: R.md, boxShadow: `inset 0 0 0 1.5px ${C.hairline}`, color: C.inkSoft }}
+                        className="w-full h-12 flex items-center justify-center gap-1.5 text-sm font-medium disabled:opacity-40">
+                        <Plus size={15} /> Agregar subtarea
+                      </button>
+                      {subtaskRows.length === 0 && <p className="text-[11px] mt-1.5" style={{ color: C.inkSoft }}>Sin subtarea con deadline propio, hereda el deadline general de arriba. Se asignarán a {assignedToId ? (individualAssignable.find((p) => p.id === assignedToId)?.name || "la persona asignada") : "la persona que asignes"}.</p>}
+                    </div>
+                  </>
+                )}
+
+                {taskType === "personal" && generalDeadlineUrgencyField}
+
+                {taskType === "colaborativo" && (
+                  <>
+                    {solicitaField}
+
+                    <div>
+                      <label className="text-[11.5px] font-bold tracking-[0.09em]" style={{ color: C.inkSoft }}>Equipo de trabajo</label>
+                      <div className="flex flex-wrap gap-1.5 mt-1.5">
+                        {profiles.map((p) => (
+                          <button key={p.id} type="button" onClick={() => toggleTeamMember(p.id)}
+                            style={{ background: teamMemberIds.includes(p.id) ? C.ink : C.panel, boxShadow: teamMemberIds.includes(p.id) ? "none" : SH.soft, color: teamMemberIds.includes(p.id) ? C.paper : C.inkMedium, fontWeight: teamMemberIds.includes(p.id) ? 600 : 500 }}
+                            className="h-[30px] px-3 rounded-full text-xs">{p.name}</button>
+                        ))}
+                      </div>
+                      {teamMemberIds.length < 2 && <p className="text-[11px] mt-1.5" style={{ color: C.urgent }}>Selecciona al menos 2 personas del equipo.</p>}
+                    </div>
+
+                    {repeatField}
+                    {scheduledDateField}
+                    {generalDeadlineUrgencyField}
+
+                    <div>
+                      <div className="flex flex-col gap-2 mb-2">
+                        {subtaskRows.map((row, i) => (
+                          <div key={i} style={{ background: C.panel, borderRadius: R.md, boxShadow: SH.soft }} className="p-3 flex flex-col gap-1.5">
+                            <div className="flex gap-1.5">
+                              <input value={row.title} onChange={(e) => updateSubtaskRow(i, "title", e.target.value)} placeholder="Título de la subtarea" style={{ background: C.paper, borderRadius: R.md }} className="flex-1 px-3 py-2 text-xs outline-none" />
+                              <button type="button" onClick={() => removeSubtaskRow(i)}><X size={14} style={{ color: C.inkSoft }} /></button>
+                            </div>
+                            <textarea value={row.description} onChange={(e) => updateSubtaskRow(i, "description", e.target.value)} placeholder="Descripción (opcional)" rows={2} style={{ background: C.paper, borderRadius: R.md }} className="px-3 py-2 text-xs outline-none resize-y" />
+                            <div className="grid grid-cols-2 gap-1.5">
+                              <select value={row.assignedToId} onChange={(e) => updateSubtaskRow(i, "assignedToId", e.target.value)} style={{ background: C.paper, borderRadius: R.md }} className="px-3 py-2 text-xs outline-none">
+                                <option value="">Asignar a...</option>
+                                {profiles.filter((p) => teamMemberIds.includes(p.id)).map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
+                              </select>
+                              <input type="date" value={row.deadline} min={baseDateStr} max={deadline || undefined} onChange={(e) => updateSubtaskRow(i, "deadline", e.target.value)} style={{ background: C.paper, borderRadius: R.md }} className="px-3 py-2 text-xs outline-none" />
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                      <button type="button" onClick={addSubtaskRow} disabled={teamMemberIds.length === 0}
+                        style={{ borderRadius: R.md, boxShadow: `inset 0 0 0 1.5px ${C.hairline}`, color: C.inkSoft }}
+                        className="w-full h-12 flex items-center justify-center gap-1.5 text-sm font-medium disabled:opacity-40">
+                        <Plus size={15} /> Agregar subtarea
+                      </button>
+                      {subtaskRows.length === 0 && <p className="text-[11px] mt-1.5" style={{ color: C.inkSoft }}>Sin subtarea con deadline propio, hereda el deadline general de arriba.</p>}
+                      {missingSubtaskCoverage && (
+                        <p className="text-[11px] mt-1.5" style={{ color: C.urgent }}>
+                          Falta asignar subtarea a: {teamMemberIds.filter((id) => !subtaskRows.some((r) => r.assignedToId === id && r.title.trim())).map((id) => profiles.find((p) => p.id === id)?.name).filter(Boolean).join(", ")}
+                        </p>
+                      )}
+                    </div>
+                  </>
+                )}
+              </div>
+            </div>
           </div>
         )}
 
