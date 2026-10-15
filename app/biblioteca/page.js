@@ -3,7 +3,7 @@ import { Suspense, useState, useEffect, useCallback, useRef } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { supabase } from "@/lib/supabaseClient";
 import {
-  Plus, ExternalLink, X, Trash2, Pencil, BookOpen, Play, Bell,
+  Plus, ExternalLink, X, Trash2, Pencil, BookOpen, Play,
   Search, Share2, Copy, Upload, Link2, FileText, FileSpreadsheet, Image as ImageIcon, Users,
 } from "lucide-react";
 import { C, R, SH, FONT_SERIF } from "@/lib/theme";
@@ -228,21 +228,9 @@ function BibliotecaPageInner() {
         <div className="flex items-center gap-2.5 mb-5">
           <div style={{ background: C.panel, borderRadius: R.pill, boxShadow: SH.soft }} className="flex-1 min-w-0 h-11 px-4 flex items-center gap-2.5">
             <Search size={16} style={{ color: C.gray, flexShrink: 0 }} />
-            <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Buscar recurso..." className="text-sm outline-none bg-transparent flex-1 min-w-0" style={{ color: C.ink }} />
+            <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Buscar" className="text-sm outline-none bg-transparent flex-1 min-w-0" style={{ color: C.ink }} />
             {query && <button onClick={() => setQuery("")} className="flex-shrink-0"><X size={14} style={{ color: C.inkSoft }} /></button>}
           </div>
-          <button onClick={() => router.push("/dashboard")} title="Notificaciones"
-            style={{ width: 44, height: 44, borderRadius: R.pill, background: C.panel, boxShadow: SH.soft, color: C.inkMedium }}
-            className="flex items-center justify-center flex-shrink-0">
-            <Bell size={18} />
-          </button>
-          {(view === "mine" || isAdmin) && (
-            <button onClick={view === "general" ? openNewGeneral : openNewPersonal}
-              style={{ background: C.ink, color: C.paper, borderRadius: R.pill, height: 44 }}
-              className="px-4 flex items-center gap-1.5 text-[13.5px] font-semibold flex-shrink-0 whitespace-nowrap">
-              <Plus size={16} /> <span className="hidden sm:inline">Agregar recurso</span>
-            </button>
-          )}
         </div>
 
         {!searching && (

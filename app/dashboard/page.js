@@ -1121,7 +1121,7 @@ export default function Dashboard() {
           style={{ background: C.panel, borderRadius: R.pill, boxShadow: SH.soft }}
           className="flex-1 min-w-0 h-11 px-4 flex items-center gap-2.5 text-left">
           <Search size={16} style={{ color: C.gray, flexShrink: 0 }} />
-          <span className="text-sm truncate" style={{ color: C.inkFaint }}>Buscar pendiente...</span>
+          <span className="text-sm truncate" style={{ color: C.inkFaint }}>Buscar</span>
         </button>
         <button onClick={() => { setShowNotifs(true); markNotifsRead(); }} className="relative flex-shrink-0"
           style={{ width: 44, height: 44, borderRadius: R.pill, background: C.panel, boxShadow: SH.soft, color: C.inkMedium }}>
