@@ -1012,7 +1012,7 @@ export default function Dashboard() {
     loadNotifications(profile.id);
   };
 
-  if (!ready) return <div style={{ background: C.spine, minHeight: "100vh" }} className="w-full" />;
+  if (!ready) return <div style={{ background: C.paper, minHeight: "100vh" }} className="w-full flex items-center justify-center"><p style={{ color: C.inkSoft }} className="text-sm">Cargando...</p></div>;
 
   const isAdmin = profile?.role === "admin";
   const isGerente = profile?.role === "gerente" || profile?.role === "admin";

@@ -100,7 +100,7 @@ function getVideoEmbed(url) {
 
 export default function BibliotecaPage() {
   return (
-    <Suspense fallback={<div style={{ background: C.spine, minHeight: "100vh" }} className="w-full" />}>
+    <Suspense fallback={<div style={{ background: C.paper, minHeight: "100vh" }} className="w-full flex items-center justify-center"><p style={{ color: C.inkSoft }} className="text-sm">Cargando...</p></div>}>
       <BibliotecaPageInner />
     </Suspense>
   );
@@ -216,7 +216,7 @@ function BibliotecaPageInner() {
     setSharing(null); load();
   };
 
-  if (!ready) return <div style={{ background: C.spine, minHeight: "100vh" }} className="w-full" />;
+  if (!ready) return <div style={{ background: C.paper, minHeight: "100vh" }} className="w-full flex items-center justify-center"><p style={{ color: C.inkSoft }} className="text-sm">Cargando...</p></div>;
 
   return (
     <div style={{ background: C.paper, minHeight: "100vh" }} className="w-full font-sans pb-28 md:pb-10 md:pl-[248px]">
