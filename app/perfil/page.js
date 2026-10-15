@@ -81,43 +81,18 @@ export default function PerfilPage() {
       </div>
 
       <div className="max-w-lg mx-auto md:pt-10">
-        <div className="flex items-center gap-4 px-5 pt-[22px]">
+        <div className="flex flex-col items-center gap-3 px-5 pt-6 text-center">
           <div
-            style={{ width: 68, height: 68, borderRadius: R.pill, background: C.ink, color: C.paper, fontFamily: FONT_SERIF, fontSize: 28, fontWeight: 500, boxShadow: SH.float }}
+            style={{ width: 104, height: 104, borderRadius: R.pill, background: C.ink, color: C.paper, fontFamily: FONT_SERIF, fontSize: 40, fontWeight: 500, boxShadow: SH.float }}
             className="flex items-center justify-center flex-shrink-0"
           >{initial}</div>
           <div className="flex flex-col gap-1 min-w-0">
-            <div style={{ fontFamily: FONT_SERIF, fontSize: 27, fontWeight: 500, lineHeight: 1.1 }} className="truncate">{profile.name}</div>
-            <div style={{ fontSize: 13.5, color: C.inkSoft }} className="truncate">{profile.email}</div>
+            <div style={{ fontFamily: FONT_SERIF, fontSize: 24, fontWeight: 500, lineHeight: 1.1 }} className="truncate">{profile.username || profile.name}</div>
+            <div style={{ fontSize: 13, color: C.inkSoft }} className="truncate">{profile.email}</div>
           </div>
         </div>
 
-        <div className="px-5 mt-6">
-          <div style={{ background: C.panel, borderRadius: R.xl, boxShadow: SH.card }} className="p-[18px] flex flex-col gap-4">
-            <div className="flex items-center justify-between">
-              <span className="text-[11.5px] font-bold tracking-[0.11em]" style={{ color: C.inkSoft }}>MI ACTIVIDAD</span>
-              <span className="text-[12.5px] font-semibold" style={{ color: C.inkSoft }}>Últimos 7 días</span>
-            </div>
-            <div style={{ background: C.signalSoft, color: C.signal, borderRadius: R.md }} className="px-3.5 py-3 text-[13.5px] leading-snug">
-              Hoy: <strong>{todayCount}</strong> finalizado(s). {activityMsg(todayCount)}
-            </div>
-            <div className="flex items-end gap-2.5 h-16">
-              {days.map((d) => (
-                <div key={d.iso} className="flex-1 flex flex-col items-center gap-1.5">
-                  <div style={{ width: "100%", height: Math.max(8, (d.count / maxDayCount) * 42), borderRadius: 7, background: d.count > 0 ? "#CFE3DA" : "#EDEAE3" }} />
-                  <span className="text-[10.5px] capitalize" style={{ color: C.gray, fontWeight: d.isToday ? 700 : 400 }}>{d.isToday ? "hoy" : d.label}</span>
-                </div>
-              ))}
-            </div>
-            <button onClick={downloadLog} disabled={log.length === 0}
-              style={{ background: C.subtle, color: C.inkMedium, borderRadius: R.pill }}
-              className="h-10 text-xs font-semibold flex items-center justify-center gap-2 disabled:opacity-40">
-              <Download size={14} /> Descargar mi lista de finalizados
-            </button>
-          </div>
-        </div>
-
-        <div className="px-5 mt-3 flex flex-col gap-3">
+        <div className="px-5 mt-7 flex flex-col gap-3">
           <ProfileRow label="Nombre" value={profile.name} editing={editing === "name"}
             onEdit={() => startEdit("name")} onCancel={cancelEdit}>
             <NameField profile={profile} setProfile={setProfile} setInfo={setInfo} setError={setError} setEditing={setEditing} saving={saving} setSaving={setSaving} />
@@ -153,6 +128,29 @@ export default function PerfilPage() {
           >
             <LogOut size={18} /> Cerrar sesión
           </button>
+
+          <div style={{ background: C.panel, borderRadius: R.xl, boxShadow: SH.card }} className="p-[18px] flex flex-col gap-4 mt-3">
+            <div className="flex items-center justify-between">
+              <span className="text-[11.5px] font-bold tracking-[0.11em]" style={{ color: C.inkSoft }}>MI ACTIVIDAD</span>
+              <span className="text-[12.5px] font-semibold" style={{ color: C.inkSoft }}>Últimos 7 días</span>
+            </div>
+            <div style={{ background: C.signalSoft, color: C.signal, borderRadius: R.md }} className="px-3.5 py-3 text-[13.5px] leading-snug">
+              Hoy: <strong>{todayCount}</strong> finalizado(s). {activityMsg(todayCount)}
+            </div>
+            <div className="flex items-end gap-2.5 h-16">
+              {days.map((d) => (
+                <div key={d.iso} className="flex-1 flex flex-col items-center gap-1.5">
+                  <div style={{ width: "100%", height: Math.max(8, (d.count / maxDayCount) * 42), borderRadius: 7, background: d.count > 0 ? "#CFE3DA" : "#EDEAE3" }} />
+                  <span className="text-[10.5px] capitalize" style={{ color: C.gray, fontWeight: d.isToday ? 700 : 400 }}>{d.isToday ? "hoy" : d.label}</span>
+                </div>
+              ))}
+            </div>
+            <button onClick={downloadLog} disabled={log.length === 0}
+              style={{ background: C.subtle, color: C.inkMedium, borderRadius: R.pill }}
+              className="h-10 text-xs font-semibold flex items-center justify-center gap-2 disabled:opacity-40">
+              <Download size={14} /> Descargar mi lista de finalizados
+            </button>
+          </div>
         </div>
       </div>
 

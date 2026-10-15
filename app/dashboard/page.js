@@ -407,14 +407,14 @@ function DeadlineBadge({ deadline, status, hideToday, dark }) {
   );
 }
 
-// Fila de la tarjeta de info del Desglose (Solicita / Asignado a / Fecha de
-// solicitud / Deadline general): etiqueta a la izquierda, valor a la
-// derecha, línea divisoria entre filas salvo la última.
-function InfoRow({ label, value, last }) {
+// Celda de la cuadrícula de info del Desglose (Solicita / Asignado a /
+// Fecha de solicitud / Deadline general): tarjeta blanca propia con la
+// etiqueta arriba y el valor abajo.
+function InfoCell({ label, value, full }) {
   return (
-    <div style={{ boxShadow: last ? "none" : `inset 0 -1px 0 ${C.hairlineSoft}` }} className="flex items-center justify-between gap-3 px-4 py-3">
-      <span className="text-[13.5px]" style={{ color: C.inkSoft }}>{label}</span>
-      <span className="text-[14px] font-semibold text-right" style={{ color: C.ink }}>{value}</span>
+    <div style={{ background: C.panel, borderRadius: R.md, boxShadow: SH.soft }} className={`px-3 py-2.5 flex flex-col gap-0.5 min-w-0 ${full ? "col-span-2" : ""}`}>
+      <span className="text-[10.5px] font-semibold truncate" style={{ color: C.gray }}>{label}</span>
+      <span className="text-[13.5px] font-semibold truncate" style={{ color: C.ink }}>{value}</span>
     </div>
   );
 }
@@ -1401,6 +1401,7 @@ function NewTaskForm({ onClose, onCreate, onCreatePopup, profiles, profile, isAd
   const [taskType, setTaskType] = useState("individual"); // individual | personal | colaborativo
   const [title, setTitle] = useState(initialData?.title || ""), [description, setDescription] = useState("");
   const [category, setCategory] = useState(DEFAULT_CATEGORIES[0]), [newCategory, setNewCategory] = useState("");
+  const [showNewCategory, setShowNewCategory] = useState(false);
   const [deadline, setDeadline] = useState("");
   const [urgency, setUrgency] = useState("Media"), [assignedToId, setAssignedToId] = useState("");
 
@@ -1599,45 +1600,56 @@ function NewTaskForm({ onClose, onCreate, onCreatePopup, profiles, profile, isAd
           </div>
         ) : (
           <div className="p-5 flex flex-col gap-4">
-            <div className="flex items-center gap-1.5">
+            <div style={{ background: C.subtle, borderRadius: R.pill }} className="flex gap-1 p-1">
               {TASK_TYPES.map((tt) => (
                 <button key={tt.key} onClick={() => setTaskType(tt.key)}
-                  style={{ background: taskType === tt.key ? C.ink : C.panel, boxShadow: taskType === tt.key ? "none" : SH.soft, color: taskType === tt.key ? C.paper : C.inkMedium, fontWeight: taskType === tt.key ? 600 : 500 }}
-                  className="h-9 px-3.5 rounded-full text-[12.5px]">{tt.label}</button>
+                  style={taskType === tt.key ? { background: C.panel, boxShadow: "0 1px 3px rgba(27,30,36,0.10)", color: C.ink, fontWeight: 700 } : { color: C.inkSoft, fontWeight: 600 }}
+                  className="flex-1 h-9 rounded-full text-[12.5px]">{tt.label}</button>
               ))}
             </div>
 
-            <div><label className="text-[11.5px] font-bold tracking-[0.09em]" style={{ color: C.inkSoft }}>Título{initialData && <span className="ml-1.5" style={{ color: C.signal }}>· Cambios Ronda {initialData.changesRound}</span>}</label>
-              <input value={title} onChange={(e) => !initialData && setTitle(e.target.value)} readOnly={!!initialData} style={{ background: C.paper, borderRadius: R.md, color: initialData ? C.inkSoft : C.ink, cursor: initialData ? "not-allowed" : "text" }} className="w-full px-3.5 py-2.5 text-sm mt-1.5 outline-none" /></div>
+            <div className={taskType === "individual" ? "grid grid-cols-2 gap-3" : ""}>
+              <div><label className="text-[11.5px] font-bold tracking-[0.09em]" style={{ color: C.inkSoft }}>Título{initialData && <span className="ml-1.5" style={{ color: C.signal }}>· Cambios Ronda {initialData.changesRound}</span>}</label>
+                <input value={title} onChange={(e) => !initialData && setTitle(e.target.value)} readOnly={!!initialData} style={{ background: C.paper, borderRadius: R.md, color: initialData ? C.inkSoft : C.ink, cursor: initialData ? "not-allowed" : "text" }} className="w-full px-3.5 py-2.5 text-sm mt-1.5 outline-none" /></div>
+              {taskType === "individual" && (
+                <div><label className="text-[11.5px] font-bold tracking-[0.09em]" style={{ color: C.inkSoft }}>Asignar a</label>
+                  <select value={assignedToId} onChange={(e) => setAssignedToId(e.target.value)} style={{ background: C.paper, borderRadius: R.md }} className="w-full px-3.5 py-2.5 text-sm mt-1.5 outline-none">
+                    <option value="">Elegir persona...</option>
+                    {individualAssignable.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
+                  </select></div>
+              )}
+            </div>
             <div><label className="text-[11.5px] font-bold tracking-[0.09em]" style={{ color: C.inkSoft }}>Descripción</label>
               <textarea value={description} onChange={(e) => setDescription(e.target.value)} rows={3} style={{ background: C.paper, borderRadius: R.md }} className="w-full px-3.5 py-2.5 text-sm mt-1.5 outline-none" /></div>
 
-            <div className="grid grid-cols-2 gap-3">
-              <div><label className="text-[11.5px] font-bold tracking-[0.09em]" style={{ color: C.inkSoft }}>Categoría</label>
-                <select value={category} onChange={(e) => setCategory(e.target.value)} style={{ background: C.paper, borderRadius: R.md }} className="w-full px-3.5 py-2.5 text-sm mt-1.5 outline-none">
-                  {DEFAULT_CATEGORIES.map((c) => <option key={c} value={c}>{c}</option>)}
-                </select></div>
-              <div><label className="text-[11.5px] font-bold tracking-[0.09em]" style={{ color: C.inkSoft }}>...o nueva</label>
-                <input value={newCategory} onChange={(e) => setNewCategory(e.target.value)} style={{ background: C.paper, borderRadius: R.md }} className="w-full px-3.5 py-2.5 text-sm mt-1.5 outline-none" /></div>
+            <div>
+              <label className="text-[11.5px] font-bold tracking-[0.09em]" style={{ color: C.inkSoft }}>Categoría</label>
+              <div className="flex flex-wrap gap-1.5 mt-1.5">
+                {DEFAULT_CATEGORIES.map((c) => (
+                  <button key={c} type="button" onClick={() => { setCategory(c); setNewCategory(""); setShowNewCategory(false); }}
+                    style={!showNewCategory && category === c ? { background: C.ink, color: C.paper, fontWeight: 600 } : { background: C.panel, color: C.inkMedium, boxShadow: SH.soft, fontWeight: 500 }}
+                    className="h-9 px-3.5 rounded-full text-[13px]">{c}</button>
+                ))}
+                <button type="button" onClick={() => setShowNewCategory((v) => !v)}
+                  style={showNewCategory ? { background: C.ink, color: C.paper, fontWeight: 600 } : { background: "transparent", color: C.inkSoft, fontWeight: 500, boxShadow: `inset 0 0 0 1.5px ${C.hairline}` }}
+                  className="h-9 px-3.5 rounded-full text-[13px] flex items-center gap-1"><Plus size={13} /> Nueva</button>
+              </div>
+              {showNewCategory && (
+                <input value={newCategory} onChange={(e) => setNewCategory(e.target.value)} placeholder="Escribe la categoría nueva" autoFocus
+                  style={{ background: C.paper, borderRadius: R.md }} className="w-full px-3.5 py-2.5 text-sm mt-2 outline-none" />
+              )}
             </div>
 
             {taskType === "individual" && (
               <>
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <label className="text-[11.5px] font-bold tracking-[0.09em] flex items-center gap-1.5" style={{ color: C.inkSoft }}>
-                      Solicita
-                      <button type="button" onClick={() => setShowRequesterPicker((v) => !v)} title="Agregar más solicitantes" style={{ background: C.signalSoft, color: C.signal }} className="rounded-full w-4 h-4 flex items-center justify-center leading-none"><Plus size={9} /></button>
-                    </label>
-                    <div style={{ background: C.paper, borderRadius: R.md, color: C.inkSoft }} className="w-full px-3.5 py-2.5 text-sm mt-1.5">
-                      {profile.name} (tú){coRequesterIds.length > 0 ? ` + ${coRequesterIds.map((id) => profiles.find((p) => p.id === id)?.name).filter(Boolean).join(", ")}` : ""}
-                    </div>
+                <div>
+                  <label className="text-[11.5px] font-bold tracking-[0.09em] flex items-center gap-1.5" style={{ color: C.inkSoft }}>
+                    Solicita
+                    <button type="button" onClick={() => setShowRequesterPicker((v) => !v)} title="Agregar más solicitantes" style={{ background: C.signalSoft, color: C.signal }} className="rounded-full w-4 h-4 flex items-center justify-center leading-none"><Plus size={9} /></button>
+                  </label>
+                  <div style={{ background: C.paper, borderRadius: R.md, color: C.inkSoft }} className="w-full px-3.5 py-2.5 text-sm mt-1.5">
+                    {profile.name} (tú){coRequesterIds.length > 0 ? ` + ${coRequesterIds.map((id) => profiles.find((p) => p.id === id)?.name).filter(Boolean).join(", ")}` : ""}
                   </div>
-                  <div><label className="text-[11.5px] font-bold tracking-[0.09em]" style={{ color: C.inkSoft }}>Asignar a</label>
-                    <select value={assignedToId} onChange={(e) => setAssignedToId(e.target.value)} style={{ background: C.paper, borderRadius: R.md }} className="w-full px-3.5 py-2.5 text-sm mt-1.5 outline-none">
-                      <option value="">Elegir persona...</option>
-                      {individualAssignable.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
-                    </select></div>
                 </div>
                 {showRequesterPicker && (
                   <div style={{ background: C.panel, borderRadius: R.md, boxShadow: SH.soft }} className="p-3 flex flex-col gap-1.5">
@@ -1820,7 +1832,7 @@ function NewTaskForm({ onClose, onCreate, onCreatePopup, profiles, profile, isAd
         )}
 
         <div style={{ boxShadow: `inset 0 1px 0 ${C.hairline}` }} className="px-5 py-4 flex justify-end gap-2">
-          <button onClick={onClose} style={{ color: C.inkSoft }} className="px-4 py-2.5 text-sm font-medium">Cancelar</button>
+          <button onClick={onClose} style={{ color: C.inkMedium, background: C.subtle, borderRadius: R.pill }} className="px-5 py-2.5 text-sm font-semibold">Cancelar</button>
           {mode === "popup" && isAdmin ? (
             <button onClick={() => setShowPopupConfirm(true)} disabled={!popupTitle.trim() || popupSaving || !!popupImageError} style={{ background: C.ink, color: C.paper, opacity: popupSaving ? 0.6 : 1, borderRadius: R.pill }} className="px-5 py-2.5 text-sm font-semibold disabled:cursor-not-allowed">¿Listo?</button>
           ) : (
@@ -2719,42 +2731,53 @@ function TaskDetail({ task, onClose, onUpdate, onDelete, onDeleteRecurring, recu
   return (
     <div className="fixed inset-0 z-50 flex items-stretch justify-end" style={{ background: "rgba(27,30,36,0.5)" }} onClick={onClose}>
       <div style={{ background: C.paper, borderTopLeftRadius: 28, borderBottomLeftRadius: 28 }} className="w-full max-w-md h-full overflow-y-auto shadow-2xl" onClick={(e) => e.stopPropagation()}>
-        <div style={{ background: C.paper, boxShadow: `inset 0 -1px 0 ${C.hairline}` }} className="px-5 py-4 sticky top-0 z-10 flex items-start justify-between gap-3">
-          <div className="flex-1 min-w-0"><div className="text-[11.5px] font-bold tracking-[0.09em] mb-1 flex items-center gap-1.5 flex-wrap" style={{ color: C.inkSoft }}>
+        <div style={{ background: C.paper }} className="px-5 pt-4 sticky top-0 z-10 flex items-center justify-between gap-3">
+          <div className="min-w-0">
+            <span style={{ background: C.subtle, color: "#6F747E", borderRadius: R.pill, fontWeight: 600 }} className="text-[10.5px] px-2.5 py-1 inline-flex items-center gap-1">
               {task.category}
               {!isFinalized && !viewerIsGerente && (
-                <button onClick={() => { setCategoryDraft(task.category || DEFAULT_CATEGORIES[0]); setNewCategoryDraft(""); setEditingCategory((v) => !v); }} title="Cambiar categoría">
-                  <Pencil size={11} style={{ color: C.inkSoft }} />
+                <button onClick={() => { setCategoryDraft(task.category || DEFAULT_CATEGORIES[0]); setNewCategoryDraft(""); setEditingCategory((v) => !v); }} title="Cambiar categoría" className="flex-shrink-0">
+                  <Pencil size={10} />
                 </button>
               )}
-              {task.task_type && effectiveTaskType(task) !== "individual" && <span style={{ color: C.signal }}>· {TASK_TYPES.find((t) => t.key === effectiveTaskType(task))?.label}</span>}
-              {task.recurring_template_id && <span>· 🔁 {recurringTpl?.frequency_type === "monthly" ? "Mensual" : "Semanal"}</span>}
-              {isFinalized && <><Lock size={10} /> Finalizado — solo lectura</>}
-              {viewerIsGerente && !isFinalized && <><Eye size={10} /> Modo lectura</>}
-            </div>
-            {editingCategory && (
-              <div style={{ background: C.paper, borderRadius: R.md }} className="border p-2.5 mb-2 flex flex-col gap-1.5 max-w-xs">
-                <select value={categoryDraft} onChange={(e) => { setCategoryDraft(e.target.value); setNewCategoryDraft(""); }} style={{ borderColor: C.hairline, background: C.paper }} className="px-2.5 py-1.5 text-xs outline-none">
-                  {DEFAULT_CATEGORIES.map((c) => <option key={c} value={c}>{c}</option>)}
-                </select>
-                <input value={newCategoryDraft} onChange={(e) => setNewCategoryDraft(e.target.value)} placeholder="...o escribe una nueva" style={{ borderColor: C.hairline, background: C.paper }} className="px-2.5 py-1.5 text-xs outline-none" />
-                <div className="flex gap-2 justify-end">
-                  <button onClick={() => setEditingCategory(false)} className="text-xs" style={{ color: C.inkSoft }}>Cancelar</button>
-                  <button onClick={saveCategory} style={{ background: C.spine, color: C.paper, borderRadius: R.pill }} className="text-xs px-3.5 py-1.5 font-semibold">Guardar</button>
-                </div>
-              </div>
-            )}
-            <h2 style={{ color: C.ink, fontFamily: FONT_SERIF, fontSize: 23, fontWeight: 500 }} className="leading-tight">
-              {task.title}
-              {task.changes_round > 0 && (
-                <span className="text-[11px] font-semibold uppercase tracking-wider ml-2" style={{ color: C.signal, fontFamily: "inherit" }}>Cambios Ronda {task.changes_round}</span>
-              )}
-            </h2></div>
-          <button onClick={onClose}
-            style={{ width: 34, height: 34, borderRadius: R.pill, background: C.subtle, color: C.inkMedium, flexShrink: 0 }}
-            className="flex items-center justify-center"><X size={17} /></button>
+            </span>
+          </div>
+          <div className="flex items-center gap-2 flex-shrink-0">
+            <button onClick={downloadHistory} disabled={!isFinalized} title={isFinalized ? "Descargar" : "Se habilita cuando el solicitante finaliza el pendiente"}
+              style={{ width: 34, height: 34, borderRadius: R.pill, background: C.panel, boxShadow: SH.soft, color: isFinalized ? C.inkMedium : C.inkFaint }}
+              className="flex items-center justify-center disabled:cursor-not-allowed"><Download size={15} /></button>
+            <button onClick={onClose}
+              style={{ width: 34, height: 34, borderRadius: R.pill, background: C.panel, boxShadow: SH.soft, color: C.inkMedium }}
+              className="flex items-center justify-center"><X size={17} /></button>
+          </div>
         </div>
-        <div className="p-5 flex flex-col gap-5">
+        <div className="px-5 pb-2 pt-2.5 flex flex-wrap items-center gap-1.5 text-[11px]" style={{ color: C.inkSoft }}>
+          {task.task_type && effectiveTaskType(task) !== "individual" && <span style={{ color: C.signal, fontWeight: 600 }}>{TASK_TYPES.find((t) => t.key === effectiveTaskType(task))?.label}</span>}
+          {task.recurring_template_id && <span>🔁 {recurringTpl?.frequency_type === "monthly" ? "Mensual" : "Semanal"}</span>}
+          {isFinalized && <span className="flex items-center gap-1"><Lock size={10} /> Finalizado — solo lectura</span>}
+          {viewerIsGerente && !isFinalized && <span className="flex items-center gap-1"><Eye size={10} /> Modo lectura</span>}
+        </div>
+        {editingCategory && (
+          <div className="px-5 pb-3">
+            <div style={{ background: C.panel, borderRadius: R.lg, boxShadow: SH.card }} className="p-3 flex flex-col gap-1.5 max-w-xs">
+              <select value={categoryDraft} onChange={(e) => { setCategoryDraft(e.target.value); setNewCategoryDraft(""); }} style={{ background: C.paper, borderRadius: R.sm }} className="px-2.5 py-1.5 text-xs outline-none">
+                {DEFAULT_CATEGORIES.map((c) => <option key={c} value={c}>{c}</option>)}
+              </select>
+              <input value={newCategoryDraft} onChange={(e) => setNewCategoryDraft(e.target.value)} placeholder="...o escribe una nueva" style={{ background: C.paper, borderRadius: R.sm }} className="px-2.5 py-1.5 text-xs outline-none" />
+              <div className="flex gap-2 justify-end">
+                <button onClick={() => setEditingCategory(false)} className="text-xs" style={{ color: C.inkSoft }}>Cancelar</button>
+                <button onClick={saveCategory} style={{ background: C.ink, color: C.paper, borderRadius: R.pill }} className="text-xs px-3.5 py-1.5 font-semibold">Guardar</button>
+              </div>
+            </div>
+          </div>
+        )}
+        <div className="px-5 pb-5 flex flex-col gap-5">
+          <h2 style={{ color: C.ink, fontFamily: FONT_SERIF, fontSize: 27, fontWeight: 500 }} className="leading-tight -mt-2">
+            {task.title}
+            {task.changes_round > 0 && (
+              <span className="text-[11px] font-semibold uppercase tracking-wider ml-2" style={{ color: C.signal, fontFamily: "inherit" }}>Cambios Ronda {task.changes_round}</span>
+            )}
+          </h2>
           {(() => {
             const legend = dueLegend(task.deadline, task.status);
             const urg = URGENCIES.find((u) => u.label === task.urgency) || URGENCIES[0];
@@ -2765,7 +2788,7 @@ function TaskDetail({ task, onClose, onUpdate, onDelete, onDeleteRecurring, recu
             );
             if (!legend && !canEditUrgency) return null;
             return (
-              <div className="flex items-center gap-2.5 -mt-2">
+              <div className="flex items-center gap-2.5">
                 {legend && (legendPill ? (
                   <span style={{ ...legendPill, borderRadius: R.pill, fontWeight: 700 }} className="text-[11.5px] px-3 py-1.5">{legend.text}</span>
                 ) : (
@@ -2809,19 +2832,19 @@ function TaskDetail({ task, onClose, onUpdate, onDelete, onDeleteRecurring, recu
             <div className="text-[11px] font-semibold -mt-3" style={{ color: C.urgent }}>Venció — aún sin entregar</div>
           )}
 
-          <div style={{ background: C.panel, borderRadius: R.xl, boxShadow: SH.card }} className="overflow-hidden">
+          <div className="grid grid-cols-2 gap-2">
             {isPersonalSolo ? (
-              <InfoRow label="Tipo" value="Pendiente personal (solo tuyo)" />
+              <InfoCell label="TIPO" value="Pendiente personal (solo tuyo)" full />
             ) : (
               <>
-                <InfoRow label="Solicita" value={`${task.requested_by}${coRequesterNames.length ? ` + ${coRequesterNames.join(", ")}` : ""}`} />
+                <InfoCell label="SOLICITA" value={`${task.requested_by}${coRequesterNames.length ? ` + ${coRequesterNames.join(", ")}` : ""}`} />
                 {isColaborativo ? (
-                  <InfoRow label="Equipo" value={teamProfiles.map((p) => p.name).join(", ") || "—"} />
+                  <InfoCell label="EQUIPO" value={teamProfiles.map((p) => p.name).join(", ") || "—"} />
                 ) : (
-                  <InfoRow
-                    label={<span className="flex items-center gap-1.5">Asignado a
+                  <InfoCell
+                    label={<span className="flex items-center gap-1">ASIGNADO A
                       {task.task_type === "individual" && isRequester && !isFinalized && !viewerIsGerente && (
-                        <button type="button" onClick={() => setShowConvertModal(true)} title="Convertir a Colaborativo" style={{ background: C.signalSoft, color: C.signal }} className="rounded-full w-4 h-4 flex items-center justify-center leading-none"><Plus size={10} /></button>
+                        <button type="button" onClick={() => setShowConvertModal(true)} title="Convertir a Colaborativo" style={{ background: C.signalSoft, color: C.signal }} className="rounded-full w-3.5 h-3.5 flex items-center justify-center leading-none flex-shrink-0"><Plus size={9} /></button>
                       )}
                     </span>}
                     value={task.assigned_to_name}
@@ -2829,13 +2852,12 @@ function TaskDetail({ task, onClose, onUpdate, onDelete, onDeleteRecurring, recu
                 )}
               </>
             )}
-            <InfoRow label="Fecha de solicitud" value={fmtDate(task.request_date)} />
-            <InfoRow
-              label={`Deadline${showSubtasks ? " general" : ""}`}
+            <InfoCell label="SOLICITUD" value={fmtDate(task.request_date)} />
+            <InfoCell
+              label={showSubtasks ? "DEADLINE GENERAL" : "DEADLINE"}
               value={canEditDeadline ? (
-                <input type="date" value={task.deadline || ""} min={showSubtasks ? minGeneralDeadline : undefined} onChange={(e) => changeDeadline(e.target.value)} style={{ background: C.paper, borderRadius: R.sm }} className="px-2.5 py-1.5 text-xs outline-none" />
+                <input type="date" value={task.deadline || ""} min={showSubtasks ? minGeneralDeadline : undefined} onChange={(e) => changeDeadline(e.target.value)} style={{ background: "transparent" }} className="w-full outline-none -ml-0.5" />
               ) : fmtDate(task.deadline)}
-              last
             />
           </div>
           {sameDay && <div className="text-[11px] font-bold -mt-3 text-right" style={{ color: C.urgent }}>De hoy para hoy 💀</div>}
@@ -3009,27 +3031,54 @@ function TaskDetail({ task, onClose, onUpdate, onDelete, onDeleteRecurring, recu
             </div>
           )}
 
-          {!isColaborativo && !viewerIsGerente && (
-            <div className="pt-5">
-              <div className="text-[11.5px] font-bold tracking-[0.09em] mb-1" style={{ color: C.inkSoft }}>{isPersonalSolo ? "Asignar a" : "Delegar"}</div>
-              {isPersonalSolo && <p className="text-[11px] mb-2" style={{ color: C.inkSoft }}>Esa persona se vuelve la asignada y tú te quedas como solicitante.</p>}
-              <div className="flex gap-2.5">
-                <select disabled={isFinalized} value={delegateId} onChange={(e) => setDelegateId(e.target.value)}
-                  style={{ background: C.panel, borderRadius: R.md, boxShadow: SH.soft, height: 48 }}
-                  className="flex-1 px-4 text-sm outline-none disabled:opacity-50">
-                  <option value="">Elegir persona...</option>
-                  {(isPersonalSolo ? assignableProfiles.filter((p) => p.id !== profile.id) : assignableProfiles).map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
-                </select>
-                <button disabled={isFinalized} onClick={delegate}
-                  style={{ background: C.subtle, color: C.inkMedium, borderRadius: R.md, height: 48 }}
-                  className="px-4 text-sm font-semibold flex items-center gap-2 flex-shrink-0 whitespace-nowrap disabled:opacity-50"><ArrowRightLeft size={16} /> {isPersonalSolo ? "Asignar a" : "Delegar"}</button>
+          <div className="pt-5 grid grid-cols-2 gap-4">
+            {!isColaborativo && !viewerIsGerente ? (
+              <div>
+                <div className="text-[11.5px] font-bold tracking-[0.09em] mb-1" style={{ color: C.inkSoft }}>{isPersonalSolo ? "Asignar a" : "Delegar"}</div>
+                <div className="flex flex-col gap-2">
+                  <select disabled={isFinalized} value={delegateId} onChange={(e) => setDelegateId(e.target.value)}
+                    style={{ background: C.panel, borderRadius: R.md, boxShadow: SH.soft, height: 48 }}
+                    className="w-full px-3.5 text-sm outline-none disabled:opacity-50">
+                    <option value="">Elegir persona...</option>
+                    {(isPersonalSolo ? assignableProfiles.filter((p) => p.id !== profile.id) : assignableProfiles).map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
+                  </select>
+                  <button disabled={isFinalized} onClick={delegate}
+                    style={{ background: C.subtle, color: C.inkMedium, borderRadius: R.md, height: 48 }}
+                    className="px-3.5 text-sm font-semibold flex items-center justify-center gap-1.5 whitespace-nowrap disabled:opacity-50"><ArrowRightLeft size={15} /> {isPersonalSolo ? "Asignar a" : "Delegar"}</button>
+                </div>
               </div>
+            ) : <div />}
+            <div>
+              <div className="text-[11.5px] font-bold tracking-[0.09em] mb-1" style={{ color: C.inkSoft }}>Recordatorios</div>
+              <button
+                type="button"
+                disabled={iAlreadyAskedToRemind || isFinalized}
+                onClick={toggleRemindMe}
+                style={{ height: 48, ...(iAlreadyAskedToRemind ? { color: C.inkSoft, background: C.subtle } : { color: C.signal, background: C.signalSoft }) }}
+                className="w-full px-3 text-xs font-semibold rounded-md flex items-center justify-center gap-1.5 text-center disabled:cursor-default"
+              >
+                {iAlreadyAskedToRemind ? <><CheckCircle2 size={13} /> Te avisamos</> : <><Bell size={13} /> Avisarme del deadline</>}
+              </button>
             </div>
-          )}
+          </div>
 
-          <div className="pt-5">
-            <div className="text-[11.5px] font-bold tracking-[0.09em] mb-2" style={{ color: C.inkSoft }}>Recordatorios</div>
-            <div className="flex flex-col gap-1.5 text-sm mb-3" style={{ color: C.ink }}>
+          <div className="flex flex-col gap-1.5 text-sm" style={{ color: C.ink }}>
+              {!isColaborativo && isPersonalSolo && !viewerIsGerente && (
+                <div>
+                  <div className="text-[11.5px] font-bold tracking-[0.09em] mb-1" style={{ color: C.inkSoft }}>Asignar Responsables</div>
+                  <p className="text-[11px] mb-2" style={{ color: C.inkSoft }}>Esas personas se vuelven las solicitantes y tú te quedas como asignado.</p>
+                  <div className="flex flex-wrap gap-1.5 mb-2">
+                    {assignableProfiles.filter((p) => p.id !== profile.id).map((p) => (
+                      <button key={p.id} type="button" disabled={isFinalized} onClick={() => toggleResponsibleId(p.id)}
+                        style={{ background: responsibleIds.includes(p.id) ? C.ink : C.panel, boxShadow: responsibleIds.includes(p.id) ? "none" : SH.soft, color: responsibleIds.includes(p.id) ? C.paper : C.inkMedium, fontWeight: responsibleIds.includes(p.id) ? 600 : 500 }}
+                        className="rounded-full px-3 py-1.5 text-xs disabled:opacity-50">{p.name}</button>
+                    ))}
+                  </div>
+                  <button disabled={isFinalized || responsibleIds.length === 0} onClick={assignResponsible}
+                    style={{ background: C.subtle, color: C.inkMedium, borderRadius: R.md, height: 48 }}
+                    className="px-4 text-sm font-semibold flex items-center gap-2 disabled:opacity-50"><ArrowRightLeft size={16} /> Asignar Responsables</button>
+                </div>
+              )}
               {!isPersonalSolo && !viewerIsGerente && isDelivered && isAssignee && (
                 <button
                   type="button"
@@ -3047,15 +3096,6 @@ function TaskDetail({ task, onClose, onUpdate, onDelete, onDeleteRecurring, recu
                   Dar seguimiento <span className="text-[11px]" style={{ color: C.inkSoft }}>(te llegan todas las notificaciones de cambios de este pendiente)</span>
                 </label>
               )}
-              <button
-                type="button"
-                disabled={iAlreadyAskedToRemind || isFinalized}
-                onClick={toggleRemindMe}
-                style={iAlreadyAskedToRemind ? { color: C.inkSoft, background: C.subtle } : { color: C.signal, background: C.signalSoft }}
-                className="px-3.5 py-2.5 text-xs font-semibold rounded-full flex items-center gap-1.5 self-start disabled:cursor-default"
-              >
-                {iAlreadyAskedToRemind ? <><CheckCircle2 size={13} /> Te avisamos</> : <><Bell size={13} /> Avisarme cuando se acerque el deadline</>}
-              </button>
               {!isPersonalSolo && isColaborativo && canRemind && (
                 <div>
                   <label className="text-[11.5px] font-bold tracking-[0.09em]" style={{ color: C.inkSoft }}>Recordatorio para</label>
@@ -3084,12 +3124,11 @@ function TaskDetail({ task, onClose, onUpdate, onDelete, onDeleteRecurring, recu
               </div>
             )}
             {!isPersonalSolo && canRemind && <p className="text-[11px] mt-1.5" style={{ color: C.inkSoft }}>Correo abre Outlook Web ya redactado (solo dale enviar); WhatsApp abre con el mensaje listo. Ninguno sale automático.</p>}
-          </div>
 
           {!isPersonalSolo && (
             <div className="pt-5">
               <div className="flex items-center justify-between mb-2">
-                <div className="text-[11.5px] font-bold tracking-[0.09em] flex items-center gap-1.5" style={{ color: C.inkSoft }}><MessageSquare size={12} /> Comentarios</div>
+                <div className="text-[11.5px] font-bold tracking-[0.09em]" style={{ color: C.inkSoft }}>Comentarios</div>
                 {extractCommentLinks(comments).length > 0 && (
                   <button onClick={() => setShowAttachments((v) => !v)} className="text-xs flex items-center gap-1" style={{ color: C.signal }}>
                     <Paperclip size={12} /> Archivos adjuntos ({extractCommentLinks(comments).length})

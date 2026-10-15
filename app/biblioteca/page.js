@@ -3,7 +3,7 @@ import { Suspense, useState, useEffect, useCallback, useRef } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { supabase } from "@/lib/supabaseClient";
 import {
-  Plus, ExternalLink, X, Trash2, Pencil, BookOpen, Play,
+  Plus, ExternalLink, X, Trash2, Pencil, BookOpen, Play, Bell,
   Search, Share2, Copy, Upload, Link2, FileText, FileSpreadsheet, Image as ImageIcon, Users,
 } from "lucide-react";
 import { C, R, SH, FONT_SERIF } from "@/lib/theme";
@@ -120,7 +120,6 @@ function BibliotecaPageInner() {
   const [sharing, setSharing] = useState(null);
   const [view, setView] = useState("general"); // "general" | "mine"
   const [activeTags, setActiveTags] = useState([]);
-  const [searchOpen, setSearchOpen] = useState(false);
   const [query, setQuery] = useState("");
   const autoOpenedRef = useRef(false);
 
@@ -226,31 +225,36 @@ function BibliotecaPageInner() {
       </div>
 
       <div className="max-w-3xl mx-auto p-5 md:pt-10">
-        <div className="flex items-center justify-between gap-3 mb-1">
-          <h1 style={{ color: C.ink, fontFamily: FONT_SERIF, fontSize: 32, fontWeight: 500, letterSpacing: "-0.01em" }} className="leading-tight">Biblioteca</h1>
-          <button
-            onClick={() => { setSearchOpen((v) => !v); if (searchOpen) setQuery(""); }}
-            title="Buscar en Biblioteca"
-            style={{ width: 40, height: 40, borderRadius: R.pill, background: C.panel, boxShadow: SH.soft, color: C.inkMedium }}
-            className="flex items-center justify-center flex-shrink-0"
-          >
-            <Search size={18} />
-          </button>
-        </div>
-        <p style={{ color: C.inkSoft, fontSize: 14 }} className="mb-5">Todo lo que necesitas para crear, en un solo lugar.</p>
-
-        {searchOpen && (
-          <div style={{ background: C.panel, borderRadius: R.pill, boxShadow: SH.soft }} className="flex items-center gap-2 px-4 h-[46px] mb-5">
-            <Search size={14} style={{ color: C.inkSoft, flexShrink: 0 }} />
-            {/* eslint-disable-next-line jsx-a11y/no-autofocus */}
-            <input autoFocus value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Busca por nombre o etiqueta..." className="text-sm outline-none bg-transparent flex-1" />
-            {query && <button onClick={() => setQuery("")}><X size={14} style={{ color: C.inkSoft }} /></button>}
+        <div className="flex items-center gap-2.5 mb-5">
+          <div style={{ background: C.panel, borderRadius: R.pill, boxShadow: SH.soft }} className="flex-1 min-w-0 h-11 px-4 flex items-center gap-2.5">
+            <Search size={16} style={{ color: C.gray, flexShrink: 0 }} />
+            <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Buscar recurso..." className="text-sm outline-none bg-transparent flex-1 min-w-0" style={{ color: C.ink }} />
+            {query && <button onClick={() => setQuery("")} className="flex-shrink-0"><X size={14} style={{ color: C.inkSoft }} /></button>}
           </div>
+          <button onClick={() => router.push("/dashboard")} title="Notificaciones"
+            style={{ width: 44, height: 44, borderRadius: R.pill, background: C.panel, boxShadow: SH.soft, color: C.inkMedium }}
+            className="flex items-center justify-center flex-shrink-0">
+            <Bell size={18} />
+          </button>
+          {(view === "mine" || isAdmin) && (
+            <button onClick={view === "general" ? openNewGeneral : openNewPersonal}
+              style={{ background: C.ink, color: C.paper, borderRadius: R.pill, height: 44 }}
+              className="px-4 flex items-center gap-1.5 text-[13.5px] font-semibold flex-shrink-0 whitespace-nowrap">
+              <Plus size={16} /> <span className="hidden sm:inline">Agregar recurso</span>
+            </button>
+          )}
+        </div>
+
+        {!searching && (
+          <>
+            <h1 style={{ color: C.ink, fontFamily: FONT_SERIF, fontSize: 32, fontWeight: 500, letterSpacing: "-0.01em" }} className="leading-tight mb-1">Biblioteca</h1>
+            <p style={{ color: C.inkSoft, fontSize: 14 }} className="mb-5">Todo lo que necesitas para crear, en un solo lugar.</p>
+          </>
         )}
 
         {searching ? (
           <>
-            <div className="text-[11.5px] font-bold tracking-[0.09em] mb-2" style={{ color: C.inkSoft }}>RESULTADOS ({searchResults.length})</div>
+            <div className="text-[11.5px] font-bold tracking-[0.09em] mb-3" style={{ color: C.inkSoft }}>RESULTADOS ({searchResults.length})</div>
             {searchResults.length === 0 && <p className="text-sm" style={{ color: C.inkSoft }}>Nada para "{query}".</p>}
             <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
               {searchResults.map((r) => <ResourceCard key={r.id} r={r} profiles={profiles} profile={profile} onOpen={() => setSelected(r)} />)}
@@ -258,77 +262,76 @@ function BibliotecaPageInner() {
           </>
         ) : (
           <>
-            <div style={{ background: C.subtle, borderRadius: R.pill }} className="flex gap-1 p-1 mb-4 max-w-md">
-              <button
-                onClick={() => changeView("general")}
-                style={view === "general" ? { background: C.panel, boxShadow: "0 1px 3px rgba(27,30,36,0.10)", color: C.ink, fontWeight: 700 } : { color: C.inkSoft, fontWeight: 600 }}
-                className="flex-1 h-9 rounded-full text-[13px]"
-              >
-                Generales
-              </button>
-              <button
-                onClick={() => changeView("mine")}
-                style={view === "mine" ? { background: C.panel, boxShadow: "0 1px 3px rgba(27,30,36,0.10)", color: C.ink, fontWeight: 700 } : { color: C.inkSoft, fontWeight: 600 }}
-                className="flex-1 h-9 rounded-full text-[13px]"
-              >
-                Mis recursos
-              </button>
-            </div>
-
-            {allTags.length > 0 && (
-              <div className="flex flex-wrap gap-1.5 mb-6">
+            <div className="flex flex-wrap items-center gap-2.5 mb-6">
+              <div style={{ background: C.subtle, borderRadius: R.pill }} className="flex gap-1 p-1 flex-shrink-0">
                 <button
-                  onClick={() => setActiveTags([])}
-                  style={activeTags.length === 0 ? { background: C.ink, color: C.paper, fontWeight: 600 } : { background: C.panel, color: C.inkMedium, boxShadow: SH.soft, fontWeight: 500 }}
-                  className="h-[34px] px-3.5 rounded-full text-[12.5px] whitespace-nowrap"
+                  onClick={() => changeView("general")}
+                  style={view === "general" ? { background: C.panel, boxShadow: "0 1px 3px rgba(27,30,36,0.10)", color: C.ink, fontWeight: 700 } : { color: C.inkSoft, fontWeight: 600 }}
+                  className="h-9 px-3.5 rounded-full text-[13px] whitespace-nowrap"
                 >
-                  Todas
+                  Recursos generales
                 </button>
-                {allTags.map((tag) => {
-                  const active = activeTags.includes(tag);
-                  return (
-                    <button
-                      key={tag}
-                      onClick={() => setActiveTags((prev) => active ? prev.filter((t) => t !== tag) : [...prev, tag])}
-                      style={active ? { background: C.ink, color: C.paper, fontWeight: 600 } : { background: C.panel, color: C.inkMedium, boxShadow: SH.soft, fontWeight: 500 }}
-                      className="h-[34px] px-3.5 rounded-full text-[12.5px] whitespace-nowrap"
-                    >
-                      {tag}
-                    </button>
-                  );
-                })}
+                <button
+                  onClick={() => changeView("mine")}
+                  style={view === "mine" ? { background: C.panel, boxShadow: "0 1px 3px rgba(27,30,36,0.10)", color: C.ink, fontWeight: 700 } : { color: C.inkSoft, fontWeight: 600 }}
+                  className="h-9 px-3.5 rounded-full text-[13px] whitespace-nowrap"
+                >
+                  Mis recursos
+                </button>
               </div>
-            )}
+
+              {allTags.length > 0 && (
+                <>
+                  <span style={{ width: 1, height: 20, background: C.hairline, flexShrink: 0 }} />
+                  <button
+                    onClick={() => setActiveTags([])}
+                    style={activeTags.length === 0 ? { background: C.ink, color: C.paper, fontWeight: 600 } : { background: C.panel, color: C.inkMedium, boxShadow: SH.soft, fontWeight: 500 }}
+                    className="h-[34px] px-3.5 rounded-full text-[12.5px] whitespace-nowrap"
+                  >
+                    Todas
+                  </button>
+                  {allTags.map((tag) => {
+                    const active = activeTags.includes(tag);
+                    return (
+                      <button
+                        key={tag}
+                        onClick={() => setActiveTags((prev) => active ? prev.filter((t) => t !== tag) : [...prev, tag])}
+                        style={active ? { background: C.ink, color: C.paper, fontWeight: 600 } : { background: C.panel, color: C.inkMedium, boxShadow: SH.soft, fontWeight: 500 }}
+                        className="h-[34px] px-3.5 rounded-full text-[12.5px] whitespace-nowrap"
+                      >
+                        {tag}
+                      </button>
+                    );
+                  })}
+                </>
+              )}
+            </div>
 
             {view === "general" ? (
               <section>
-                <div className="flex items-center justify-between mb-3">
-                  <h2 style={{ color: C.ink, fontFamily: FONT_SERIF, fontSize: 19, fontWeight: 500 }}>Recursos generales</h2>
-                  {isAdmin && (
-                    <button onClick={openNewGeneral} style={{ background: C.ink, color: C.paper, borderRadius: R.pill }} className="px-3.5 py-2 text-xs font-semibold flex items-center gap-1.5">
-                      <Plus size={13} /> Agregar recurso
-                    </button>
-                  )}
-                </div>
-                {generalResources.length === 0 && <p className="text-sm" style={{ color: C.inkSoft }}>Todavía no hay recursos generales{isAdmin ? " — dale a \"Agregar recurso\" para el primero." : "."}</p>}
-                {generalResources.length > 0 && byTags(generalResources).length === 0 && <p className="text-sm" style={{ color: C.inkSoft }}>Nada con esas etiquetas todavía.</p>}
+                {generalResources.length === 0 && <p className="text-sm mb-3" style={{ color: C.inkSoft }}>Todavía no hay recursos generales{isAdmin ? " — dale a \"Agregar recurso\" para el primero." : "."}</p>}
+                {generalResources.length > 0 && byTags(generalResources).length === 0 && <p className="text-sm mb-3" style={{ color: C.inkSoft }}>Nada con esas etiquetas todavía.</p>}
                 <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
                   {byTags(generalResources).map((r) => <ResourceCard key={r.id} r={r} profiles={profiles} profile={profile} onOpen={() => setSelected(r)} />)}
+                  {isAdmin && (
+                    <button onClick={openNewGeneral} style={{ background: C.subtle, color: C.inkSoft, borderRadius: R.xxl, borderColor: C.hairline }} className="aspect-square flex flex-col items-center justify-center gap-2 border-2 border-dashed">
+                      <Plus size={20} />
+                      <span className="text-xs font-medium">Agregar recurso</span>
+                    </button>
+                  )}
                 </div>
               </section>
             ) : (
               <section>
-                <div className="flex items-center justify-between mb-3">
-                  <h2 style={{ color: C.ink, fontFamily: FONT_SERIF, fontSize: 19, fontWeight: 500 }}>Mis recursos</h2>
-                  <button onClick={openNewPersonal} style={{ background: C.ink, color: C.paper, borderRadius: R.pill }} className="px-3.5 py-2 text-xs font-semibold flex items-center gap-1.5">
-                    <Plus size={13} /> Agregar nuevo recurso
-                  </button>
-                </div>
                 <p className="text-[11px] mb-3" style={{ color: C.inkSoft }}>Los que tú agregaste, más los que te compartieron.</p>
-                {myResources.length === 0 && <p className="text-sm" style={{ color: C.inkSoft }}>Todavía no tienes recursos personales — dale a "Agregar nuevo recurso".</p>}
-                {myResources.length > 0 && byTags(myResources).length === 0 && <p className="text-sm" style={{ color: C.inkSoft }}>Nada con esas etiquetas todavía.</p>}
+                {myResources.length === 0 && <p className="text-sm mb-3" style={{ color: C.inkSoft }}>Todavía no tienes recursos personales — dale a "Agregar recurso".</p>}
+                {myResources.length > 0 && byTags(myResources).length === 0 && <p className="text-sm mb-3" style={{ color: C.inkSoft }}>Nada con esas etiquetas todavía.</p>}
                 <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
                   {byTags(myResources).map((r) => <ResourceCard key={r.id} r={r} profiles={profiles} profile={profile} onOpen={() => setSelected(r)} />)}
+                  <button onClick={openNewPersonal} style={{ background: C.subtle, color: C.inkSoft, borderRadius: R.xxl, borderColor: C.hairline }} className="aspect-square flex flex-col items-center justify-center gap-2 border-2 border-dashed">
+                    <Plus size={20} />
+                    <span className="text-xs font-medium">Agregar recurso</span>
+                  </button>
                 </div>
               </section>
             )}
