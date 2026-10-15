@@ -3,8 +3,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabaseClient";
 import { Eye, EyeOff } from "lucide-react";
-
-const C = { paper: "#F6F4EE", panel: "#FFFFFF", ink: "#1C1F26", inkSoft: "#5B5F6B", hairline: "#DCD6C8", urgent: "#B3402B", spine: "#14181F" };
+import { C, R, SH, FONT_SERIF } from "@/lib/theme";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -68,62 +67,100 @@ export default function LoginPage() {
     }
   };
 
-  return (
-    <div style={{ background: C.spine, minHeight: "100vh" }} className="w-full flex items-center justify-center p-6">
-      <div style={{ background: C.paper, borderColor: C.hairline }} className="w-full max-w-sm border p-8">
-        <div style={{ color: C.inkSoft }} className="font-mono text-[11px] tracking-[0.2em] uppercase mb-1">Sevenly · Acceso</div>
-        <h1 style={{ color: C.ink, fontFamily: "Georgia, serif" }} className="text-2xl mb-5">
-          {mode === "login" ? "Inicia sesión" : "Crea tu cuenta"}
-        </h1>
+  const field = (label, children) => (
+    <div className="flex flex-col gap-1.5">
+      <div className="text-[11.5px] font-bold tracking-[0.09em]" style={{ color: C.inkSoft }}>{label}</div>
+      {children}
+    </div>
+  );
 
-        <div className="flex flex-col gap-3 mb-3">
-          {mode === "register" && (
-            <>
-              <input value={name} onChange={(e) => setName(e.target.value)} placeholder="Tu nombre" required style={{ borderColor: C.hairline, background: C.panel }} className="border px-3 py-2 text-sm outline-none" />
-              <input value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="Tu celular (con lada)" style={{ borderColor: C.hairline, background: C.panel }} className="border px-3 py-2 text-sm outline-none" />
-              <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="Correo" required style={{ borderColor: C.hairline, background: C.panel }} className="border px-3 py-2 text-sm outline-none" />
-            </>
-          )}
-          {mode === "login" && (
-            <input value={identifier} onChange={(e) => setIdentifier(e.target.value)} placeholder="Usuario o correo" style={{ borderColor: C.hairline, background: C.panel }} className="border px-3 py-2 text-sm outline-none" />
-          )}
-          <div className="relative">
-            <input
-              type={showPassword ? "text" : "password"}
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              onKeyDown={(e) => e.key === "Enter" && submit()}
-              placeholder="Contraseña"
-              required
-              style={{ borderColor: C.hairline, background: C.panel }}
-              className="w-full border px-3 py-2 pr-9 text-sm outline-none"
-            />
-            <button
-              type="button"
-              onClick={() => setShowPassword((v) => !v)}
-              style={{ color: C.inkSoft }}
-              className="absolute right-2.5 top-1/2 -translate-y-1/2"
-              tabIndex={-1}
-            >
-              {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
-            </button>
+  const inputCls = "h-[50px] rounded-[14px] px-[15px] text-[15px] outline-none w-full";
+  const inputStyle = { background: C.paper, color: C.ink };
+
+  return (
+    <div style={{ background: C.paper, minHeight: "100vh" }} className="w-full flex items-center justify-center p-6 font-sans">
+      <div className="w-full max-w-sm flex flex-col items-center">
+
+        <div className="flex flex-col items-center gap-[18px] mb-[30px]">
+          <div
+            style={{ width: 60, height: 60, borderRadius: R.xl, background: C.ink, color: C.paper, fontFamily: FONT_SERIF, fontSize: 30, fontWeight: 500, boxShadow: SH.float }}
+            className="flex items-center justify-center"
+          >S</div>
+          <div className="flex flex-col items-center gap-2">
+            <div style={{ fontFamily: FONT_SERIF, fontSize: 34, fontWeight: 500, letterSpacing: "-0.01em" }}>Sevenly</div>
+            <div style={{ fontSize: 14.5, color: C.inkSoft }} className="text-center">Los pendientes del equipo, en orden.</div>
           </div>
         </div>
 
-        {error && <div className="text-xs mb-3" style={{ color: C.urgent }}>{error}</div>}
-        {info && <div className="text-xs mb-3" style={{ color: "#0F6E5C" }}>{info}</div>}
+        <div
+          style={{ background: C.panel, borderRadius: R.xxl, boxShadow: "0 1px 2px rgba(27,30,36,0.04), 0 14px 34px rgba(27,30,36,0.07)" }}
+          className="w-full p-[22px] flex flex-col gap-4"
+        >
+          {mode === "register" && (
+            <>
+              {field("TU NOMBRE", (
+                <input value={name} onChange={(e) => setName(e.target.value)} placeholder="Tu nombre" required style={inputStyle} className={inputCls} />
+              ))}
+              {field("WHATSAPP", (
+                <input value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="Tu celular (con lada)" style={inputStyle} className={inputCls} />
+              ))}
+              {field("CORREO", (
+                <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="Correo" required style={inputStyle} className={inputCls} />
+              ))}
+            </>
+          )}
+          {mode === "login" && field("USUARIO O CORREO", (
+            <input value={identifier} onChange={(e) => setIdentifier(e.target.value)} placeholder="fer" style={inputStyle} className={inputCls} />
+          ))}
 
-        <button onClick={submit} disabled={loading} style={{ background: C.spine, color: C.paper }} className="w-full px-4 py-2 text-sm mb-3 disabled:opacity-60">
-          {loading ? "Un momento..." : mode === "login" ? "Entrar" : "Crear cuenta"}
-        </button>
+          {field("CONTRASEÑA", (
+            <div className="relative">
+              <input
+                type={showPassword ? "text" : "password"}
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                onKeyDown={(e) => e.key === "Enter" && submit()}
+                placeholder="••••••••"
+                required
+                style={inputStyle}
+                className={inputCls + " pr-10"}
+              />
+              <button
+                type="button"
+                onClick={() => setShowPassword((v) => !v)}
+                style={{ color: C.gray }}
+                className="absolute right-3.5 top-1/2 -translate-y-1/2"
+                tabIndex={-1}
+              >
+                {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+              </button>
+            </div>
+          ))}
+
+          {error && <div className="text-xs" style={{ color: C.urgent }}>{error}</div>}
+          {info && <div className="text-xs" style={{ color: C.signal }}>{info}</div>}
+
+          <button
+            onClick={submit}
+            disabled={loading}
+            style={{ background: C.ink, color: C.paper, borderRadius: R.md, boxShadow: "0 8px 18px rgba(27,30,36,0.20)" }}
+            className="h-[52px] text-[15.5px] font-semibold mt-1 disabled:opacity-60"
+          >
+            {loading ? "Un momento..." : mode === "login" ? "Entrar" : "Crear cuenta"}
+          </button>
+        </div>
 
         <button
           onClick={() => { setMode(mode === "login" ? "register" : "login"); setError(""); setInfo(""); }}
-          className="text-xs underline"
-          style={{ color: C.inkSoft }}
+          className="text-sm mt-[22px]"
         >
-          {mode === "login" ? "Aún no tengo cuenta — crear una" : "Ya tengo cuenta — iniciar sesión"}
+          <span style={{ color: C.inkSoft }}>{mode === "login" ? "¿Aún no tienes cuenta?" : "¿Ya tienes cuenta?"}</span>{" "}
+          <span style={{ color: C.signal, fontWeight: 600 }}>{mode === "login" ? "Crear una" : "Iniciar sesión"}</span>
         </button>
+
+        <div style={{ color: "#B6B2A8", fontSize: 11.5, fontWeight: 600, letterSpacing: "0.14em" }} className="mt-10">
+          SEVENLY · EQUIPO DE CONTENIDO
+        </div>
       </div>
     </div>
   );
