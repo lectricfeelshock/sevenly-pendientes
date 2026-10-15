@@ -24,6 +24,47 @@ si suena alguna alerta al terminar cada uno, si se puede personalizar,
 etc. Lo dejo como opción por ahora; cuando lo tenga más claro lo
 detallo.
 
+### 19. Quitar el tipo "Personal": que Individual pueda cubrir ese caso
+La idea es dejar de necesitar el tipo "Personal" (donde tú te asignas
+un pendiente a ti mismo), haciendo que "Individual" pueda hacer lo
+mismo:
+
+a. Al crear un pendiente **Individual**, en "Solicita" podrás elegir a
+   otra persona del equipo como solicitante — ya no tienes que ser
+   siempre tú el que solicita.
+b. En "Asignar a", tu propio nombre también aparecerá como opción (hoy
+   se excluye).
+c. Con esas dos, puedes armar un Individual con solicitante = tú y
+   asignado = tú — igual que hacía "Personal" — y ya no haría falta
+   tener el tipo aparte.
+
+Falta decidir qué pasa con los pendientes "Personal" que ya existen
+(¿se migran a Individual, o se dejan convivir sin que se puedan crear
+nuevos?) — lo dejo pendiente de aterrizar antes de construirlo.
+
+### 20. Cronograma diario: línea de tiempo con tus pendientes como bloques que arrastras
+Un apartado nuevo (tipo "mi día") donde eliges de tus pendientes ya
+asignados cuáles vas a trabajar hoy, le pones a cada uno cuánto tiempo
+calculas que te va a tomar, y se te muestra como una línea de tiempo
+con las horas del día — cada pendiente es un rectángulo que ocupa ese
+bloque de horas, y lo puedes arrastrar para moverlo de lugar (algo
+visual tipo Trello, pero para organizar tu tiempo, no un cálculo
+automático de la app).
+
+Aún sin definir bien — lo dejo como opción, cuando lo tenga más claro
+lo detallo. Preguntas abiertas antes de construirlo:
+- El "cuánto tiempo le tomará" a cada pendiente, ¿se guarda como dato
+  nuevo del pendiente (visible para todos) o es privado, solo de mi
+  cronograma del día?
+- Si los bloques que acomodas no alcanzan a caber antes del deadline
+  de un pendiente, ¿hace falta alguna alerta, o es solo una
+  herramienta visual sin validaciones?
+- ¿Se pueden meter ahí también los pendientes que yo solicité (para
+  ver cuándo los va a hacer la otra persona), o solo los que a mí me
+  asignaron?
+- ¿Es solo para hoy (se reinicia cada día) o también se puede armar el
+  de días futuros, tipo semana?
+
 ## Historial (aplicadas)
 
 ### [x] 10. Poder agregarte subtareas a ti mismo en un pendiente individual que te asignaron
