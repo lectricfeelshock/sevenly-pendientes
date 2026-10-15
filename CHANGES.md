@@ -65,6 +65,14 @@ lo detallo. Preguntas abiertas antes de construirlo:
 - ¿Es solo para hoy (se reinicia cada día) o también se puede armar el
   de días futuros, tipo semana?
 
+### 21. Vista de calendario para deadlines
+_Movida desde PROPUESTAS.md #3._
+
+Un calendario mensual con todos los pendientes que tengan `deadline`
+puesto, para ver de un vistazo qué semana está más saturada — pintando
+los días según qué tan cerca está la fecha (se puede reusar la lógica
+que ya existe en `dueLegend()`).
+
 ## Historial (aplicadas)
 
 ### [x] 10. Poder agregarte subtareas a ti mismo en un pendiente individual que te asignaron
