@@ -1537,7 +1537,7 @@ function NewTaskForm({ onClose, onCreate, onCreatePopup, profiles, profile, isAd
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: "rgba(27,30,36,0.55)" }}>
-      <div style={{ background: C.paper, borderRadius: R.xxl, boxShadow: SH.card }} className="w-full max-w-lg max-h-[90vh] overflow-y-auto">
+      <div style={{ background: C.paper, borderRadius: R.xxl, boxShadow: SH.card }} className="w-full max-w-2xl max-h-[90vh] overflow-y-auto">
         <div style={{ boxShadow: `inset 0 -1px 0 ${C.hairline}` }} className="px-5 py-4 flex items-center justify-between">
           {isAdmin ? (
             <div style={{ background: C.subtle, borderRadius: R.pill }} className="flex gap-1 p-1">
