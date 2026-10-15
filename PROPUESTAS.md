@@ -25,11 +25,6 @@ Ahora mismo los pendientes se listan agrupados por urgencia
 entregado") con drag-and-drop para cambiar de estado daría una foto más
 rápida del avance del equipo — es el patrón más usado en Trello/Asana.
 
-### 3. Vista de calendario para deadlines
-Todos los pendientes con `deadline` puestos en un calendario mensual, para
-ver de un vistazo qué semana está saturada. Se puede reusar la lógica de
-`dueLegend()` para pintar los días según qué tan cerca está la fecha.
-
 ### 4. Etiquetas libres además de categoría
 Hoy cada pendiente tiene una sola `category` fija (ver
 `DEFAULT_CATEGORIES`). Agregar tags de colores libres (como Trello)
