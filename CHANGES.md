@@ -80,6 +80,14 @@ la notificación. La idea es quitar ese botón — en cuanto se marque
 "Entregado", que se le mande esa misma notificación al solicitante
 automáticamente, sin que nadie tenga que acordarse de avisar aparte.
 
+### 23. Que cualquiera pueda editar el deadline, pero que siempre se le avise al solicitante
+Hoy solo el solicitante (o el admin) puede cambiar el deadline de un
+pendiente — lo tenía bloqueado por si alguien quería cambiarlo para
+"excusarse" de que la fecha decía otra cosa. Prefiero quitar esa
+restricción: que **cualquiera** con acceso al pendiente pueda editar
+el deadline, tanto el del pendiente general como el de cualquier
+subtarea — pero que, cada vez que alguien que no sea el propio
+solicitante haga ese cambio, le llegue una notificación avisándole.
 La notificación es la misma que ya existe (ver #4a en el Historial):
 título `Te entregaron un pendiente`; descripción `(Nombre del que
 entregó) ya entregó su pendiente, revísalo y dale finalizado. Al
