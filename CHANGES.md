@@ -73,6 +73,19 @@ puesto, para ver de un vistazo qué semana está más saturada — pintando
 los días según qué tan cerca está la fecha (se puede reusar la lógica
 que ya existe en `dueLegend()`).
 
+### 22. Quitar "Avisar a solicitante": que se avise automático al entregar
+Hoy, cuando el asignado marca un pendiente como "Entregado", tiene que
+además darle aparte al botón "Avisar a solicitante" para que le llegue
+la notificación. La idea es quitar ese botón — en cuanto se marque
+"Entregado", que se le mande esa misma notificación al solicitante
+automáticamente, sin que nadie tenga que acordarse de avisar aparte.
+
+La notificación es la misma que ya existe (ver #4a en el Historial):
+título `Te entregaron un pendiente`; descripción `(Nombre del que
+entregó) ya entregó su pendiente, revísalo y dale finalizado. Al
+finalizar pendientes podrá sumarle al registro personal de (nombre del
+que entregó)`.
+
 ## Historial (aplicadas)
 
 ### [x] 10. Poder agregarte subtareas a ti mismo en un pendiente individual que te asignaron
