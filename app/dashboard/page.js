@@ -6,7 +6,7 @@ import {
   Plus, Bell, MessageSquare, ArrowRightLeft, X, Search, Flag,
   ChevronRight, ChevronDown, Trash2, CheckCircle2, Circle,
   PauseCircle, PlayCircle, Send, LogOut, History, Mail, Users,
-  User, TrendingUp, BookOpen, Download, Lock, CheckCheck, BellRing,
+  BookOpen, Download, Lock, CheckCheck, BellRing,
   Image as ImageIcon, Megaphone, Eye, Pencil, Paperclip, Link2, Clock,
 } from "lucide-react";
 import { C, R, SH, FONT_SERIF } from "@/lib/theme";
@@ -446,7 +446,6 @@ export default function Dashboard() {
     setShowNew(true);
   };
   const [showTeam, setShowTeam] = useState(false);
-  const [showActivity, setShowActivity] = useState(false);
   const [showNotifs, setShowNotifs] = useState(false);
   const [showSearch, setShowSearch] = useState(false);
   // CHANGES.md #12: filtro activo del dashboard — reemplaza los tabs de
@@ -1114,20 +1113,28 @@ export default function Dashboard() {
 
   return (
     <div style={{ background: C.paper, minHeight: "100vh" }} className="w-full font-sans pb-28 md:pb-10 md:pl-[248px]">
-      <div className="px-5 pt-4 pb-1 flex items-center justify-between gap-3">
-        <div className="text-[11px] font-bold tracking-[0.18em] md:hidden" style={{ color: C.inkSoft }}>TERREGAL</div>
-        <div className="flex items-center gap-2 ml-auto">
-          <button onClick={() => setShowActivity(true)} title={profile.name}
-            style={{ width: 40, height: 40, borderRadius: R.pill, background: C.panel, boxShadow: SH.soft, color: C.inkMedium }}
-            className="flex items-center justify-center"><User size={18} /></button>
-          <button onClick={() => { setShowNotifs(true); markNotifsRead(); }} className="relative"
-            style={{ width: 40, height: 40, borderRadius: R.pill, background: C.panel, boxShadow: SH.soft, color: C.inkMedium }}>
-            <span className="flex items-center justify-center w-full h-full"><Bell size={18} /></span>
-            {bellLabel && <span style={{ background: C.urgent, color: "#fff" }} className="absolute top-0 right-0 text-[9px] font-bold w-4 h-4 flex items-center justify-center leading-none rounded-full">{bellLabel}</span>}
-          </button>
-        </div>
+      <div className="px-5 pt-4 md:hidden">
+        <div className="text-[11px] font-bold tracking-[0.18em]" style={{ color: C.inkSoft }}>TERREGAL</div>
       </div>
-      <div className="px-5 pt-3">
+      <div className="px-5 pt-3 flex items-center gap-2.5">
+        <button onClick={() => setShowSearch(true)}
+          style={{ background: C.panel, borderRadius: R.pill, boxShadow: SH.soft }}
+          className="flex-1 min-w-0 h-11 px-4 flex items-center gap-2.5 text-left">
+          <Search size={16} style={{ color: C.gray, flexShrink: 0 }} />
+          <span className="text-sm truncate" style={{ color: C.inkFaint }}>Buscar pendiente...</span>
+        </button>
+        <button onClick={() => { setShowNotifs(true); markNotifsRead(); }} className="relative flex-shrink-0"
+          style={{ width: 44, height: 44, borderRadius: R.pill, background: C.panel, boxShadow: SH.soft, color: C.inkMedium }}>
+          <span className="flex items-center justify-center w-full h-full"><Bell size={18} /></span>
+          {bellLabel && <span style={{ background: C.urgent, color: "#fff" }} className="absolute top-0 right-0 text-[9px] font-bold w-4 h-4 flex items-center justify-center leading-none rounded-full">{bellLabel}</span>}
+        </button>
+        <button onClick={() => setShowNew(true)}
+          style={{ background: C.ink, color: C.paper, borderRadius: R.pill, height: 44 }}
+          className="px-4 flex items-center gap-1.5 text-[13.5px] font-semibold flex-shrink-0 whitespace-nowrap">
+          <Plus size={16} /> <span className="hidden sm:inline">Nuevo pendiente</span>
+        </button>
+      </div>
+      <div className="px-5 pt-4">
         <h1 style={{ color: C.ink, fontFamily: FONT_SERIF, fontSize: 32, fontWeight: 500, letterSpacing: "-0.01em" }} className="leading-[1.08]">Pendientes</h1>
         <div className="flex items-center gap-2 mt-1.5 text-[13.5px]" style={{ color: C.inkSoft }}>
           <span>{activeInTab.length} activo{activeInTab.length === 1 ? "" : "s"}</span>
@@ -1140,47 +1147,15 @@ export default function Dashboard() {
         </div>
       </div>
 
-      <div className="px-5 pt-5 flex flex-wrap items-center gap-2 relative">
-        <div style={{ background: C.subtle, borderRadius: R.pill }} className="flex gap-1 p-1">
+      <div className="px-5 pt-4 flex flex-wrap items-center gap-2.5 relative">
+        <div style={{ background: C.subtle, borderRadius: R.pill }} className="flex gap-1 p-1 flex-shrink-0">
           {[["requests", "Solicitudes"], ["mine", "Míos"], ["all", "Todos"], ...(isAdmin ? [["popups", "Pop Ups"]] : [])].map(([key, label]) => (
             <button key={key} onClick={() => setPrimaryTab(key)}
               style={primaryTab === key ? { background: C.panel, boxShadow: "0 1px 3px rgba(27,30,36,0.10)", color: C.ink, fontWeight: 700 } : { color: C.inkSoft, fontWeight: 600 }}
               className="h-9 px-3.5 rounded-full text-[12.5px] whitespace-nowrap">{label}</button>
           ))}
         </div>
-        {watchers.length > 0 && <Eye size={15} style={{ color: C.urgent }} />}
-        {isGerente && (
-          <div className="relative">
-            <button onClick={() => setShowTeamPicker((v) => !v)}
-              style={viewingAs ? { background: C.ink, color: C.paper, fontWeight: 600 } : { background: C.panel, boxShadow: SH.soft, color: C.inkMedium, fontWeight: 500 }}
-              className="h-9 px-3.5 rounded-full text-[12.5px] whitespace-nowrap flex items-center gap-1">
-              Mi equipo <ChevronDown size={13} style={{ transform: showTeamPicker ? "rotate(180deg)" : "none" }} />
-            </button>
-            {showTeamPicker && (
-              <div style={{ background: C.panel, borderRadius: R.lg, boxShadow: SH.card }} className="absolute left-0 top-full mt-1.5 z-30 min-w-[180px] py-1.5">
-                <button onClick={() => { stopViewingAs(); setShowTeamPicker(false); }} style={{ color: C.inkSoft, boxShadow: `inset 0 -1px 0 ${C.hairlineSoft}` }} className="w-full text-left px-3.5 py-2 text-sm">Ver el mío (salir)</button>
-                {profiles.filter((p) => p.id !== profile.id && p.role !== "admin").map((p) => (
-                  <button key={p.id} onClick={() => { startViewingAs(p.id); setShowTeamPicker(false); }}
-                    style={{ color: viewingAs === p.id ? C.signal : C.ink, background: viewingAs === p.id ? C.signalSoft : "transparent" }}
-                    className="w-full text-left px-3.5 py-2 text-sm">{p.name}</button>
-                ))}
-              </div>
-            )}
-          </div>
-        )}
-      </div>
-      {viewingAs && viewingProfile && (
-        <div style={{ background: C.signalSoft, color: C.signal }} className="px-5 py-2 text-sm flex items-center justify-between gap-2">
-          <span>Viendo como <strong>{viewingProfile.name}</strong> (solo lectura)</span>
-          <button onClick={stopViewingAs} className="underline text-xs">Salir</button>
-        </div>
-      )}
-
-      {primaryTab === "popups" && isAdmin ? (
-        <PopupsAdminPanel profile={profile} profiles={assignableProfiles} tasks={tasks} subtasks={subtasks} />
-      ) : (
-      <>
-      <div className="px-5 pt-3.5 flex flex-wrap items-center gap-1.5">
+        <span style={{ width: 1, height: 20, background: C.hairline, flexShrink: 0 }} />
         <button onClick={() => { setActiveFilter({ type: "Todos" }); setOpenFilterKey(null); }}
           style={activeFilter.type === "Todos" ? { background: C.ink, color: C.paper, fontWeight: 600 } : { background: C.panel, boxShadow: SH.soft, color: C.inkMedium, fontWeight: 500 }}
           className="h-[34px] px-3.5 rounded-full text-[12.5px] whitespace-nowrap">Todos</button>
@@ -1274,17 +1249,42 @@ export default function Dashboard() {
           )}
         </div>
 
-        <div className="flex items-center gap-1.5 ml-auto">
-          {/* Lanzamiento del buscador — quitar esta leyenda después del 2026-08-31 */}
-          {todayISO() === "2026-08-31" && (
-            <span className="text-[10px] font-bold uppercase tracking-wider" style={{ color: C.signal }}>¡Nuevo!</span>
-          )}
-          <button onClick={() => setShowSearch(true)} title="Buscar pendientes"
-            style={{ width: 34, height: 34, borderRadius: R.pill, background: C.ink }} className="flex items-center justify-center">
-            <Search size={15} style={{ color: C.paper }} />
-          </button>
-        </div>
+        {/* Lanzamiento del buscador — quitar esta leyenda después del 2026-08-31 */}
+        {todayISO() === "2026-08-31" && (
+          <span className="text-[10px] font-bold uppercase tracking-wider" style={{ color: C.signal }}>¡Nuevo!</span>
+        )}
+        {watchers.length > 0 && <Eye size={15} style={{ color: C.urgent }} />}
+        {isGerente && (
+          <div className="relative">
+            <button onClick={() => setShowTeamPicker((v) => !v)}
+              style={viewingAs ? { background: C.ink, color: C.paper, fontWeight: 600 } : { background: C.panel, boxShadow: SH.soft, color: C.inkMedium, fontWeight: 500 }}
+              className="h-9 px-3.5 rounded-full text-[12.5px] whitespace-nowrap flex items-center gap-1">
+              Mi equipo <ChevronDown size={13} style={{ transform: showTeamPicker ? "rotate(180deg)" : "none" }} />
+            </button>
+            {showTeamPicker && (
+              <div style={{ background: C.panel, borderRadius: R.lg, boxShadow: SH.card }} className="absolute left-0 top-full mt-1.5 z-30 min-w-[180px] py-1.5">
+                <button onClick={() => { stopViewingAs(); setShowTeamPicker(false); }} style={{ color: C.inkSoft, boxShadow: `inset 0 -1px 0 ${C.hairlineSoft}` }} className="w-full text-left px-3.5 py-2 text-sm">Ver el mío (salir)</button>
+                {profiles.filter((p) => p.id !== profile.id && p.role !== "admin").map((p) => (
+                  <button key={p.id} onClick={() => { startViewingAs(p.id); setShowTeamPicker(false); }}
+                    style={{ color: viewingAs === p.id ? C.signal : C.ink, background: viewingAs === p.id ? C.signalSoft : "transparent" }}
+                    className="w-full text-left px-3.5 py-2 text-sm">{p.name}</button>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
       </div>
+      {viewingAs && viewingProfile && (
+        <div style={{ background: C.signalSoft, color: C.signal }} className="px-5 py-2 text-sm flex items-center justify-between gap-2">
+          <span>Viendo como <strong>{viewingProfile.name}</strong> (solo lectura)</span>
+          <button onClick={stopViewingAs} className="underline text-xs">Salir</button>
+        </div>
+      )}
+
+      {primaryTab === "popups" && isAdmin ? (
+        <PopupsAdminPanel profile={profile} profiles={assignableProfiles} tasks={tasks} subtasks={subtasks} />
+      ) : (
+      <>
 
       <div className="max-w-3xl mx-auto px-5 pb-10">
         {flatDeadlineList ? (
@@ -1321,22 +1321,12 @@ export default function Dashboard() {
       </>
       )}
 
-      <button
-        onClick={() => setShowNew(true)}
-        title="Nuevo pendiente"
-        style={{ width: 58, height: 58, borderRadius: R.pill, background: C.ink, color: C.paper, boxShadow: SH.floatLg }}
-        className="fixed right-5 bottom-[108px] md:bottom-10 z-20 flex items-center justify-center"
-      >
-        <Plus size={26} />
-      </button>
-
       <BottomNav active="pendientes" profile={profile} onEquipo={() => setShowTeam(true)} />
 
       {showNew && <NewTaskForm onClose={() => { setShowNew(false); setAssignChangesFor(null); }} onCreate={createTask} onCreatePopup={createPopup} profiles={assignableProfiles} profile={profile} isAdmin={isAdmin} tasks={tasks} subtasks={subtasks} initialData={assignChangesFor} />}
       {popupQueue[0] && <PopupModal popup={popupQueue[0]} onClose={dismissPopup} tasks={tasks} subtasks={subtasks} profiles={profiles} onFinalizeTask={finalizeTask} />}
       {selected && <TaskDetail task={selected} onClose={() => setSelected(null)} onUpdate={updateTask} onDelete={deleteTask} onDeleteRecurring={deleteRecurringTask} recurringTemplates={recurringTemplates} onFinalize={finalizeTask} onDeliver={deliverTask} profiles={profiles} assignableProfiles={assignableProfiles} profile={profile} notify={notify} subtasks={subtasks.filter((s) => s.task_id === selected.id)} onAddSubtask={addSubtask} onUpdateSubtaskStatus={updateSubtaskStatus} onUpdateSubtaskDescription={updateSubtaskDescription} onAssignChanges={startAssignChanges} viewerIsGerente={!!viewingAs && !isAdmin} onCommentsRead={reloadMyCommentReads} />}
       {showTeam && <TeamPanel onClose={() => setShowTeam(false)} profiles={assignableProfiles} tasks={tasks} />}
-      {showActivity && <ActivityPanel onClose={() => setShowActivity(false)} profile={profile} router={router} />}
       {showNotifs && <NotificationsPanel onClose={() => setShowNotifs(false)} notifications={notifications} onOpenTask={(taskId) => { const t = tasks.find((x) => x.id === taskId); if (t) setSelected(t); setShowNotifs(false); }} onOpenFilter={(target) => { if (target === "requests:Entregado") { setPrimaryTab("requests"); setActiveFilter({ type: "Estado", value: "Entregado" }); } setShowNotifs(false); }} pushSupported={pushSupported} pushEnabled={pushEnabled} onEnablePush={enablePush} />}
       {showSearch && <SearchModal onClose={() => setShowSearch(false)} tasks={myTasks} profiles={profiles} resources={resources} onOpenTask={(t) => { setSelected(t); setShowSearch(false); }} onOpenResource={(r) => { setShowSearch(false); router.push(`/biblioteca?open=${r.id}`); }} />}
     </div>
@@ -3358,54 +3348,3 @@ function TeamPanel({ onClose, profiles, tasks }) {
   );
 }
 
-function ActivityPanel({ onClose, profile, router }) {
-  const [log, setLog] = useState([]);
-  useEffect(() => {
-    (async () => {
-      const { data } = await supabase.from("finalized_log").select("*").eq("user_id", profile.id).order("finalized_at", { ascending: false }).limit(100);
-      setLog(data || []);
-    })();
-  }, [profile.id]);
-  const today = todayISO();
-  // CHANGES.md #4e: un pendiente finalizado cuenta con la fecha en que se
-  // ENTREGÓ, no la que se finalizó — tanto aquí (y solo si esa fecha sigue
-  // dentro de esta ventana de 7 días) como en el reporte descargable.
-  const days = Array.from({ length: 7 }).map((_, i) => {
-    const dt = new Date(); dt.setDate(dt.getDate() - i);
-    const iso = dt.toISOString().slice(0, 10);
-    const count = log.filter((l) => (l.delivered_at || l.finalized_at).slice(0, 10) === iso).length;
-    return { iso, label: dt.toLocaleDateString("es-MX", { weekday: "short", day: "2-digit" }), count };
-  });
-  const todayCount = days[0].count;
-
-  const downloadLog = () => {
-    const lines = [
-      `Pendientes finalizados por ${profile.name}`, `Total histórico: ${log.length}`, "",
-      ...log.map((l) => `[${new Date(l.delivered_at || l.finalized_at).toLocaleString("es-MX")}] ${l.task_title}`),
-    ];
-    const blob = new Blob([lines.join("\n")], { type: "text/plain" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url; a.download = `finalizados_${profile.name.replace(/[^a-z0-9]/gi, "_")}.txt`;
-    a.click(); URL.revokeObjectURL(url);
-  };
-
-  return (
-    <div className="fixed inset-0 z-50 flex items-start justify-end p-4" style={{ background: "rgba(20,24,31,0.35)" }} onClick={onClose}>
-      <div style={{ background: C.paper, borderColor: C.hairline }} className="border w-full max-w-xs mt-14 p-4" onClick={(e) => e.stopPropagation()}>
-        <div className="flex items-center justify-between mb-3">
-          <div className="flex items-center gap-1.5 text-sm font-medium" style={{ color: C.ink }}><TrendingUp size={14} /> Mi actividad
-            <button onClick={() => router.push("/perfil")} style={{ borderColor: C.hairline, color: C.ink }} className="border px-2 py-0.5 text-[11px] ml-1">Ver perfil</button>
-          </div>
-          <button onClick={onClose}><X size={15} style={{ color: C.inkSoft }} /></button>
-        </div>
-        <div style={{ background: C.signalSoft, color: C.signal }} className="px-3 py-2 text-sm mb-3">Hoy: <strong>{todayCount}</strong> finalizado(s). {activityMsg(todayCount)}</div>
-        <div className="flex flex-col gap-1 mb-3">
-          {days.map((d) => <div key={d.iso} className="flex items-center justify-between text-xs"><span style={{ color: C.inkSoft }} className="capitalize">{d.label}</span><span style={{ color: C.ink }} className="font-mono">{d.count}</span></div>)}
-        </div>
-        <button onClick={downloadLog} disabled={log.length === 0} style={{ borderColor: C.hairline, color: C.ink }} className="border px-3 py-2 text-xs flex items-center justify-center gap-2 w-full mb-2 disabled:opacity-40"><Download size={13} /> Descargar mi lista de finalizados</button>
-        <p className="text-[10px]" style={{ color: C.inkSoft }}>Este registro se queda aunque el pendiente se borre después de finalizado.</p>
-      </div>
-    </div>
-  );
-}
