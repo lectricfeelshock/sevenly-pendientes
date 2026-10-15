@@ -136,16 +136,16 @@ function PopupConfirmModal({ title, description, existingUrl, file, onlyNotifica
   const notifMessage = `📣 ${title}${description ? " — " + description : ""}`;
 
   return (
-    <div className="fixed inset-0 z-[80] flex items-center justify-center p-4" style={{ background: "rgba(20,24,31,0.65)" }}>
-      <div style={{ background: C.paper, borderColor: C.hairline }} className="w-full max-w-sm border max-h-[90vh] overflow-y-auto">
-        <div style={{ borderColor: C.hairline }} className="border-b px-5 py-4">
-          <h2 style={{ color: C.ink, fontFamily: FONT_SERIF }} className="text-lg">Vista previa</h2>
+    <div className="fixed inset-0 z-[80] flex items-center justify-center p-4" style={{ background: "rgba(27,30,36,0.65)" }}>
+      <div style={{ background: C.panel, borderRadius: R.xxl, boxShadow: SH.card }} className="w-full max-w-sm max-h-[90vh] overflow-y-auto">
+        <div style={{ boxShadow: `inset 0 -1px 0 ${C.hairline}` }} className="px-5 py-4">
+          <h2 style={{ color: C.ink, fontFamily: FONT_SERIF, fontSize: 20, fontWeight: 500 }}>Vista previa</h2>
         </div>
         <div className="p-5 flex flex-col gap-4">
           {showPopupPreview && (
             <div>
               <div className="text-[11.5px] font-bold tracking-[0.09em] mb-1.5" style={{ color: C.inkSoft }}>Así se ve el pop up</div>
-              <div style={{ borderColor: C.hairline }} className="border overflow-hidden">
+              <div style={{ background: C.paper, borderRadius: R.lg, overflow: "hidden" }}>
                 {mediaUrl && (
                   <button type="button" onClick={() => setShowFullMedia(true)} className="block w-full cursor-zoom-in">
                     {isVideo
@@ -167,7 +167,7 @@ function PopupConfirmModal({ title, description, existingUrl, file, onlyNotifica
           {showNotifPreview && (
             <div>
               <div className="text-[11.5px] font-bold tracking-[0.09em] mb-1.5" style={{ color: C.inkSoft }}>Así se ve la notificación</div>
-              <div style={{ borderColor: C.hairline, background: C.signalSoft }} className="border px-3 py-2.5 flex flex-col gap-0.5">
+              <div style={{ background: C.signalSoft, borderRadius: R.lg }} className="px-3.5 py-3 flex flex-col gap-0.5">
                 <div className="flex items-center gap-2">
                   <Bell size={14} style={{ color: C.signal, flexShrink: 0 }} />
                   <span className="text-sm" style={{ color: C.ink }}>{notifMessage}</span>
@@ -177,9 +177,9 @@ function PopupConfirmModal({ title, description, existingUrl, file, onlyNotifica
             </div>
           )}
         </div>
-        <div style={{ borderColor: C.hairline }} className="border-t px-5 py-4 flex justify-end gap-2">
-          <button onClick={onCancel} disabled={busy} style={{ color: C.inkSoft }} className="px-4 py-2 text-sm disabled:opacity-60">Cancelar</button>
-          <button onClick={onConfirm} disabled={busy} style={{ background: C.spine, color: C.paper, opacity: busy ? 0.6 : 1 }} className="px-4 py-2 text-sm">{busy ? "..." : confirmLabel}</button>
+        <div style={{ boxShadow: `inset 0 1px 0 ${C.hairline}` }} className="px-5 py-4 flex justify-end gap-2">
+          <button onClick={onCancel} disabled={busy} style={{ color: C.inkMedium, background: C.subtle, borderRadius: R.pill }} className="px-5 py-2.5 text-sm font-semibold disabled:opacity-60">Cancelar</button>
+          <button onClick={onConfirm} disabled={busy} style={{ background: C.ink, color: C.paper, opacity: busy ? 0.6 : 1, borderRadius: R.pill }} className="px-5 py-2.5 text-sm font-semibold">{busy ? "..." : confirmLabel}</button>
         </div>
       </div>
       {showFullMedia && (
@@ -2137,7 +2137,7 @@ function PopupTaskBreakdown({ task, fields, profiles, subtasks, onFinalizeTask }
   };
 
   return (
-    <div style={{ borderColor: C.hairline, background: C.panel }} className="border-t px-3 py-2.5 flex flex-col gap-2.5 text-xs">
+    <div style={{ boxShadow: `inset 0 1px 0 ${C.hairline}` }} className="px-3 py-2.5 flex flex-col gap-2.5 text-xs">
       {fields.includes("requester") && (
         <div><div className="text-[11.5px] font-bold tracking-[0.09em]" style={{ color: C.inkSoft }}>Solicitante/s</div><div style={{ color: C.ink }}>{task.requested_by}{coRequesterNames.length ? ` + ${coRequesterNames.join(", ")}` : ""}</div></div>
       )}
@@ -2183,10 +2183,10 @@ function PopupTaskBreakdown({ task, fields, profiles, subtasks, onFinalizeTask }
         </div>
       )}
       {canFinalize && (
-        <button onClick={handleFinalize} disabled={busy} style={{ background: C.signal, color: "#fff" }} className="px-3 py-1.5 text-xs disabled:opacity-60">{busy ? "Finalizando..." : "Finalizar pendiente"}</button>
+        <button onClick={handleFinalize} disabled={busy} style={{ background: C.signal, color: "#fff", borderRadius: R.pill }} className="px-3 py-2 text-xs font-semibold disabled:opacity-60">{busy ? "Finalizando..." : "Finalizar pendiente"}</button>
       )}
       {showDownload && (
-        <button onClick={handleDownload} style={{ borderColor: C.hairline, color: C.ink }} className="border px-3 py-1.5 text-xs flex items-center justify-center gap-1.5"><Download size={12} /> Descargar historial</button>
+        <button onClick={handleDownload} style={{ background: C.subtle, color: C.inkMedium, borderRadius: R.pill }} className="px-3 py-2 text-xs font-semibold flex items-center justify-center gap-1.5"><Download size={12} /> Descargar historial</button>
       )}
     </div>
   );
@@ -2200,10 +2200,10 @@ function PopupModal({ popup, onClose, tasks, subtasks, profiles, onFinalizeTask 
     .filter((x) => x.task);
 
   return (
-    <div className="fixed inset-0 z-[60] flex items-center justify-center p-4" style={{ background: "rgba(20,24,31,0.7)" }}>
-      <div style={{ background: C.paper, borderColor: C.hairline }} className="w-full max-w-sm border relative overflow-hidden max-h-[90vh] overflow-y-auto">
-        <button onClick={onClose} style={{ background: C.paper }} className="absolute top-3 right-3 z-10 p-1 rounded-full">
-          <X size={18} style={{ color: C.inkSoft }} />
+    <div className="fixed inset-0 z-[60] flex items-center justify-center p-4" style={{ background: "rgba(27,30,36,0.65)" }}>
+      <div style={{ background: C.panel, borderRadius: R.xxl, boxShadow: SH.card }} className="w-full max-w-sm relative overflow-hidden max-h-[90vh] overflow-y-auto">
+        <button onClick={onClose} style={{ width: 30, height: 30, borderRadius: R.pill, background: C.panel, boxShadow: SH.soft, color: C.inkMedium }} className="absolute top-3 right-3 z-10 flex items-center justify-center">
+          <X size={16} />
         </button>
         {popup.image_url && (
           <button type="button" onClick={() => setShowFullMedia(true)} className="block w-full cursor-zoom-in">
@@ -2256,9 +2256,9 @@ function PopupModal({ popup, onClose, tasks, subtasks, profiles, onFinalizeTask 
               {relatedEntries.map(({ entry, task }) => {
                 const open = openTaskId === task.id;
                 return (
-                  <div key={task.id} style={{ borderColor: C.hairline }} className="border">
-                    <button onClick={() => setOpenTaskId(open ? null : task.id)} className="w-full px-2.5 py-1.5 text-left flex items-center justify-between gap-2">
-                      <span className="text-xs truncate" style={{ color: C.ink }}>{task.title}</span>
+                  <div key={task.id} style={{ background: C.paper, borderRadius: R.md, overflow: "hidden" }}>
+                    <button onClick={() => setOpenTaskId(open ? null : task.id)} className="w-full px-3 py-2.5 text-left flex items-center justify-between gap-2">
+                      <span className="text-xs font-semibold truncate" style={{ color: C.ink }}>{task.title}</span>
                       <ChevronDown size={12} style={{ color: C.inkSoft, flexShrink: 0, transform: open ? "rotate(180deg)" : "none" }} />
                     </button>
                     {open && (entry.fields || []).length > 0 && (
@@ -2269,7 +2269,7 @@ function PopupModal({ popup, onClose, tasks, subtasks, profiles, onFinalizeTask 
               })}
             </div>
           )}
-          <button onClick={onClose} style={{ background: C.spine, color: C.paper }} className="mt-4 px-4 py-2 text-sm w-full">Entendido</button>
+          <button onClick={onClose} style={{ background: C.ink, color: C.paper, borderRadius: R.pill }} className="mt-4 px-4 py-2.5 text-sm font-semibold w-full">Entendido</button>
         </div>
       </div>
     </div>
