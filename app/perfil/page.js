@@ -7,7 +7,7 @@ import { C, R, SH, FONT_SERIF } from "@/lib/theme";
 import BottomNav from "@/components/BottomNav";
 
 function activityMsg(n) {
-  if (!n) return "Aún no finalizas pendientes hoy.";
+  if (!n) return "Aún no finalizas tareas hoy.";
   if (n <= 2) return "Vas bien.";
   if (n <= 5) return "¡Bien hecho, buen ritmo!";
   return "Ha estado pesado hoy — tómate un respiro.";
@@ -64,7 +64,7 @@ export default function PerfilPage() {
 
   const downloadLog = () => {
     const lines = [
-      `Pendientes finalizados por ${profile.name}`, `Total histórico: ${log.length}`, "",
+      `Tareas finalizadas por ${profile.name}`, `Total histórico: ${log.length}`, "",
       ...log.map((l) => `[${new Date(l.delivered_at || l.finalized_at).toLocaleString("es-MX")}] ${l.task_title}`),
     ];
     const blob = new Blob([lines.join("\n")], { type: "text/plain" });

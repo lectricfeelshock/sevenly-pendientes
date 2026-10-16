@@ -1,8 +1,8 @@
 import "./globals.css";
 
 export const metadata = {
-  title: "Terregal · Panel de pendientes",
-  description: "Control de pendientes del equipo Terregal",
+  title: "Terregal · Control de tareas",
+  description: "Control de tareas del equipo Terregal",
   manifest: "/manifest.json",
 };
 

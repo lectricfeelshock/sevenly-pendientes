@@ -4,7 +4,7 @@ import { ClipboardList, BookOpen, Users, User, ChevronRight } from "lucide-react
 import { C, R, SH, FONT_SERIF } from "@/lib/theme";
 
 // Navegación compartida: barra inferior en móvil, barra lateral en escritorio
-// (md+). `active` es una de "pendientes" | "biblioteca" | "equipo" | "perfil".
+// (md+). `active` es una de "tareas" | "biblioteca" | "equipo" | "perfil".
 // `profile` es opcional — si se pasa {name, email}, se usa para la tarjeta de
 // identidad del sidebar de escritorio. `onEquipo`, si se pasa (solo lo hace
 // el propio dashboard), abre el panel de Equipo ahí mismo en vez de navegar
@@ -12,7 +12,7 @@ import { C, R, SH, FONT_SERIF } from "@/lib/theme";
 export default function BottomNav({ active, profile, onEquipo }) {
   const router = useRouter();
   const items = [
-    { key: "pendientes", label: "Pendientes", icon: ClipboardList, href: "/dashboard" },
+    { key: "tareas", label: "Tareas", icon: ClipboardList, href: "/dashboard" },
     { key: "biblioteca", label: "Biblioteca", icon: BookOpen, href: "/biblioteca" },
     { key: "equipo", label: "Equipo", icon: Users, href: "/dashboard" },
     { key: "perfil", label: "Perfil", icon: User, href: "/perfil" },

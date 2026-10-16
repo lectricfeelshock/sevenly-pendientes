@@ -43,12 +43,12 @@ export async function GET(req) {
   let sent = 0;
   for (const [userId, list] of byRequester.entries()) {
     if (list.length > 2) {
-      const message = `Tienes ${list.length} pendientes entregados sin finalizar`;
+      const message = `Tienes ${list.length} tareas entregadas sin finalizar`;
       await supabaseAdmin.from("notifications").insert({ user_id: userId, task_id: null, title: TITLE, message, target: "requests:Entregado" });
       await sendPushToUser(supabaseAdmin, userId, { title: TITLE, body: message, url: "/dashboard" });
       sent++;
     } else {
-      const message = "Tienes un pendiente entregado. Si ya todo ok, finalízalo";
+      const message = "Tienes una tarea entregada. Si ya todo ok, finalízala";
       for (const t of list) {
         await supabaseAdmin.from("notifications").insert({ user_id: userId, task_id: t.id, title: TITLE, message });
         await sendPushToUser(supabaseAdmin, userId, { title: TITLE, body: message, url: "/dashboard" });
