@@ -1,7 +1,7 @@
 {
-  "name": "Terregal · Control de tareas",
+  "name": "Terregal · Panel de pendientes",
   "short_name": "Terregal",
-  "description": "Control de tareas del equipo Terregal",
+  "description": "Control de pendientes del equipo Terregal",
   "start_url": "/dashboard",
   "display": "standalone",
   "background_color": "#14181F",

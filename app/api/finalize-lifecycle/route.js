@@ -26,7 +26,7 @@ import { createClient } from "@supabase/supabase-js";
 
 const POPUP_TASK_LIMIT = 10;
 const REMINDER_TITLE = "¿Ya los pudiste revisar?";
-const REMINDER_DESCRIPTION = "Tienes estas tareas sin finalizar, Recuerda que finalizarlas ayuda a llevar el control del progreso de tu equipo de trabajo.";
+const REMINDER_DESCRIPTION = "Tienes estos pendientes sin finalizar, Recuerda que finalizarlos ayuda a llevar el control del progreso de tu equipo de trabajo.";
 // Todos los campos aplicables — PopupTaskBreakdown ya filtra según el tipo de
 // pendiente (colaborativo/individual, con o sin subtareas, entregado o no).
 const REMINDER_FIELDS = [
