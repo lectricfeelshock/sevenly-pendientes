@@ -80,6 +80,12 @@ la notificación. La idea es quitar ese botón — en cuanto se marque
 "Entregado", que se le mande esa misma notificación al solicitante
 automáticamente, sin que nadie tenga que acordarse de avisar aparte.
 
+La notificación es la misma que ya existe (ver #4a en el Historial):
+título `Te entregaron un pendiente`; descripción `(Nombre del que
+entregó) ya entregó su pendiente, revísalo y dale finalizado. Al
+finalizar pendientes podrá sumarle al registro personal de (nombre del
+que entregó)`.
+
 ### 23. Que cualquiera pueda editar el deadline, pero que siempre se le avise al solicitante
 Hoy solo el solicitante (o el admin) puede cambiar el deadline de un
 pendiente — lo tenía bloqueado por si alguien quería cambiarlo para
@@ -88,11 +94,46 @@ restricción: que **cualquiera** con acceso al pendiente pueda editar
 el deadline, tanto el del pendiente general como el de cualquier
 subtarea — pero que, cada vez que alguien que no sea el propio
 solicitante haga ese cambio, le llegue una notificación avisándole.
-La notificación es la misma que ya existe (ver #4a en el Historial):
-título `Te entregaron un pendiente`; descripción `(Nombre del que
-entregó) ya entregó su pendiente, revísalo y dale finalizado. Al
-finalizar pendientes podrá sumarle al registro personal de (nombre del
-que entregó)`.
+
+### 24. Onboarding de "cuentas": a qué cliente perteneces + tu puesto
+Vamos a agregar el concepto de "cuentas" (clientes/marcas, no
+categorías — como Sevenly, WorkHub, Ragasa, Mobil, 7-Eleven, Promanuez,
+Berel). Para capturar esa info, un flujo nuevo de dos ventanas:
+
+a. **Ventana 1 — elegir cuentas.** Copy: "¿En qué cuenta estás?" /
+   "Elige todas las cuentas a las que pertenezcas" (si se te ocurre un
+   copy mejor, bien — por ejemplo "¿A qué cuentas le haces?" o
+   "Selecciona las cuentas en las que trabajas"). Muestra como opciones
+   (selección múltiple, tipo chips o checkboxes): **Sevenly, WorkHub,
+   Ragasa, Mobil, 7-Eleven, Promanuez, Berel**. Al final de la lista,
+   una opción **"Otras"** que, al darle clic, abre un campo de texto
+   para escribir el nombre de una cuenta nueva — al darle "Ok" se
+   agrega a la lista de opciones **para todos** (no solo para quien la
+   escribió), y queda seleccionada para esa persona.
+
+   Abajo, un botón **"Son todas"** que confirma la selección y pasa a
+   la ventana 2.
+
+b. **Ventana 2 — puesto.** Le pide a la persona escribir su puesto (un
+   campo de texto libre). Al darle "Ok", termina el flujo y ya puede
+   entrar normal a la app.
+
+c. **A quién le aparece.** A los usuarios **nuevos** (en su primer
+   login, antes de dejarlos entrar), y también, una sola vez, a los
+   que **ya estaban registrados** desde antes de que existiera esto —
+   la próxima vez que entren les aparece este mismo flujo para que
+   capturen sus cuentas y puesto retroactivamente. Es bloqueante (no
+   se puede cerrar ni saltar) hasta terminarlo.
+
+Falta aterrizar antes de construirlo: dónde se guarda y usa esto
+después (¿se ve en la tarjeta de perfil? ¿sirve para filtrar
+pendientes por cuenta?), y si el admin puede además editar la lista de
+cuentas a mano (agregar/quitar/renombrar) desde algún lado, no solo por
+la vía de "Otras".
+
+(Relacionado con las propuestas #13-#15 que ya tenía anotadas en
+PROPUESTAS.md sobre "puesto" y la ambigüedad de qué significaba
+"cuenta" — esto ya la resuelve: cuenta = cliente/marca.)
 
 ## Historial (aplicadas)
 
