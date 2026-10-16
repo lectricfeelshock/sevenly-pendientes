@@ -11,6 +11,7 @@ import {
 } from "lucide-react";
 import { C, R, SH, FONT_SERIF } from "@/lib/theme";
 import BottomNav from "@/components/BottomNav";
+import LoadingScreen from "@/components/LoadingScreen";
 
 // Estados que puede elegir la persona ASIGNADA
 const ASSIGNEE_STATUSES = ["No iniciado", "En progreso", "Detenido", "Entregado"];
@@ -1012,7 +1013,7 @@ export default function Dashboard() {
     loadNotifications(profile.id);
   };
 
-  if (!ready) return <div style={{ background: C.paper, minHeight: "100vh" }} className="w-full flex items-center justify-center"><p style={{ color: C.inkSoft }} className="text-sm">Cargando...</p></div>;
+  if (!ready) return <LoadingScreen />;
 
   const isAdmin = profile?.role === "admin";
   const isGerente = profile?.role === "gerente" || profile?.role === "admin";

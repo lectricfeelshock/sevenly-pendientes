@@ -5,6 +5,7 @@ import { supabase } from "@/lib/supabaseClient";
 import { ChevronRight, Eye, EyeOff, LogOut, Download } from "lucide-react";
 import { C, R, SH, FONT_SERIF } from "@/lib/theme";
 import BottomNav from "@/components/BottomNav";
+import LoadingScreen from "@/components/LoadingScreen";
 
 function activityMsg(n) {
   if (!n) return "Aún no finalizas pendientes hoy.";
@@ -46,7 +47,7 @@ export default function PerfilPage() {
   const logout = async () => { await supabase.auth.signOut(); router.replace("/login"); };
 
   if (!ready || !profile) {
-    return <div style={{ background: C.paper, minHeight: "100vh" }} className="w-full flex items-center justify-center"><p style={{ color: C.inkSoft }} className="text-sm">Cargando...</p></div>;
+    return <LoadingScreen />;
   }
 
   const initial = (profile.name || "?").trim().charAt(0).toUpperCase();

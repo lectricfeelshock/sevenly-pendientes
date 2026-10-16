@@ -8,6 +8,7 @@ import {
 } from "lucide-react";
 import { C, R, SH, FONT_SERIF } from "@/lib/theme";
 import BottomNav from "@/components/BottomNav";
+import LoadingScreen from "@/components/LoadingScreen";
 
 // CHANGES.md #2d: bucket "resource-files" — 20 MB por archivo, solo estos
 // tipos (confirmado viable: plan Free de Supabase, 1 GB de storage total,
@@ -100,7 +101,7 @@ function getVideoEmbed(url) {
 
 export default function BibliotecaPage() {
   return (
-    <Suspense fallback={<div style={{ background: C.paper, minHeight: "100vh" }} className="w-full flex items-center justify-center"><p style={{ color: C.inkSoft }} className="text-sm">Cargando...</p></div>}>
+    <Suspense fallback={<LoadingScreen />}>
       <BibliotecaPageInner />
     </Suspense>
   );
@@ -216,7 +217,7 @@ function BibliotecaPageInner() {
     setSharing(null); load();
   };
 
-  if (!ready) return <div style={{ background: C.paper, minHeight: "100vh" }} className="w-full flex items-center justify-center"><p style={{ color: C.inkSoft }} className="text-sm">Cargando...</p></div>;
+  if (!ready) return <LoadingScreen />;
 
   return (
     <div style={{ background: C.paper, minHeight: "100vh" }} className="w-full font-sans pb-28 md:pb-10 md:pl-[248px]">

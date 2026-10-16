@@ -8,3 +8,19 @@ body {
   font-family: 'Plus Jakarta Sans', 'Segoe UI', system-ui, sans-serif;
   -webkit-font-smoothing: antialiased;
 }
+
+/* Pantallas de carga: el logo se "dibuja" rápido de izquierda a derecha y
+   luego late suavemente mientras sigue cargando. */
+@keyframes terregal-logo-draw {
+  from { clip-path: inset(0 100% 0 0); }
+  to { clip-path: inset(0 0% 0 0); }
+}
+@keyframes terregal-logo-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.4; }
+}
+.terregal-loading-logo {
+  animation:
+    terregal-logo-draw 0.7s cubic-bezier(.65, 0, .35, 1) forwards,
+    terregal-logo-pulse 1.3s ease-in-out 0.7s infinite;
+}
