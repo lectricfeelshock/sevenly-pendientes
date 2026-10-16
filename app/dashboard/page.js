@@ -18,6 +18,14 @@ const STATUS_ICON = {
   "No iniciado": Circle, "En progreso": PlayCircle, "Detenido": PauseCircle,
   "Entregado": CheckCircle2, "Finalizado": CheckCheck,
 };
+// Los valores guardados en Supabase (y toda la lógica que los compara) se
+// quedan igual — esto solo traduce a femenino lo que se le muestra al
+// usuario, ahora que le llamamos "tarea" en vez de "pendiente".
+const STATUS_LABEL = {
+  "No iniciado": "No iniciada", "En progreso": "En progreso", "Detenido": "Detenida",
+  "Entregado": "Entregada", "Finalizado": "Finalizada",
+};
+function statusLabel(s) { return STATUS_LABEL[s] || s; }
 const URGENCIES = [
   { label: "Baja", color: C.gray, rank: 0 }, { label: "Media", color: C.signal, rank: 1 },
   { label: "Alta", color: C.amber, rank: 2 }, { label: "Urgente", color: C.urgent, rank: 3 },
@@ -607,7 +615,7 @@ export default function Dashboard() {
     (async () => {
       const today = todayISO();
       const title = (t) => `¿Aún no has entregado "${t.title}"?`;
-      const body = `Revisa si esta tarea ya fue y dale en "Entregado" para que alguien pueda finalizártelo.`;
+      const body = `Revisa si esta tarea ya fue y dale en "Entregada" para que alguien pueda finalizártelo.`;
       for (const t of tasks) {
         if (!isOverdueUrgent(t)) continue;
         if (t.task_type === "colaborativo") {
@@ -1176,7 +1184,7 @@ export default function Dashboard() {
               {[...ASSIGNEE_STATUSES, "Finalizado"].map((s) => (
                 <button key={s} onClick={() => { setActiveFilter({ type: "Estado", value: s }); setOpenFilterKey(null); }}
                   style={{ color: activeFilter.type === "Estado" && activeFilter.value === s ? C.signal : C.ink }}
-                  className="w-full text-left px-3.5 py-2 text-sm">{s}</button>
+                  className="w-full text-left px-3.5 py-2 text-sm">{statusLabel(s)}</button>
               ))}
               <div style={{ background: C.hairlineSoft }} className="h-px my-1 mx-1" />
               <button onClick={() => { setActiveFilter({ type: "Estado", order: "desc" }); setOpenFilterKey(null); }}
@@ -1306,7 +1314,7 @@ export default function Dashboard() {
                 <div key={k} className="mt-6">
                   <div className="flex items-center gap-2 mb-3">
                     <span style={{ width: 9, height: 9, borderRadius: R.pill, background: color }} />
-                    <span style={{ color: C.inkMedium, fontSize: 11.5, fontWeight: 700, letterSpacing: "0.11em" }} className="uppercase">{k}</span>
+                    <span style={{ color: C.inkMedium, fontSize: 11.5, fontWeight: 700, letterSpacing: "0.11em" }} className="uppercase">{groupIsStatus ? statusLabel(k) : k}</span>
                     <span style={{ minWidth: 20, height: 20, padding: "0 6px", borderRadius: R.pill, background: C.subtle, color: C.inkMedium, fontSize: 11, fontWeight: 700 }} className="flex items-center justify-center">{grouped[k].length}</span>
                   </div>
                   <div className="flex flex-col gap-2.5">
@@ -2124,7 +2132,7 @@ function PopupTaskBreakdown({ task, fields, profiles, subtasks, onFinalizeTask }
       `Tarea: ${task.title}`, `Categoría: ${task.category}`,
       `Solicita: ${task.requested_by}${coRequesterNames.length ? " + " + coRequesterNames.join(", ") : ""}`,
       isColaborativo ? `Equipo: ${teamNames.join(", ")}` : `Asignado a: ${task.assigned_to_name}`,
-      `Deadline: ${fmtDate(task.deadline)}`, `Estado final: ${task.status}`, "", "--- Historial ---",
+      `Deadline: ${fmtDate(task.deadline)}`, `Estado final: ${statusLabel(task.status)}`, "", "--- Historial ---",
       ...(history || []).slice().reverse().map((h) => `[${new Date(h.created_at).toLocaleString("es-MX")}] ${h.text}`),
       "", "--- Comentarios ---",
       ...(comments || []).map((c) => `[${new Date(c.created_at).toLocaleString("es-MX")}] ${c.author_name}: ${c.text}`),
@@ -2151,10 +2159,10 @@ function PopupTaskBreakdown({ task, fields, profiles, subtasks, onFinalizeTask }
         <div><div className="text-[11.5px] font-bold tracking-[0.09em]" style={{ color: C.inkSoft }}>Descripción</div><div style={{ color: C.ink }} className="whitespace-pre-wrap break-words">{renderWithLinks(task.description, C.signal)}</div></div>
       )}
       {fields.includes("status") && (
-        <div><div className="text-[11.5px] font-bold tracking-[0.09em]" style={{ color: C.inkSoft }}>Estado</div><div style={{ color: C.ink }}>{task.status}</div></div>
+        <div><div className="text-[11.5px] font-bold tracking-[0.09em]" style={{ color: C.inkSoft }}>Estado</div><div style={{ color: C.ink }}>{statusLabel(task.status)}</div></div>
       )}
       {fields.includes("generalStatus") && hasSubtasks && (
-        <div><div className="text-[11.5px] font-bold tracking-[0.09em]" style={{ color: C.inkSoft }}>Estado general</div><div style={{ color: C.ink }}>{task.status} ({deliveredCount}/{subsForTask.length} subtareas entregadas)</div></div>
+        <div><div className="text-[11.5px] font-bold tracking-[0.09em]" style={{ color: C.inkSoft }}>Estado general</div><div style={{ color: C.ink }}>{statusLabel(task.status)} ({deliveredCount}/{subsForTask.length} subtareas entregadas)</div></div>
       )}
       {fields.includes("requestedDate") && (
         <div><div className="text-[11.5px] font-bold tracking-[0.09em]" style={{ color: C.inkSoft }}>Fecha de solicitud</div><div style={{ color: C.ink }}>{fmtDate(task.request_date)}</div></div>
@@ -2178,7 +2186,7 @@ function PopupTaskBreakdown({ task, fields, profiles, subtasks, onFinalizeTask }
         <div>
           <div className="text-[11.5px] font-bold tracking-[0.09em]" style={{ color: C.inkSoft }}>Subtareas ({deliveredCount}/{subsForTask.length})</div>
           <div className="flex flex-col gap-0.5 mt-0.5">
-            {subsForTask.map((s) => <div key={s.id} style={{ color: C.ink }}>{s.title} — {s.assigned_to_name} · {s.status}</div>)}
+            {subsForTask.map((s) => <div key={s.id} style={{ color: C.ink }}>{s.title} — {s.assigned_to_name} · {statusLabel(s.status)}</div>)}
           </div>
         </div>
       )}
@@ -2681,7 +2689,7 @@ function TaskDetail({ task, onClose, onUpdate, onDelete, onDeleteRecurring, recu
   const sendReminderEmail = async () => {
     if (!reminderRecipient) return;
     const subject = encodeURIComponent(`Recordatorio: ${task.title}`);
-    const body = encodeURIComponent(`Hola ${reminderRecipient.name},\n\nRecordatorio de la tarea "${task.title}" (${task.category}).\nDeadline: ${fmtDate(task.deadline)}\nEstado: ${task.status}\n\nDe parte de ${profile.name}, panel Terregal.`);
+    const body = encodeURIComponent(`Hola ${reminderRecipient.name},\n\nRecordatorio de la tarea "${task.title}" (${task.category}).\nDeadline: ${fmtDate(task.deadline)}\nEstado: ${statusLabel(task.status)}\n\nDe parte de ${profile.name}, panel Terregal.`);
     const to = encodeURIComponent(reminderRecipient.email || "");
     window.open(`https://outlook.office.com/mail/deeplink/compose?to=${to}&subject=${subject}&body=${body}`, "_blank");
     await onUpdate(task, {}, `${profile.name} envió recordatorio por correo a ${reminderRecipient.name}`);
@@ -2689,7 +2697,7 @@ function TaskDetail({ task, onClose, onUpdate, onDelete, onDeleteRecurring, recu
   const sendReminderWhatsapp = async () => {
     if (!reminderRecipient || !reminderRecipient.phone) return;
     const cleanPhone = reminderRecipient.phone.replace(/\D/g, "");
-    const text = encodeURIComponent(`Hola ${reminderRecipient.name}, recordatorio: "${task.title}" (${task.category}). Deadline: ${fmtDate(task.deadline)}. Estado: ${task.status}. — ${profile.name}, Terregal`);
+    const text = encodeURIComponent(`Hola ${reminderRecipient.name}, recordatorio: "${task.title}" (${task.category}). Deadline: ${fmtDate(task.deadline)}. Estado: ${statusLabel(task.status)}. — ${profile.name}, Terregal`);
     window.open(`https://wa.me/${cleanPhone}?text=${text}`, "_blank");
     await onUpdate(task, {}, `${profile.name} envió recordatorio por WhatsApp a ${reminderRecipient.name}`);
   };
@@ -2707,7 +2715,7 @@ function TaskDetail({ task, onClose, onUpdate, onDelete, onDeleteRecurring, recu
       `Tarea: ${task.title}`, `Categoría: ${task.category}`, `Solicita: ${task.requested_by}${coRequesterNames.length ? " + " + coRequesterNames.join(", ") : ""}`,
       isColaborativo ? `Equipo: ${teamProfiles.map((p) => p.name).join(", ")}` : `Asignado a: ${task.assigned_to_name}`,
       `Deadline: ${fmtDate(task.deadline)}`, `Urgencia: ${task.urgency}`,
-      `Estado final: ${task.status}`, "", "--- Historial ---",
+      `Estado final: ${statusLabel(task.status)}`, "", "--- Historial ---",
       ...history.slice().reverse().map((h) => `[${new Date(h.created_at).toLocaleString("es-MX")}] ${h.text}`),
       "", "--- Comentarios ---",
       ...comments.map((c) => `[${new Date(c.created_at).toLocaleString("es-MX")}] ${c.author_name}: ${c.text}`),
@@ -2874,8 +2882,8 @@ function TaskDetail({ task, onClose, onUpdate, onDelete, onDeleteRecurring, recu
                   return <button key={s} disabled={isFinalized || viewerIsGerente}
                     onClick={() => setStatus(s)}
                     style={{ height: 38, background: active ? C.ink : C.panel, boxShadow: active ? "none" : SH.soft, color: active ? C.paper : C.inkSoft, fontWeight: active ? 600 : 500, borderRadius: R.pill }}
-                    className="px-3.5 text-[13px] flex items-center gap-1.5 disabled:opacity-50"><Icon size={15} /> {s}</button>; })}
-                {isFinalized && <span style={{ height: 38, background: C.signalSoft, color: C.signal, borderRadius: R.pill, fontWeight: 600 }} className="px-3.5 text-[13px] flex items-center gap-1.5"><CheckCheck size={15} /> Finalizado</span>}
+                    className="px-3.5 text-[13px] flex items-center gap-1.5 disabled:opacity-50"><Icon size={15} /> {statusLabel(s)}</button>; })}
+                {isFinalized && <span style={{ height: 38, background: C.signalSoft, color: C.signal, borderRadius: R.pill, fontWeight: 600 }} className="px-3.5 text-[13px] flex items-center gap-1.5"><CheckCheck size={15} /> Finalizada</span>}
               </div>
             </div>
           )}
@@ -2885,7 +2893,7 @@ function TaskDetail({ task, onClose, onUpdate, onDelete, onDeleteRecurring, recu
               <div className="text-[11.5px] font-bold tracking-[0.09em] mb-2" style={{ color: C.inkSoft }}>Estado general</div>
               <div className="flex items-center gap-1.5">
                 {(() => { const Icon = STATUS_ICON[isFinalized ? "Finalizado" : task.status]; return <Icon size={14} style={{ color: isFinalized ? C.signal : C.inkSoft }} />; })()}
-                <span className="text-sm" style={{ color: C.ink }}>{isFinalized ? "Finalizado" : task.status}</span>
+                <span className="text-sm" style={{ color: C.ink }}>{isFinalized ? "Finalizada" : statusLabel(task.status)}</span>
               </div>
               <p className="text-[11px] mt-1.5" style={{ color: C.inkSoft }}>
                 {isColaborativo ? "Se mueve automáticamente según las subtareas del equipo — nadie lo mueve a mano." : "Se mueve solo según el estado de las subtareas."}
@@ -2937,10 +2945,10 @@ function TaskDetail({ task, onClose, onUpdate, onDelete, onDeleteRecurring, recu
                         </div>
                         {mine && !isFinalized ? (
                           <select value={s.status} onClick={(e) => e.stopPropagation()} onChange={(e) => onUpdateSubtaskStatus(s, e.target.value)} style={{ borderColor: C.hairline, background: C.paper }} className="border px-1.5 py-1 text-[11px] outline-none shrink-0">
-                            {ASSIGNEE_STATUSES.map((st) => <option key={st} value={st}>{st}</option>)}
+                            {ASSIGNEE_STATUSES.map((st) => <option key={st} value={st}>{statusLabel(st)}</option>)}
                           </select>
                         ) : (
-                          <span className="flex items-center gap-1 text-[11px] shrink-0" style={{ color: C.inkSoft }}><StIcon size={12} /> {s.status}</span>
+                          <span className="flex items-center gap-1 text-[11px] shrink-0" style={{ color: C.inkSoft }}><StIcon size={12} /> {statusLabel(s.status)}</span>
                         )}
                       </div>
                       {expanded && (
@@ -2988,7 +2996,7 @@ function TaskDetail({ task, onClose, onUpdate, onDelete, onDeleteRecurring, recu
             )
           )}
           {!isAdmin && !isFinalized && !allSubtasksDelivered && ((isColaborativo && isAnyRequester) || (effType === "individual" && hasSubtasks && isRequester)) && (
-            <p className="text-[11px]" style={{ color: C.inkSoft }}>Se podrá finalizar cuando todas las subtareas queden en "Entregado".</p>
+            <p className="text-[11px]" style={{ color: C.inkSoft }}>Se podrá finalizar cuando todas las subtareas queden en "Entregada".</p>
           )}
 
           {isFinalized && isAnyRequester && !viewerIsGerente && (

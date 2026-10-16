@@ -1,7 +1,7 @@
 "use client";
 import { useRouter } from "next/navigation";
 import { ClipboardList, BookOpen, Users, User, ChevronRight } from "lucide-react";
-import { C, R, SH, FONT_SERIF } from "@/lib/theme";
+import { C, R, SH } from "@/lib/theme";
 
 // Navegación compartida: barra inferior en móvil, barra lateral en escritorio
 // (md+). `active` es una de "tareas" | "biblioteca" | "equipo" | "perfil".
@@ -49,9 +49,9 @@ export default function BottomNav({ active, profile, onEquipo }) {
         style={{ width: 248, background: C.panel, boxShadow: "inset -1px 0 0 #ECE7DD" }}
         className="hidden md:flex fixed left-0 top-0 bottom-0 z-30 flex-col p-4"
       >
-        <button onClick={() => router.push("/dashboard")} className="flex items-center gap-[11px] px-1.5">
-          <div style={{ width: 34, height: 34, borderRadius: 11, background: C.ink, color: C.paper, fontFamily: FONT_SERIF, fontSize: 18, fontWeight: 500 }} className="flex items-center justify-center">T</div>
-          <span style={{ fontSize: 16.5, fontWeight: 700, letterSpacing: "-0.01em" }}>Terregal</span>
+        <button onClick={() => router.push("/dashboard")} className="flex items-center px-1.5">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src="/logo-mark.png" alt="Terregal" className="h-9 w-auto" />
         </button>
 
         <div className="flex flex-col gap-1 mt-6">
