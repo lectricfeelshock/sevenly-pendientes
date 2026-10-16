@@ -84,7 +84,6 @@ export default function LoginPage() {
         <div className="flex flex-col items-center gap-3 mb-[30px]">
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img src="/logo-mark.png" alt="Terregal" className="w-[230px]" />
-          <div style={{ fontSize: 14.5, color: C.inkSoft }} className="text-center">Los pendientes del equipo, en orden.</div>
         </div>
 
         <div
