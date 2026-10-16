@@ -1,7 +1,7 @@
 {
-  "name": "Sevenly · Panel de pendientes",
-  "short_name": "Sevenly",
-  "description": "Control de pendientes del equipo Sevenly",
+  "name": "Terregal · Panel de pendientes",
+  "short_name": "Terregal",
+  "description": "Control de pendientes del equipo Terregal",
   "start_url": "/dashboard",
   "display": "standalone",
   "background_color": "#14181F",

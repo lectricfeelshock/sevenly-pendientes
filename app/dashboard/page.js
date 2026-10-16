@@ -6,17 +6,12 @@ import {
   Plus, Bell, MessageSquare, ArrowRightLeft, X, Search, Flag,
   ChevronRight, ChevronDown, Trash2, CheckCircle2, Circle,
   PauseCircle, PlayCircle, Send, LogOut, History, Mail, Users,
-  User, TrendingUp, BookOpen, Download, Lock, CheckCheck, BellRing,
+  BookOpen, Download, Lock, CheckCheck, BellRing,
   Image as ImageIcon, Megaphone, Eye, Pencil, Paperclip, Link2, Clock,
 } from "lucide-react";
-
-const C = {
-  paper: "#F6F4EE", panel: "#FFFFFF", ink: "#1C1F26", inkSoft: "#5B5F6B",
-  hairline: "#DCD6C8", signal: "#0F6E5C", signalSoft: "#E4EFEA",
-  amber: "#B8791F", amberSoft: "#F5EBDA", urgent: "#B3402B", urgentSoft: "#F6E4DF",
-  gray: "#8A8D95", spine: "#14181F",
-  overdueInk: "#F6F4EE", overdueInkSoft: "#A7ABB8",
-};
+import { C, R, SH, FONT_SERIF } from "@/lib/theme";
+import BottomNav from "@/components/BottomNav";
+import LoadingScreen from "@/components/LoadingScreen";
 
 // Estados que puede elegir la persona ASIGNADA
 const ASSIGNEE_STATUSES = ["No iniciado", "En progreso", "Detenido", "Entregado"];
@@ -142,16 +137,16 @@ function PopupConfirmModal({ title, description, existingUrl, file, onlyNotifica
   const notifMessage = `📣 ${title}${description ? " — " + description : ""}`;
 
   return (
-    <div className="fixed inset-0 z-[80] flex items-center justify-center p-4" style={{ background: "rgba(20,24,31,0.65)" }}>
-      <div style={{ background: C.paper, borderColor: C.hairline }} className="w-full max-w-sm border max-h-[90vh] overflow-y-auto">
-        <div style={{ borderColor: C.hairline }} className="border-b px-5 py-4">
-          <h2 style={{ color: C.ink, fontFamily: "Georgia, serif" }} className="text-lg">Vista previa</h2>
+    <div className="fixed inset-0 z-[80] flex items-center justify-center p-4" style={{ background: "rgba(27,30,36,0.65)" }}>
+      <div style={{ background: C.panel, borderRadius: R.xxl, boxShadow: SH.card }} className="w-full max-w-sm max-h-[90vh] overflow-y-auto">
+        <div style={{ boxShadow: `inset 0 -1px 0 ${C.hairline}` }} className="px-5 py-4">
+          <h2 style={{ color: C.ink, fontFamily: FONT_SERIF, fontSize: 20, fontWeight: 500 }}>Vista previa</h2>
         </div>
         <div className="p-5 flex flex-col gap-4">
           {showPopupPreview && (
             <div>
-              <div className="font-mono text-[10px] uppercase tracking-widest mb-1.5" style={{ color: C.inkSoft }}>Así se ve el pop up</div>
-              <div style={{ borderColor: C.hairline }} className="border overflow-hidden">
+              <div className="text-[11.5px] font-bold tracking-[0.09em] mb-1.5" style={{ color: C.inkSoft }}>Así se ve el pop up</div>
+              <div style={{ background: C.paper, borderRadius: R.lg, overflow: "hidden" }}>
                 {mediaUrl && (
                   <button type="button" onClick={() => setShowFullMedia(true)} className="block w-full cursor-zoom-in">
                     {isVideo
@@ -161,10 +156,10 @@ function PopupConfirmModal({ title, description, existingUrl, file, onlyNotifica
                   </button>
                 )}
                 <div className="p-4">
-                  <div className="flex items-center gap-1.5 mb-1.5 font-mono text-[10px] uppercase tracking-widest" style={{ color: C.inkSoft }}>
+                  <div className="flex items-center gap-1.5 mb-1.5 text-[11.5px] font-bold tracking-[0.09em]" style={{ color: C.inkSoft }}>
                     <Megaphone size={12} /> Aviso
                   </div>
-                  <h3 style={{ color: C.ink, fontFamily: "Georgia, serif" }} className="text-base mb-1">{title || "(sin título)"}</h3>
+                  <h3 style={{ color: C.ink, fontFamily: FONT_SERIF }} className="text-base mb-1">{title || "(sin título)"}</h3>
                   {description && <p className="text-sm whitespace-pre-wrap" style={{ color: C.ink }}>{renderWithLinks(description, C.signal)}</p>}
                 </div>
               </div>
@@ -172,8 +167,8 @@ function PopupConfirmModal({ title, description, existingUrl, file, onlyNotifica
           )}
           {showNotifPreview && (
             <div>
-              <div className="font-mono text-[10px] uppercase tracking-widest mb-1.5" style={{ color: C.inkSoft }}>Así se ve la notificación</div>
-              <div style={{ borderColor: C.hairline, background: C.signalSoft }} className="border px-3 py-2.5 flex flex-col gap-0.5">
+              <div className="text-[11.5px] font-bold tracking-[0.09em] mb-1.5" style={{ color: C.inkSoft }}>Así se ve la notificación</div>
+              <div style={{ background: C.signalSoft, borderRadius: R.lg }} className="px-3.5 py-3 flex flex-col gap-0.5">
                 <div className="flex items-center gap-2">
                   <Bell size={14} style={{ color: C.signal, flexShrink: 0 }} />
                   <span className="text-sm" style={{ color: C.ink }}>{notifMessage}</span>
@@ -183,9 +178,9 @@ function PopupConfirmModal({ title, description, existingUrl, file, onlyNotifica
             </div>
           )}
         </div>
-        <div style={{ borderColor: C.hairline }} className="border-t px-5 py-4 flex justify-end gap-2">
-          <button onClick={onCancel} disabled={busy} style={{ color: C.inkSoft }} className="px-4 py-2 text-sm disabled:opacity-60">Cancelar</button>
-          <button onClick={onConfirm} disabled={busy} style={{ background: C.spine, color: C.paper, opacity: busy ? 0.6 : 1 }} className="px-4 py-2 text-sm">{busy ? "..." : confirmLabel}</button>
+        <div style={{ boxShadow: `inset 0 1px 0 ${C.hairline}` }} className="px-5 py-4 flex justify-end gap-2">
+          <button onClick={onCancel} disabled={busy} style={{ color: C.inkMedium, background: C.subtle, borderRadius: R.pill }} className="px-5 py-2.5 text-sm font-semibold disabled:opacity-60">Cancelar</button>
+          <button onClick={onConfirm} disabled={busy} style={{ background: C.ink, color: C.paper, opacity: busy ? 0.6 : 1, borderRadius: R.pill }} className="px-5 py-2.5 text-sm font-semibold">{busy ? "..." : confirmLabel}</button>
         </div>
       </div>
       {showFullMedia && (
@@ -259,8 +254,8 @@ function PopupTaskPicker({ profiles, tasks, subtasks, selected, onToggleTask, on
   return (
     <div>
       <div className="flex items-center justify-between">
-        <label className="font-mono text-[10px] uppercase tracking-widest flex items-center gap-1.5" style={{ color: C.inkSoft }}><Link2 size={12} /> Referenciar pendientes (opcional)</label>
-        <span className="font-mono text-[10px]" style={{ color: atLimit ? C.urgent : C.inkSoft }}>{selected.length}/{POPUP_TASK_LIMIT}</span>
+        <label className="text-[11.5px] font-bold tracking-[0.09em] flex items-center gap-1.5" style={{ color: C.inkSoft }}><Link2 size={12} /> Referenciar pendientes (opcional)</label>
+        <span className="text-[11px] font-semibold" style={{ color: atLimit ? C.urgent : C.inkSoft }}>{selected.length}/{POPUP_TASK_LIMIT}</span>
       </div>
       <div style={{ borderColor: C.hairline }} className="border mt-1.5 max-h-72 overflow-y-auto">
         {profiles.map((p) => {
@@ -271,7 +266,7 @@ function PopupTaskPicker({ profiles, tasks, subtasks, selected, onToggleTask, on
             <div key={p.id} style={{ borderColor: C.hairline }} className="border-b last:border-b-0">
               <button type="button" onClick={() => setOpenMember(open ? null : p.id)} className="w-full text-left px-2.5 py-2 flex items-center justify-between">
                 <span className="text-xs" style={{ color: C.ink }}>{p.name}{pickedHere > 0 && <span className="ml-1.5" style={{ color: C.signal }}>({pickedHere})</span>}</span>
-                <span className="flex items-center gap-1.5"><span className="font-mono text-[10px]" style={{ color: C.inkSoft }}>{memberTasks.length}</span><ChevronDown size={12} style={{ color: C.inkSoft, transform: open ? "rotate(180deg)" : "none" }} /></span>
+                <span className="flex items-center gap-1.5"><span className="text-[11px] font-semibold" style={{ color: C.inkSoft }}>{memberTasks.length}</span><ChevronDown size={12} style={{ color: C.inkSoft, transform: open ? "rotate(180deg)" : "none" }} /></span>
               </button>
               {open && (
                 <div className="px-2.5 pb-2 flex flex-col gap-1">
@@ -287,7 +282,7 @@ function PopupTaskPicker({ profiles, tasks, subtasks, selected, onToggleTask, on
                       <div key={t.id}>
                         <div className="flex items-start gap-2 text-xs" style={{ color: disabled ? C.inkSoft : C.ink, opacity: disabled ? 0.5 : 1 }}>
                           <input type="checkbox" checked={checked} disabled={disabled} onChange={() => onToggleTask(t.id)} className="mt-0.5" />
-                          <span className="flex-1">{t.title} <span className="font-mono text-[10px]" style={{ color: C.inkSoft }}>· {t.status}</span></span>
+                          <span className="flex-1">{t.title} <span className="text-[11px] font-semibold" style={{ color: C.inkSoft }}>· {t.status}</span></span>
                           {checked && (
                             <button type="button" onClick={() => setOpenFieldsFor(fieldsOpen ? null : t.id)} title="Elegir qué mostrar">
                               <Eye size={13} style={{ color: fieldsOpen ? C.signal : C.inkSoft }} />
@@ -400,15 +395,27 @@ function activityMsg(n) {
 
 function UrgencyFlag({ urgency }) {
   const u = URGENCIES.find((x) => x.label === urgency) || URGENCIES[0];
-  return <span className="inline-flex items-center gap-1 font-mono text-[10px] uppercase tracking-wider" style={{ color: u.color }}><Flag size={12} fill={u.color} strokeWidth={0} />{u.label}</span>;
+  return <span className="inline-flex items-center gap-1 text-[11px] font-semibold" style={{ color: u.color }}><Flag size={12} fill={u.color} strokeWidth={0} />{u.label}</span>;
 }
 function DeadlineBadge({ deadline, status, hideToday, dark }) {
   const legend = dueLegend(deadline, status);
   const showLegend = legend && !(hideToday && legend.text === "¡Se entrega hoy!");
   return (
-    <div className="text-right">
-      <div className="font-mono text-[11px]" style={{ color: dark ? C.overdueInkSoft : C.inkSoft }}>{fmtDate(deadline)}</div>
-      {showLegend && <div className="font-mono text-[9px] uppercase tracking-wide" style={{ color: dark ? C.overdueInk : legend.color }}>{legend.text}</div>}
+    <div className="text-right flex flex-col items-end gap-1">
+      <div className="text-[12.5px]" style={{ color: dark ? C.overdueInkSoft : C.inkSoft }}>{fmtDate(deadline)}</div>
+      {showLegend && <div className="text-[10.5px] font-bold" style={{ color: dark ? C.overdueInk : legend.color }}>{legend.text}</div>}
+    </div>
+  );
+}
+
+// Celda de la cuadrícula de info del Desglose (Solicita / Asignado a /
+// Fecha de solicitud / Deadline general): tarjeta blanca propia con la
+// etiqueta arriba y el valor abajo.
+function InfoCell({ label, value, full }) {
+  return (
+    <div style={{ background: C.panel, borderRadius: R.md, boxShadow: SH.soft }} className={`px-3 py-2.5 flex flex-col gap-0.5 min-w-0 ${full ? "col-span-2" : ""}`}>
+      <span className="text-[10.5px] font-semibold truncate" style={{ color: C.gray }}>{label}</span>
+      <span className="text-[13.5px] font-semibold truncate" style={{ color: C.ink }}>{value}</span>
     </div>
   );
 }
@@ -440,7 +447,6 @@ export default function Dashboard() {
     setShowNew(true);
   };
   const [showTeam, setShowTeam] = useState(false);
-  const [showActivity, setShowActivity] = useState(false);
   const [showNotifs, setShowNotifs] = useState(false);
   const [showSearch, setShowSearch] = useState(false);
   // CHANGES.md #12: filtro activo del dashboard — reemplaza los tabs de
@@ -745,7 +751,7 @@ export default function Dashboard() {
   const addHistory = async (taskId, text) => { await supabase.from("task_history").insert({ task_id: taskId, text }); };
   const notify = async (userId, taskId, message, title, target) => {
     await supabase.from("notifications").insert({ user_id: userId, task_id: taskId, message, ...(title ? { title } : {}), ...(target ? { target } : {}) });
-    fetch("/api/send-push", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ userId, title: title || "Sevenly", body: message, url: "/dashboard" }) }).catch(() => {});
+    fetch("/api/send-push", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ userId, title: title || "Terregal", body: message, url: "/dashboard" }) }).catch(() => {});
   };
 
   const createTask = async (form) => {
@@ -1007,7 +1013,7 @@ export default function Dashboard() {
     loadNotifications(profile.id);
   };
 
-  if (!ready) return <div style={{ background: C.spine, minHeight: "100vh" }} className="w-full" />;
+  if (!ready) return <LoadingScreen />;
 
   const isAdmin = profile?.role === "admin";
   const isGerente = profile?.role === "gerente" || profile?.role === "admin";
@@ -1100,47 +1106,169 @@ export default function Dashboard() {
   const unreadCount = notifications.filter((n) => !n.read).length;
   const bellLabel = unreadCount === 0 ? null : unreadCount > 3 ? "+3" : String(unreadCount);
 
+  // Resumen bajo el título: activos y cuántos se entregan hoy — sobre el
+  // universo de la pestaña actual (base), sin que los filtros secundarios
+  // (Estado/Urgencia/...) lo muevan.
+  const activeInTab = base.filter((t) => !DONE_STATUSES.includes(t.status));
+  const dueTodayCount = activeInTab.filter((t) => t.deadline === todayISO()).length;
+
   return (
-    <div style={{ background: C.paper, minHeight: "100vh" }} className="w-full font-sans">
-      <div style={{ borderColor: C.hairline, background: C.paper }} className="border-b sticky top-0 z-20 px-5 py-3.5 flex items-center justify-between gap-3 flex-wrap">
-        <div>
-          <div className="font-mono text-[10px] tracking-[0.2em] uppercase" style={{ color: C.inkSoft }}>Sevenly</div>
-          <h1 style={{ color: C.ink, fontFamily: "Georgia, serif" }} className="text-xl leading-tight">Panel de pendientes</h1>
-        </div>
-        <div className="flex items-center gap-3">
-          <button onClick={() => setShowNew(true)} style={{ background: C.spine, color: C.paper }} className="px-3.5 py-2 text-sm flex items-center gap-1.5"><Plus size={15} /> Nuevo</button>
-          <button onClick={() => router.push("/biblioteca")} className="flex items-center gap-1.5 text-sm" style={{ color: C.ink }}><BookOpen size={15} style={{ color: C.inkSoft }} /> Biblioteca</button>
-          <button onClick={() => setShowTeam(true)} className="flex items-center gap-1.5 text-sm" style={{ color: C.ink }}><Users size={15} style={{ color: C.inkSoft }} /> Equipo</button>
-          <button onClick={() => setShowActivity(true)} className="flex items-center gap-1.5 text-sm" style={{ color: C.ink }}><User size={14} style={{ color: C.inkSoft }} /> {profile.name}</button>
-          <button onClick={() => { setShowNotifs(true); markNotifsRead(); }} className="relative">
-            <Bell size={17} style={{ color: C.inkSoft }} />
-            {bellLabel && <span style={{ background: C.urgent, color: "#fff" }} className="absolute -top-1.5 -right-2 text-[9px] font-mono px-1 py-0.5 leading-none rounded-full">{bellLabel}</span>}
-          </button>
-          <button onClick={logout} title="Cerrar sesión"><LogOut size={15} style={{ color: C.inkSoft }} /></button>
+    <div style={{ background: C.paper, minHeight: "100vh" }} className="w-full font-sans pb-28 md:pb-10 md:pl-[248px]">
+      <div className="px-5 pt-4 md:hidden">
+        <div className="text-[11px] font-bold tracking-[0.18em]" style={{ color: C.inkSoft }}>TERREGAL</div>
+      </div>
+      <div className="px-5 pt-3 flex items-center gap-2.5">
+        <button onClick={() => setShowSearch(true)}
+          style={{ background: C.panel, borderRadius: R.pill, boxShadow: SH.soft }}
+          className="flex-1 min-w-0 h-11 px-4 flex items-center gap-2.5 text-left">
+          <Search size={16} style={{ color: C.gray, flexShrink: 0 }} />
+          <span className="text-sm truncate" style={{ color: C.inkFaint }}>Buscar</span>
+        </button>
+        <button onClick={() => { setShowNotifs(true); markNotifsRead(); }} className="relative flex-shrink-0"
+          style={{ width: 44, height: 44, borderRadius: R.pill, background: C.panel, boxShadow: SH.soft, color: C.inkMedium }}>
+          <span className="flex items-center justify-center w-full h-full"><Bell size={18} /></span>
+          {bellLabel && <span style={{ background: C.urgent, color: "#fff" }} className="absolute top-0 right-0 text-[9px] font-bold w-4 h-4 flex items-center justify-center leading-none rounded-full">{bellLabel}</span>}
+        </button>
+        <button onClick={() => setShowNew(true)}
+          style={{ background: C.ink, color: C.paper, borderRadius: R.pill, height: 44 }}
+          className="px-4 flex items-center gap-1.5 text-[13.5px] font-semibold flex-shrink-0 whitespace-nowrap">
+          <Plus size={16} /> <span className="hidden sm:inline">Nuevo pendiente</span>
+        </button>
+      </div>
+      <div className="px-5 pt-4">
+        <h1 style={{ color: C.ink, fontFamily: FONT_SERIF, fontSize: 32, fontWeight: 500, letterSpacing: "-0.01em" }} className="leading-[1.08]">Pendientes</h1>
+        <div className="flex items-center gap-2 mt-1.5 text-[13.5px]" style={{ color: C.inkSoft }}>
+          <span>{activeInTab.length} activo{activeInTab.length === 1 ? "" : "s"}</span>
+          {dueTodayCount > 0 && (
+            <>
+              <span style={{ width: 3, height: 3, borderRadius: R.pill, background: "#C3C0B8" }} />
+              <span style={{ color: C.urgent, fontWeight: 600 }}>{dueTodayCount} se entrega{dueTodayCount === 1 ? "" : "n"} hoy</span>
+            </>
+          )}
         </div>
       </div>
 
-      <div style={{ borderColor: C.hairline }} className="border-b px-5 py-2.5 flex flex-wrap items-center gap-2 relative">
-        {[["requests", "Mis solicitudes"], ["mine", "Mis pendientes"], ["all", "Todos"], ...(isAdmin ? [["popups", "Pop Ups"]] : [])].map(([key, label]) => (
-          <button key={key} onClick={() => setPrimaryTab(key)}
-            style={{ borderColor: primaryTab === key ? C.signal : C.hairline, background: primaryTab === key ? C.signal : "transparent", color: primaryTab === key ? "#fff" : C.ink }}
-            className="border-2 px-3 py-1.5 text-sm font-medium whitespace-nowrap">{label}</button>
-        ))}
+      <div className="px-5 pt-4 flex flex-wrap items-center gap-2.5 relative">
+        <div style={{ background: C.subtle, borderRadius: R.pill }} className="flex gap-1 p-1 flex-shrink-0">
+          {[["requests", "Solicitudes"], ["mine", "Míos"], ["all", "Todos"], ...(isAdmin ? [["popups", "Pop Ups"]] : [])].map(([key, label]) => (
+            <button key={key} onClick={() => setPrimaryTab(key)}
+              style={primaryTab === key ? { background: C.panel, boxShadow: "0 1px 3px rgba(27,30,36,0.10)", color: C.ink, fontWeight: 700 } : { color: C.inkSoft, fontWeight: 600 }}
+              className="h-9 px-3.5 rounded-full text-[12.5px] whitespace-nowrap">{label}</button>
+          ))}
+        </div>
+        <span style={{ width: 1, height: 20, background: C.hairline, flexShrink: 0 }} />
+        <button onClick={() => { setActiveFilter({ type: "Todos" }); setOpenFilterKey(null); }}
+          style={activeFilter.type === "Todos" ? { background: C.ink, color: C.paper, fontWeight: 600 } : { background: C.panel, boxShadow: SH.soft, color: C.inkMedium, fontWeight: 500 }}
+          className="h-[34px] px-3.5 rounded-full text-[12.5px] whitespace-nowrap">Todos</button>
+        {primaryTab === "requests" && (
+          <button onClick={() => { setActiveFilter({ type: "Programados" }); setOpenFilterKey(null); }}
+            style={activeFilter.type === "Programados" ? { background: C.ink, color: C.paper, fontWeight: 600 } : { background: C.panel, boxShadow: SH.soft, color: C.inkMedium, fontWeight: 500 }}
+            className="h-[34px] px-3.5 rounded-full text-[12.5px] whitespace-nowrap">Programados</button>
+        )}
+
+        <div className="relative">
+          <button type="button" onClick={() => setOpenFilterKey((k) => k === "Estado" ? null : "Estado")}
+            style={activeFilter.type === "Estado" ? { background: C.ink, color: C.paper, fontWeight: 600 } : { background: C.panel, boxShadow: SH.soft, color: C.inkMedium, fontWeight: 500 }}
+            className="h-[34px] px-3.5 rounded-full text-[12.5px] whitespace-nowrap flex items-center gap-1">
+            Estado <ChevronDown size={13} style={{ transform: openFilterKey === "Estado" ? "rotate(180deg)" : "none" }} />
+          </button>
+          {openFilterKey === "Estado" && (
+            <div style={{ background: C.panel, borderRadius: R.lg, boxShadow: SH.card }} className="absolute left-0 top-full mt-1.5 z-30 min-w-[180px] py-1.5">
+              {[...ASSIGNEE_STATUSES, "Finalizado"].map((s) => (
+                <button key={s} onClick={() => { setActiveFilter({ type: "Estado", value: s }); setOpenFilterKey(null); }}
+                  style={{ color: activeFilter.type === "Estado" && activeFilter.value === s ? C.signal : C.ink }}
+                  className="w-full text-left px-3.5 py-2 text-sm">{s}</button>
+              ))}
+              <div style={{ background: C.hairlineSoft }} className="h-px my-1 mx-1" />
+              <button onClick={() => { setActiveFilter({ type: "Estado", order: "desc" }); setOpenFilterKey(null); }}
+                style={{ color: activeFilter.type === "Estado" && activeFilter.order === "desc" ? C.signal : C.ink }}
+                className="w-full text-left px-3.5 py-2 text-sm">De mayor a menor</button>
+              <button onClick={() => { setActiveFilter({ type: "Estado", order: "asc" }); setOpenFilterKey(null); }}
+                style={{ color: activeFilter.type === "Estado" && activeFilter.order === "asc" ? C.signal : C.ink }}
+                className="w-full text-left px-3.5 py-2 text-sm">De menor a mayor</button>
+            </div>
+          )}
+        </div>
+
+        <div className="relative">
+          <button type="button" onClick={() => setOpenFilterKey((k) => k === "Urgencia" ? null : "Urgencia")}
+            style={activeFilter.type === "Urgencia" ? { background: C.ink, color: C.paper, fontWeight: 600 } : { background: C.panel, boxShadow: SH.soft, color: C.inkMedium, fontWeight: 500 }}
+            className="h-[34px] px-3.5 rounded-full text-[12.5px] whitespace-nowrap flex items-center gap-1">
+            Urgencia <ChevronDown size={13} style={{ transform: openFilterKey === "Urgencia" ? "rotate(180deg)" : "none" }} />
+          </button>
+          {openFilterKey === "Urgencia" && (
+            <div style={{ background: C.panel, borderRadius: R.lg, boxShadow: SH.card }} className="absolute left-0 top-full mt-1.5 z-30 min-w-[180px] py-1.5">
+              {URGENCIES.map((u) => (
+                <button key={u.label} onClick={() => { setActiveFilter({ type: "Urgencia", value: u.label }); setOpenFilterKey(null); }}
+                  style={{ color: activeFilter.type === "Urgencia" && activeFilter.value === u.label ? C.signal : C.ink }}
+                  className="w-full text-left px-3.5 py-2 text-sm">{u.label}</button>
+              ))}
+              <div style={{ background: C.hairlineSoft }} className="h-px my-1 mx-1" />
+              <button onClick={() => { setActiveFilter({ type: "Urgencia", order: "desc" }); setOpenFilterKey(null); }}
+                style={{ color: activeFilter.type === "Urgencia" && activeFilter.order === "desc" ? C.signal : C.ink }}
+                className="w-full text-left px-3.5 py-2 text-sm">De mayor a menor</button>
+              <button onClick={() => { setActiveFilter({ type: "Urgencia", order: "asc" }); setOpenFilterKey(null); }}
+                style={{ color: activeFilter.type === "Urgencia" && activeFilter.order === "asc" ? C.signal : C.ink }}
+                className="w-full text-left px-3.5 py-2 text-sm">De menor a mayor</button>
+            </div>
+          )}
+        </div>
+
+        <div className="relative">
+          <button type="button" onClick={() => setOpenFilterKey((k) => k === "Categoria" ? null : "Categoria")}
+            style={activeFilter.type === "Categoria" ? { background: C.ink, color: C.paper, fontWeight: 600 } : { background: C.panel, boxShadow: SH.soft, color: C.inkMedium, fontWeight: 500 }}
+            className="h-[34px] px-3.5 rounded-full text-[12.5px] whitespace-nowrap flex items-center gap-1">
+            Categoría <ChevronDown size={13} style={{ transform: openFilterKey === "Categoria" ? "rotate(180deg)" : "none" }} />
+          </button>
+          {openFilterKey === "Categoria" && (
+            <div style={{ background: C.panel, borderRadius: R.lg, boxShadow: SH.card }} className="absolute left-0 top-full mt-1.5 z-30 min-w-[180px] py-1.5 max-h-64 overflow-y-auto">
+              {categoryOptions.length === 0 && <div className="px-3.5 py-2 text-sm" style={{ color: C.inkSoft }}>Sin categorías todavía.</div>}
+              {categoryOptions.map((c) => (
+                <button key={c} onClick={() => { setActiveFilter({ type: "Categoria", value: c }); setOpenFilterKey(null); }}
+                  style={{ color: activeFilter.type === "Categoria" && activeFilter.value === c ? C.signal : C.ink }}
+                  className="w-full text-left px-3.5 py-2 text-sm">{c}</button>
+              ))}
+            </div>
+          )}
+        </div>
+
+        <div className="relative">
+          <button type="button" onClick={() => setOpenFilterKey((k) => k === "Deadline" ? null : "Deadline")}
+            style={activeFilter.type === "Deadline" ? { background: C.ink, color: C.paper, fontWeight: 600 } : { background: C.panel, boxShadow: SH.soft, color: C.inkMedium, fontWeight: 500 }}
+            className="h-[34px] px-3.5 rounded-full text-[12.5px] whitespace-nowrap flex items-center gap-1">
+            Deadline <ChevronDown size={13} style={{ transform: openFilterKey === "Deadline" ? "rotate(180deg)" : "none" }} />
+          </button>
+          {openFilterKey === "Deadline" && (
+            <div style={{ background: C.panel, borderRadius: R.lg, boxShadow: SH.card }} className="absolute left-0 top-full mt-1.5 z-30 min-w-[180px] py-1.5">
+              <button onClick={() => { setActiveFilter({ type: "Deadline", order: "asc" }); setOpenFilterKey(null); }}
+                style={{ color: activeFilter.type === "Deadline" && activeFilter.order === "asc" ? C.signal : C.ink }}
+                className="w-full text-left px-3.5 py-2 text-sm">De mayor a menor</button>
+              <button onClick={() => { setActiveFilter({ type: "Deadline", order: "desc" }); setOpenFilterKey(null); }}
+                style={{ color: activeFilter.type === "Deadline" && activeFilter.order === "desc" ? C.signal : C.ink }}
+                className="w-full text-left px-3.5 py-2 text-sm">De menor a mayor</button>
+            </div>
+          )}
+        </div>
+
+        {/* Lanzamiento del buscador — quitar esta leyenda después del 2026-08-31 */}
+        {todayISO() === "2026-08-31" && (
+          <span className="text-[10px] font-bold uppercase tracking-wider" style={{ color: C.signal }}>¡Nuevo!</span>
+        )}
         {watchers.length > 0 && <Eye size={15} style={{ color: C.urgent }} />}
         {isGerente && (
           <div className="relative">
             <button onClick={() => setShowTeamPicker((v) => !v)}
-              style={{ borderColor: viewingAs ? C.signal : C.hairline, background: viewingAs ? C.signal : "transparent", color: viewingAs ? "#fff" : C.ink }}
-              className="border-2 px-3 py-1.5 text-sm font-medium whitespace-nowrap flex items-center gap-1">
+              style={viewingAs ? { background: C.ink, color: C.paper, fontWeight: 600 } : { background: C.panel, boxShadow: SH.soft, color: C.inkMedium, fontWeight: 500 }}
+              className="h-9 px-3.5 rounded-full text-[12.5px] whitespace-nowrap flex items-center gap-1">
               Mi equipo <ChevronDown size={13} style={{ transform: showTeamPicker ? "rotate(180deg)" : "none" }} />
             </button>
             {showTeamPicker && (
-              <div style={{ borderColor: C.hairline, background: C.paper }} className="absolute left-0 top-full mt-1 border z-30 min-w-[180px] shadow-lg">
-                <button onClick={() => { stopViewingAs(); setShowTeamPicker(false); }} style={{ color: C.inkSoft, borderColor: C.hairline }} className="w-full text-left px-3 py-2 text-sm border-b">Ver el mío (salir)</button>
+              <div style={{ background: C.panel, borderRadius: R.lg, boxShadow: SH.card }} className="absolute left-0 top-full mt-1.5 z-30 min-w-[180px] py-1.5">
+                <button onClick={() => { stopViewingAs(); setShowTeamPicker(false); }} style={{ color: C.inkSoft, boxShadow: `inset 0 -1px 0 ${C.hairlineSoft}` }} className="w-full text-left px-3.5 py-2 text-sm">Ver el mío (salir)</button>
                 {profiles.filter((p) => p.id !== profile.id && p.role !== "admin").map((p) => (
                   <button key={p.id} onClick={() => { startViewingAs(p.id); setShowTeamPicker(false); }}
                     style={{ color: viewingAs === p.id ? C.signal : C.ink, background: viewingAs === p.id ? C.signalSoft : "transparent" }}
-                    className="w-full text-left px-3 py-2 text-sm">{p.name}</button>
+                    className="w-full text-left px-3.5 py-2 text-sm">{p.name}</button>
                 ))}
               </div>
             )}
@@ -1158,120 +1286,14 @@ export default function Dashboard() {
         <PopupsAdminPanel profile={profile} profiles={assignableProfiles} tasks={tasks} subtasks={subtasks} />
       ) : (
       <>
-      <div style={{ borderColor: C.hairline }} className="border-b px-5 py-2.5 flex flex-wrap items-center gap-2">
-        <button onClick={() => { setActiveFilter({ type: "Todos" }); setOpenFilterKey(null); }}
-          style={{ borderColor: activeFilter.type === "Todos" ? C.spine : C.hairline, background: activeFilter.type === "Todos" ? C.spine : "transparent", color: activeFilter.type === "Todos" ? C.paper : C.inkSoft }}
-          className="border px-2.5 py-1.5 text-xs whitespace-nowrap">Todos</button>
-        {primaryTab === "requests" && (
-          <button onClick={() => { setActiveFilter({ type: "Programados" }); setOpenFilterKey(null); }}
-            style={{ borderColor: activeFilter.type === "Programados" ? C.spine : C.hairline, background: activeFilter.type === "Programados" ? C.spine : "transparent", color: activeFilter.type === "Programados" ? C.paper : C.inkSoft }}
-            className="border px-2.5 py-1.5 text-xs whitespace-nowrap">Programados</button>
-        )}
 
-        <div className="relative">
-          <button type="button" onClick={() => setOpenFilterKey((k) => k === "Estado" ? null : "Estado")}
-            style={{ borderColor: activeFilter.type === "Estado" ? C.spine : C.hairline, background: activeFilter.type === "Estado" ? C.spine : "transparent", color: activeFilter.type === "Estado" ? C.paper : C.inkSoft }}
-            className="border px-2.5 py-1.5 text-xs whitespace-nowrap flex items-center gap-1">
-            Estado <ChevronDown size={11} style={{ transform: openFilterKey === "Estado" ? "rotate(180deg)" : "none" }} />
-          </button>
-          {openFilterKey === "Estado" && (
-            <div style={{ borderColor: C.hairline, background: C.paper }} className="absolute left-0 top-full mt-1 border z-30 min-w-[180px] shadow-lg py-1">
-              {[...ASSIGNEE_STATUSES, "Finalizado"].map((s) => (
-                <button key={s} onClick={() => { setActiveFilter({ type: "Estado", value: s }); setOpenFilterKey(null); }}
-                  style={{ color: activeFilter.type === "Estado" && activeFilter.value === s ? C.signal : C.ink }}
-                  className="w-full text-left px-3 py-1.5 text-sm">{s}</button>
-              ))}
-              <div style={{ borderColor: C.hairline }} className="border-t my-1" />
-              <button onClick={() => { setActiveFilter({ type: "Estado", order: "desc" }); setOpenFilterKey(null); }}
-                style={{ color: activeFilter.type === "Estado" && activeFilter.order === "desc" ? C.signal : C.ink }}
-                className="w-full text-left px-3 py-1.5 text-sm">De mayor a menor</button>
-              <button onClick={() => { setActiveFilter({ type: "Estado", order: "asc" }); setOpenFilterKey(null); }}
-                style={{ color: activeFilter.type === "Estado" && activeFilter.order === "asc" ? C.signal : C.ink }}
-                className="w-full text-left px-3 py-1.5 text-sm">De menor a mayor</button>
-            </div>
-          )}
-        </div>
-
-        <div className="relative">
-          <button type="button" onClick={() => setOpenFilterKey((k) => k === "Urgencia" ? null : "Urgencia")}
-            style={{ borderColor: activeFilter.type === "Urgencia" ? C.spine : C.hairline, background: activeFilter.type === "Urgencia" ? C.spine : "transparent", color: activeFilter.type === "Urgencia" ? C.paper : C.inkSoft }}
-            className="border px-2.5 py-1.5 text-xs whitespace-nowrap flex items-center gap-1">
-            Urgencia <ChevronDown size={11} style={{ transform: openFilterKey === "Urgencia" ? "rotate(180deg)" : "none" }} />
-          </button>
-          {openFilterKey === "Urgencia" && (
-            <div style={{ borderColor: C.hairline, background: C.paper }} className="absolute left-0 top-full mt-1 border z-30 min-w-[180px] shadow-lg py-1">
-              {URGENCIES.map((u) => (
-                <button key={u.label} onClick={() => { setActiveFilter({ type: "Urgencia", value: u.label }); setOpenFilterKey(null); }}
-                  style={{ color: activeFilter.type === "Urgencia" && activeFilter.value === u.label ? C.signal : C.ink }}
-                  className="w-full text-left px-3 py-1.5 text-sm">{u.label}</button>
-              ))}
-              <div style={{ borderColor: C.hairline }} className="border-t my-1" />
-              <button onClick={() => { setActiveFilter({ type: "Urgencia", order: "desc" }); setOpenFilterKey(null); }}
-                style={{ color: activeFilter.type === "Urgencia" && activeFilter.order === "desc" ? C.signal : C.ink }}
-                className="w-full text-left px-3 py-1.5 text-sm">De mayor a menor</button>
-              <button onClick={() => { setActiveFilter({ type: "Urgencia", order: "asc" }); setOpenFilterKey(null); }}
-                style={{ color: activeFilter.type === "Urgencia" && activeFilter.order === "asc" ? C.signal : C.ink }}
-                className="w-full text-left px-3 py-1.5 text-sm">De menor a mayor</button>
-            </div>
-          )}
-        </div>
-
-        <div className="relative">
-          <button type="button" onClick={() => setOpenFilterKey((k) => k === "Categoria" ? null : "Categoria")}
-            style={{ borderColor: activeFilter.type === "Categoria" ? C.spine : C.hairline, background: activeFilter.type === "Categoria" ? C.spine : "transparent", color: activeFilter.type === "Categoria" ? C.paper : C.inkSoft }}
-            className="border px-2.5 py-1.5 text-xs whitespace-nowrap flex items-center gap-1">
-            Categoría <ChevronDown size={11} style={{ transform: openFilterKey === "Categoria" ? "rotate(180deg)" : "none" }} />
-          </button>
-          {openFilterKey === "Categoria" && (
-            <div style={{ borderColor: C.hairline, background: C.paper }} className="absolute left-0 top-full mt-1 border z-30 min-w-[180px] shadow-lg py-1 max-h-64 overflow-y-auto">
-              {categoryOptions.length === 0 && <div className="px-3 py-1.5 text-sm" style={{ color: C.inkSoft }}>Sin categorías todavía.</div>}
-              {categoryOptions.map((c) => (
-                <button key={c} onClick={() => { setActiveFilter({ type: "Categoria", value: c }); setOpenFilterKey(null); }}
-                  style={{ color: activeFilter.type === "Categoria" && activeFilter.value === c ? C.signal : C.ink }}
-                  className="w-full text-left px-3 py-1.5 text-sm">{c}</button>
-              ))}
-            </div>
-          )}
-        </div>
-
-        <div className="relative">
-          <button type="button" onClick={() => setOpenFilterKey((k) => k === "Deadline" ? null : "Deadline")}
-            style={{ borderColor: activeFilter.type === "Deadline" ? C.spine : C.hairline, background: activeFilter.type === "Deadline" ? C.spine : "transparent", color: activeFilter.type === "Deadline" ? C.paper : C.inkSoft }}
-            className="border px-2.5 py-1.5 text-xs whitespace-nowrap flex items-center gap-1">
-            Deadline <ChevronDown size={11} style={{ transform: openFilterKey === "Deadline" ? "rotate(180deg)" : "none" }} />
-          </button>
-          {openFilterKey === "Deadline" && (
-            <div style={{ borderColor: C.hairline, background: C.paper }} className="absolute left-0 top-full mt-1 border z-30 min-w-[180px] shadow-lg py-1">
-              <button onClick={() => { setActiveFilter({ type: "Deadline", order: "asc" }); setOpenFilterKey(null); }}
-                style={{ color: activeFilter.type === "Deadline" && activeFilter.order === "asc" ? C.signal : C.ink }}
-                className="w-full text-left px-3 py-1.5 text-sm">De mayor a menor</button>
-              <button onClick={() => { setActiveFilter({ type: "Deadline", order: "desc" }); setOpenFilterKey(null); }}
-                style={{ color: activeFilter.type === "Deadline" && activeFilter.order === "desc" ? C.signal : C.ink }}
-                className="w-full text-left px-3 py-1.5 text-sm">De menor a mayor</button>
-            </div>
-          )}
-        </div>
-
-        <div className="flex items-center gap-1.5 ml-auto">
-          {/* Lanzamiento del buscador — quitar esta leyenda después del 2026-08-31 */}
-          {todayISO() === "2026-08-31" && (
-            <span className="font-mono text-[10px] uppercase tracking-wider" style={{ color: C.signal }}>¡Nuevo!</span>
-          )}
-          <button onClick={() => setShowSearch(true)} title="Buscar pendientes" style={{ background: C.spine }} className="p-2 flex items-center justify-center">
-            <Search size={15} style={{ color: C.paper }} />
-          </button>
-        </div>
-      </div>
-
-      <div className="max-w-3xl mx-auto pb-16">
+      <div className="max-w-3xl mx-auto px-5 pb-10">
         {flatDeadlineList ? (
           <>
             {flatDeadlineList.length === 0 && <div className="text-center py-16" style={{ color: C.inkSoft }}><p className="text-sm">No hay pendientes que coincidan con el filtro.</p></div>}
             {flatDeadlineList.length > 0 && (
-              <div className="mt-6">
-                <div style={{ borderColor: C.hairline }} className="border-x border-t">
-                  {flatDeadlineList.map((t) => <TaskRow key={t.id} task={t} unreadComments={unreadCommentsByTask[t.id] || 0} onOpen={() => setSelected(t)} />)}
-                </div>
+              <div className="mt-6 flex flex-col gap-2.5">
+                {flatDeadlineList.map((t) => <TaskRow key={t.id} task={t} unreadComments={unreadCommentsByTask[t.id] || 0} onOpen={() => setSelected(t)} />)}
               </div>
             )}
           </>
@@ -1279,16 +1301,16 @@ export default function Dashboard() {
           <>
             {Object.keys(grouped).length === 0 && <div className="text-center py-16" style={{ color: C.inkSoft }}><p className="text-sm">No hay pendientes que coincidan con el filtro.</p></div>}
             {groupOrder.filter((k) => grouped[k]?.length).map((k) => {
-              const color = groupIsStatus ? C.inkSoft : (URGENCIES.find((x) => x.label === k) || {}).color;
+              const color = groupIsStatus ? C.inkMedium : (URGENCIES.find((x) => x.label === k) || {}).color;
               const StatusIcon = groupIsStatus ? STATUS_ICON[k] : null;
               return (
                 <div key={k} className="mt-6">
-                  <div style={{ borderColor: color }} className="flex items-center gap-2 px-5 pb-1.5 border-b-2">
-                    {groupIsStatus ? <StatusIcon size={14} style={{ color }} /> : <Flag size={14} fill={color} strokeWidth={0} style={{ color }} />}
-                    <span style={{ color, fontFamily: "Georgia, serif" }} className="text-base uppercase tracking-wide">{k}</span>
-                    <span className="font-mono text-[11px]" style={{ color: C.inkSoft }}>{grouped[k].length}</span>
+                  <div className="flex items-center gap-2 mb-3">
+                    <span style={{ width: 9, height: 9, borderRadius: R.pill, background: color }} />
+                    <span style={{ color: C.inkMedium, fontSize: 11.5, fontWeight: 700, letterSpacing: "0.11em" }} className="uppercase">{k}</span>
+                    <span style={{ minWidth: 20, height: 20, padding: "0 6px", borderRadius: R.pill, background: C.subtle, color: C.inkMedium, fontSize: 11, fontWeight: 700 }} className="flex items-center justify-center">{grouped[k].length}</span>
                   </div>
-                  <div style={{ borderColor: C.hairline }} className="border-x">
+                  <div className="flex flex-col gap-2.5">
                     {grouped[k].map((t) => <TaskRow key={t.id} task={t} unreadComments={unreadCommentsByTask[t.id] || 0} onOpen={() => setSelected(t)} />)}
                   </div>
                 </div>
@@ -1300,11 +1322,12 @@ export default function Dashboard() {
       </>
       )}
 
+      <BottomNav active="pendientes" profile={profile} onEquipo={() => setShowTeam(true)} />
+
       {showNew && <NewTaskForm onClose={() => { setShowNew(false); setAssignChangesFor(null); }} onCreate={createTask} onCreatePopup={createPopup} profiles={assignableProfiles} profile={profile} isAdmin={isAdmin} tasks={tasks} subtasks={subtasks} initialData={assignChangesFor} />}
       {popupQueue[0] && <PopupModal popup={popupQueue[0]} onClose={dismissPopup} tasks={tasks} subtasks={subtasks} profiles={profiles} onFinalizeTask={finalizeTask} />}
       {selected && <TaskDetail task={selected} onClose={() => setSelected(null)} onUpdate={updateTask} onDelete={deleteTask} onDeleteRecurring={deleteRecurringTask} recurringTemplates={recurringTemplates} onFinalize={finalizeTask} onDeliver={deliverTask} profiles={profiles} assignableProfiles={assignableProfiles} profile={profile} notify={notify} subtasks={subtasks.filter((s) => s.task_id === selected.id)} onAddSubtask={addSubtask} onUpdateSubtaskStatus={updateSubtaskStatus} onUpdateSubtaskDescription={updateSubtaskDescription} onAssignChanges={startAssignChanges} viewerIsGerente={!!viewingAs && !isAdmin} onCommentsRead={reloadMyCommentReads} />}
       {showTeam && <TeamPanel onClose={() => setShowTeam(false)} profiles={assignableProfiles} tasks={tasks} />}
-      {showActivity && <ActivityPanel onClose={() => setShowActivity(false)} profile={profile} router={router} />}
       {showNotifs && <NotificationsPanel onClose={() => setShowNotifs(false)} notifications={notifications} onOpenTask={(taskId) => { const t = tasks.find((x) => x.id === taskId); if (t) setSelected(t); setShowNotifs(false); }} onOpenFilter={(target) => { if (target === "requests:Entregado") { setPrimaryTab("requests"); setActiveFilter({ type: "Estado", value: "Entregado" }); } setShowNotifs(false); }} pushSupported={pushSupported} pushEnabled={pushEnabled} onEnablePush={enablePush} />}
       {showSearch && <SearchModal onClose={() => setShowSearch(false)} tasks={myTasks} profiles={profiles} resources={resources} onOpenTask={(t) => { setSelected(t); setShowSearch(false); }} onOpenResource={(r) => { setShowSearch(false); router.push(`/biblioteca?open=${r.id}`); }} />}
     </div>
@@ -1324,44 +1347,52 @@ function TaskRow({ task, onOpen, unreadComments = 0 }) {
   const programado = !!task.request_date && task.request_date > todayISO();
   const inkColor = overdue ? C.overdueInk : C.ink;
   const inkSoftColor = overdue ? C.overdueInkSoft : C.inkSoft;
+  const chipStyle = overdue
+    ? { background: "rgba(246,243,237,0.12)", color: C.overdueInkSoft }
+    : { background: C.subtle, color: "#6F747E" };
+  const typeChipStyle = overdue
+    ? { background: "rgba(47,125,104,0.22)", color: "#8FC4B2" }
+    : { background: C.signalSoft, color: C.signal };
   return (
-    <button onClick={onOpen} style={{ borderColor: C.hairline, background: overdue ? C.spine : urgent ? C.urgentSoft : C.panel }} className="w-full text-left border-b px-4 py-3 flex items-center gap-3">
-      <Icon size={16} style={{ color: overdue ? C.overdueInk : isDone ? C.signal : C.inkSoft, flexShrink: 0 }} />
-      <div className="flex-1 min-w-0">
-        <div className="flex items-center gap-2 flex-wrap">
-          <span className="font-mono text-[9px] uppercase tracking-wider px-1.5 py-0.5" style={{ background: C.paper, color: C.inkSoft, border: `1px solid ${C.hairline}` }}>{task.category}</span>
+    <button
+      onClick={onOpen}
+      style={{ borderRadius: R.lg, background: overdue ? C.spine : urgent ? "#FBEFEB" : C.panel, boxShadow: SH.card }}
+      className="w-full text-left p-[14px] flex gap-3"
+    >
+      <div style={{ width: 38, height: 38, borderRadius: 13, background: overdue ? "rgba(246,243,237,0.12)" : C.subtle, color: overdue ? C.overdueInk : isDone ? C.signal : C.inkSoft }} className="flex items-center justify-center flex-shrink-0">
+        <Icon size={19} />
+      </div>
+      <div className="flex-1 min-w-0 flex flex-col gap-1.5">
+        <div className="flex items-center gap-1.5 flex-wrap">
+          <span style={chipStyle} className="text-[10.5px] font-semibold px-2 py-0.5 rounded-full">{task.category}</span>
           {effType && effType !== "individual" && (
-            <span className="font-mono text-[9px] uppercase tracking-wider px-1.5 py-0.5" style={{ background: C.signalSoft, color: C.signal, border: `1px solid ${C.signal}` }}>{typeLabel}</span>
+            <span style={typeChipStyle} className="text-[10.5px] font-semibold px-2 py-0.5 rounded-full">{typeLabel}</span>
           )}
           {programado && (
-            <span className="font-mono text-[9px] uppercase tracking-wider px-1.5 py-0.5 flex items-center gap-1" style={{ background: C.signalSoft, color: C.signal, border: `1px solid ${C.signal}` }}><Clock size={10} /> Programado</span>
+            <span style={typeChipStyle} className="text-[10.5px] font-semibold px-2 py-0.5 rounded-full flex items-center gap-1"><Clock size={10} /> Programado</span>
           )}
-          <span style={{ color: inkColor, textDecoration: isDone ? "line-through" : "none", opacity: isDone ? 0.6 : 1 }} className="text-sm font-medium truncate">{task.title}</span>
           {task.changes_round > 0 && (
-            <span className="font-mono text-[9px] uppercase tracking-wider px-1.5 py-0.5" style={{ background: C.signalSoft, color: C.signal, border: `1px solid ${C.signal}` }}>Cambios Ronda {task.changes_round}</span>
+            <span style={typeChipStyle} className="text-[10.5px] font-semibold px-2 py-0.5 rounded-full">Cambios Ronda {task.changes_round}</span>
           )}
           {unreadComments > 0 && (
             <span className="relative inline-flex" style={{ flexShrink: 0 }}>
               <MessageSquare size={14} style={{ color: inkSoftColor }} />
-              <span style={{ background: C.urgent, color: "#fff" }} className="absolute -top-1.5 -right-1.5 text-[8px] font-mono px-1 py-0.5 leading-none rounded-full">{unreadComments > 9 ? "9+" : unreadComments}</span>
+              <span style={{ background: C.urgent, color: "#fff" }} className="absolute -top-1.5 -right-1.5 text-[8px] font-bold px-1 py-0.5 leading-none rounded-full">{unreadComments > 9 ? "9+" : unreadComments}</span>
             </span>
           )}
           {Array.from({ length: task.remind_assignee_count || 0 }).map((_, i) => <Bell key={i} size={11} style={{ color: C.amber, flexShrink: 0 }} />)}
         </div>
-        <div className="flex items-center gap-3 mt-1 flex-wrap">
-          <span className="font-mono text-[11px]" style={{ color: inkSoftColor }}>solicita {task.requested_by}{(task.co_requester_names || []).length > 0 ? ` + ${task.co_requester_names.join(", ")}` : task.responsible_name ? ` + ${task.responsible_name}` : ""}</span>
-          {task.task_type === "colaborativo" ? (
-            <span className="font-mono text-[11px]" style={{ color: inkSoftColor }}>→ equipo ({(task.team_member_ids || []).length})</span>
-          ) : (
-            <span className="font-mono text-[11px]" style={{ color: inkSoftColor }}>→ {task.assigned_to_name}</span>
-          )}
+        <div style={{ color: inkColor, textDecoration: isDone ? "line-through" : "none", opacity: isDone ? 0.6 : 1 }} className="text-[15.5px] font-semibold leading-tight truncate">{task.title}</div>
+        <div style={{ color: inkSoftColor }} className="text-[13px] truncate">
+          {task.requested_by}{(task.co_requester_names || []).length > 0 ? ` + ${task.co_requester_names.join(", ")}` : task.responsible_name ? ` + ${task.responsible_name}` : ""}
+          {" → "}
+          {task.task_type === "colaborativo" ? `equipo (${(task.team_member_ids || []).length})` : task.assigned_to_name}
         </div>
       </div>
-      <div>
+      <div className="flex flex-col items-end gap-1 flex-shrink-0">
         <DeadlineBadge deadline={task.deadline} status={task.status} hideToday={sameDay} dark={overdue} />
-        {sameDay && <div className="font-mono text-[9px] uppercase tracking-wider text-right mt-0.5" style={{ color: C.urgent }}>De hoy para hoy 💀</div>}
+        {sameDay && <div className="text-[10px] font-bold text-right" style={{ color: C.urgent }}>De hoy para hoy 💀</div>}
       </div>
-      <ChevronRight size={15} style={{ color: inkSoftColor, flexShrink: 0 }} />
     </button>
   );
 }
@@ -1371,6 +1402,7 @@ function NewTaskForm({ onClose, onCreate, onCreatePopup, profiles, profile, isAd
   const [taskType, setTaskType] = useState("individual"); // individual | personal | colaborativo
   const [title, setTitle] = useState(initialData?.title || ""), [description, setDescription] = useState("");
   const [category, setCategory] = useState(DEFAULT_CATEGORIES[0]), [newCategory, setNewCategory] = useState("");
+  const [showNewCategory, setShowNewCategory] = useState(false);
   const [deadline, setDeadline] = useState("");
   const [urgency, setUrgency] = useState("Media"), [assignedToId, setAssignedToId] = useState("");
 
@@ -1380,6 +1412,7 @@ function NewTaskForm({ onClose, onCreate, onCreatePopup, profiles, profile, isAd
   const [scheduling, setScheduling] = useState(false);
   const [scheduledDate, setScheduledDate] = useState("");
   const [repeatMode, setRepeatMode] = useState("none"); // "none" | "weekly" | "monthly"
+  const [showRepeatMenu, setShowRepeatMenu] = useState(false);
 
   // Colaborativo: equipo + subtareas
   const [teamMemberIds, setTeamMemberIds] = useState([]);
@@ -1416,6 +1449,8 @@ function NewTaskForm({ onClose, onCreate, onCreatePopup, profiles, profile, isAd
   });
 
   const individualAssignable = profiles.filter((p) => p.id !== profile.id);
+  const assignedToProfile = individualAssignable.find((p) => p.id === assignedToId);
+  const [showAssignPicker, setShowAssignPicker] = useState(false);
 
   const toggleTeamMember = (id) => {
     const removing = teamMemberIds.includes(id);
@@ -1501,37 +1536,103 @@ function NewTaskForm({ onClose, onCreate, onCreatePopup, profiles, profile, isAd
     if (result?.uploadError) alert(`El pop up se creó, pero el archivo no se pudo subir (${result.uploadError}). Revisa en Supabase que el bucket "popups" permita ese tipo de archivo y tamaño.`);
   };
 
+  // Campos reutilizados entre individual y colaborativo (columna derecha)
+  const solicitaField = (
+    <div>
+      <label className="text-[11.5px] font-bold tracking-[0.09em] flex items-center gap-1.5" style={{ color: C.inkSoft }}>
+        Solicita
+        <button type="button" onClick={() => setShowRequesterPicker((v) => !v)} title="Agregar más solicitantes" style={{ background: C.signalSoft, color: C.signal }} className="rounded-full w-4 h-4 flex items-center justify-center leading-none"><Plus size={9} /></button>
+      </label>
+      <div style={{ background: C.paper, borderRadius: R.md, color: C.inkSoft }} className="w-full px-3.5 py-2.5 text-sm mt-1.5">
+        {profile.name} (tú){coRequesterIds.length > 0 ? ` + ${coRequesterIds.map((id) => profiles.find((p) => p.id === id)?.name).filter(Boolean).join(", ")}` : ""}
+      </div>
+      {showRequesterPicker && (
+        <div style={{ background: C.panel, borderRadius: R.md, boxShadow: SH.soft }} className="p-3 mt-1.5 flex flex-col gap-1.5">
+          <div className="flex flex-wrap gap-1.5">
+            {profiles.filter((p) => p.id !== profile.id).map((p) => (
+              <button key={p.id} type="button" onClick={() => toggleCoRequester(p.id)}
+                style={{ background: coRequesterIds.includes(p.id) ? C.ink : C.panel, boxShadow: coRequesterIds.includes(p.id) ? "none" : SH.soft, color: coRequesterIds.includes(p.id) ? C.paper : C.inkMedium, fontWeight: coRequesterIds.includes(p.id) ? 600 : 500 }}
+                className="h-[30px] px-3 rounded-full text-xs">{p.name}</button>
+            ))}
+          </div>
+          <p className="text-[11px]" style={{ color: C.inkSoft }}>Las personas que selecciones aparecerán contigo como solicitantes.</p>
+        </div>
+      )}
+    </div>
+  );
+
+  const repeatField = usesDeadlineRules ? (
+    <div className="relative">
+      <label className="text-[11.5px] font-bold tracking-[0.09em]" style={{ color: C.inkSoft }}>Se repite</label>
+      <button type="button" onClick={() => setShowRepeatMenu((v) => !v)}
+        style={{ background: C.paper, borderRadius: R.md }}
+        className="w-full h-[46px] px-3.5 mt-1.5 flex items-center justify-between text-sm outline-none">
+        <span>{REPEAT_MODES.find((m) => m.value === repeatMode)?.label}</span>
+        <ChevronDown size={15} style={{ color: C.gray, transform: showRepeatMenu ? "rotate(180deg)" : "none" }} />
+      </button>
+      {showRepeatMenu && (
+        <div style={{ background: C.panel, borderRadius: R.lg, boxShadow: SH.card }} className="absolute left-0 right-0 top-full mt-1.5 z-20 p-1.5">
+          {REPEAT_MODES.map((m) => (
+            <button key={m.value} type="button"
+              onClick={() => { setRepeatMode(m.value); setScheduling(m.value !== "none"); setShowRepeatMenu(false); }}
+              style={{ color: repeatMode === m.value ? C.signal : C.ink }}
+              className="w-full text-left px-3 py-2 text-sm rounded-md">{m.label}</button>
+          ))}
+        </div>
+      )}
+    </div>
+  ) : null;
+
+  const scheduledDateField = scheduling ? (
+    <div><label className="text-[11.5px] font-bold tracking-[0.09em]" style={{ color: C.inkSoft }}>Día programado</label>
+      <input type="date" value={scheduledDate} min={todayStr} onChange={(e) => setScheduledDate(e.target.value)} style={{ background: C.paper, borderRadius: R.md }} className="w-full px-3.5 py-2.5 text-sm mt-1.5 outline-none" /></div>
+  ) : null;
+
+  const generalDeadlineUrgencyField = (
+    <div className="grid grid-cols-2 gap-3">
+      <div><label className="text-[11.5px] font-bold tracking-[0.09em]" style={{ color: C.inkSoft }}>Deadline{scheduling ? " general" : ""}</label>
+        <input type="date" value={deadline} min={minGeneralDeadline} onChange={(e) => setDeadline(e.target.value)} style={{ background: C.paper, borderRadius: R.md }} className="w-full px-3.5 py-2.5 text-sm mt-1.5 outline-none" /></div>
+      <div><label className="text-[11.5px] font-bold tracking-[0.09em]" style={{ color: C.inkSoft }}>Urgencia</label>
+        <select value={urgency} onChange={(e) => setUrgency(e.target.value)} style={{ background: C.paper, borderRadius: R.md }} className="w-full px-3.5 py-2.5 text-sm mt-1.5 outline-none">
+          {URGENCIES.map((u) => <option key={u.label} value={u.label}>{u.label}</option>)}
+        </select></div>
+      {deadlineError && <p className="col-span-2 text-[11px]" style={{ color: C.urgent }}>{deadlineError}</p>}
+    </div>
+  );
+
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: "rgba(20,24,31,0.55)" }}>
-      <div style={{ background: C.paper, borderColor: C.hairline }} className="w-full max-w-lg border max-h-[90vh] overflow-y-auto">
-        <div style={{ borderColor: C.hairline }} className="border-b px-5 py-4 flex items-center justify-between">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: "rgba(27,30,36,0.55)" }}>
+      <div style={{ background: C.panel, borderRadius: R.xxl, boxShadow: SH.card }} className="w-full max-w-2xl max-h-[90vh] overflow-y-auto">
+        <div style={{ boxShadow: `inset 0 -1px 0 ${C.hairline}` }} className="px-5 py-4 flex items-center justify-between">
           {isAdmin ? (
-            <div className="flex items-center gap-1.5">
+            <div style={{ background: C.subtle, borderRadius: R.pill }} className="flex gap-1 p-1">
               {[["pendiente", "Pendiente"], ["popup", "Pop Up"]].map(([key, label]) => (
                 <button key={key} onClick={() => setMode(key)}
-                  style={{ borderColor: mode === key ? C.signal : C.hairline, background: mode === key ? C.signal : "transparent", color: mode === key ? "#fff" : C.ink }}
-                  className="border-2 px-3 py-1.5 text-sm font-medium">{label}</button>
+                  style={mode === key ? { background: C.panel, boxShadow: "0 1px 3px rgba(27,30,36,0.10)", color: C.ink, fontWeight: 700 } : { color: C.inkSoft, fontWeight: 600 }}
+                  className="h-9 px-3.5 rounded-full text-sm">{label}</button>
               ))}
             </div>
           ) : (
-            <h2 style={{ color: C.ink, fontFamily: "Georgia, serif" }} className="text-lg">Nuevo pendiente</h2>
+            <h2 style={{ color: C.ink, fontFamily: FONT_SERIF, fontSize: 23, fontWeight: 500 }}>Nuevo pendiente</h2>
           )}
-          <button onClick={onClose}><X size={18} style={{ color: C.inkSoft }} /></button>
+          <button onClick={onClose}
+            style={{ width: 34, height: 34, borderRadius: R.pill, background: C.subtle, color: C.inkMedium }}
+            className="flex items-center justify-center"><X size={17} /></button>
         </div>
 
         {mode === "popup" && isAdmin ? (
           <div className="p-5 flex flex-col gap-4">
-            <div><label className="font-mono text-[10px] uppercase tracking-widest" style={{ color: C.inkSoft }}>Título</label>
-              <input value={popupTitle} onChange={(e) => setPopupTitle(e.target.value)} style={{ borderColor: C.hairline, background: C.panel }} className="w-full border px-3 py-2 text-sm mt-1 outline-none" /></div>
-            <div><label className="font-mono text-[10px] uppercase tracking-widest" style={{ color: C.inkSoft }}>Descripción</label>
-              <textarea value={popupDesc} onChange={(e) => setPopupDesc(e.target.value)} rows={4} style={{ borderColor: C.hairline, background: C.panel }} className="w-full border px-3 py-2 text-sm mt-1 outline-none" /></div>
+            <div><label className="text-[11.5px] font-bold tracking-[0.09em]" style={{ color: C.inkSoft }}>Título</label>
+              <input value={popupTitle} onChange={(e) => setPopupTitle(e.target.value)} style={{ background: C.paper, borderRadius: R.md }} className="w-full px-3.5 py-2.5 text-sm mt-1.5 outline-none" /></div>
+            <div><label className="text-[11.5px] font-bold tracking-[0.09em]" style={{ color: C.inkSoft }}>Descripción</label>
+              <textarea value={popupDesc} onChange={(e) => setPopupDesc(e.target.value)} rows={4} style={{ background: C.paper, borderRadius: R.md }} className="w-full px-3.5 py-2.5 text-sm mt-1.5 outline-none" /></div>
             <div>
-              <label className="font-mono text-[10px] uppercase tracking-widest" style={{ color: C.inkSoft }}>¿A quién le sale?</label>
+              <label className="text-[11.5px] font-bold tracking-[0.09em]" style={{ color: C.inkSoft }}>¿A quién le sale?</label>
               <div className="flex flex-wrap gap-1.5 mt-1.5">
                 {profiles.map((p) => (
                   <button key={p.id} type="button" onClick={() => togglePopupTarget(p.id)}
-                    style={{ borderColor: popupTargetIds.includes(p.id) ? C.signal : C.hairline, background: popupTargetIds.includes(p.id) ? C.signal : "transparent", color: popupTargetIds.includes(p.id) ? "#fff" : C.ink }}
-                    className="border px-2.5 py-1 text-xs">{p.name}</button>
+                    style={{ background: popupTargetIds.includes(p.id) ? C.ink : C.panel, boxShadow: popupTargetIds.includes(p.id) ? "none" : SH.soft, color: popupTargetIds.includes(p.id) ? C.paper : C.inkMedium, fontWeight: popupTargetIds.includes(p.id) ? 600 : 500 }}
+                    className="h-[30px] px-3 rounded-full text-xs">{p.name}</button>
                 ))}
               </div>
               <p className="text-[11px] mt-1" style={{ color: C.inkSoft }}>Sin nadie seleccionado = le sale a todo el equipo.</p>
@@ -1539,7 +1640,7 @@ function NewTaskForm({ onClose, onCreate, onCreatePopup, profiles, profile, isAd
             <PopupTaskPicker profiles={profiles} tasks={tasks} subtasks={subtasks} selected={popupTasks} onToggleTask={togglePopupTask} onToggleField={togglePopupTaskField} onApplyToAll={applyPopupFieldsToAll} />
             {!onlyNotification && (
               <div>
-                <label className="font-mono text-[10px] uppercase tracking-widest flex items-center gap-1.5" style={{ color: C.inkSoft }}><ImageIcon size={12} /> Imagen, GIF o video (opcional)</label>
+                <label className="text-[11.5px] font-bold tracking-[0.09em] flex items-center gap-1.5" style={{ color: C.inkSoft }}><ImageIcon size={12} /> Imagen, GIF o video (opcional)</label>
                 <input type="file" accept="image/*,video/mp4,video/webm,video/quicktime" onChange={handlePopupImage} className="text-sm mt-1.5 block" />
                 <p className="text-[11px] mt-1" style={{ color: C.inkSoft }}>Imagen: 800×450px (16:9), JPG/WebP, menos de 400 KB. Video/GIF: cortos (10-15 seg) y menos de 8 MB — se reproducen solos, sin sonido, al abrir el pop up.</p>
                 {popupImageError && <p className="text-[11px] mt-1" style={{ color: C.urgent }}>{popupImageError}</p>}
@@ -1557,251 +1658,186 @@ function NewTaskForm({ onClose, onCreate, onCreatePopup, profiles, profile, isAd
               </label>
             </div>
             <div className="grid grid-cols-2 gap-3">
-              <div><label className="font-mono text-[10px] uppercase tracking-widest" style={{ color: C.inkSoft }}>Día programado (opcional)</label>
-                <input type="date" value={popupDate} onChange={(e) => setPopupDate(e.target.value)} style={{ borderColor: C.hairline, background: C.panel }} className="w-full border px-3 py-2 text-sm mt-1 outline-none" />
+              <div><label className="text-[11.5px] font-bold tracking-[0.09em]" style={{ color: C.inkSoft }}>Día programado (opcional)</label>
+                <input type="date" value={popupDate} onChange={(e) => setPopupDate(e.target.value)} style={{ background: C.paper, borderRadius: R.md }} className="w-full px-3.5 py-2.5 text-sm mt-1.5 outline-none" />
                 <p className="text-[11px] mt-1" style={{ color: C.inkSoft }}>Vacío = se guarda en "Nuevos" para programarlo después.</p></div>
-              <div><label className="font-mono text-[10px] uppercase tracking-widest" style={{ color: C.inkSoft }}>Hora (opcional)</label>
-                <input type="time" value={popupTime} onChange={(e) => setPopupTime(e.target.value)} style={{ borderColor: C.hairline, background: C.panel }} className="w-full border px-3 py-2 text-sm mt-1 outline-none" />
+              <div><label className="text-[11.5px] font-bold tracking-[0.09em]" style={{ color: C.inkSoft }}>Hora (opcional)</label>
+                <input type="time" value={popupTime} onChange={(e) => setPopupTime(e.target.value)} style={{ background: C.paper, borderRadius: R.md }} className="w-full px-3.5 py-2.5 text-sm mt-1.5 outline-none" />
                 <p className="text-[10px] mt-1" style={{ color: C.inkSoft }}>Vacío = aparece todo el día.</p></div>
             </div>
           </div>
         ) : (
           <div className="p-5 flex flex-col gap-4">
-            <div className="flex items-center gap-1.5">
+            <div style={{ background: C.subtle, borderRadius: R.pill }} className="flex gap-1 p-1">
               {TASK_TYPES.map((tt) => (
                 <button key={tt.key} onClick={() => setTaskType(tt.key)}
-                  style={{ borderColor: taskType === tt.key ? C.signal : C.hairline, background: taskType === tt.key ? C.signal : "transparent", color: taskType === tt.key ? "#fff" : C.ink }}
-                  className="border px-2.5 py-1.5 text-xs font-medium">{tt.label}</button>
+                  style={taskType === tt.key ? { background: C.panel, boxShadow: "0 1px 3px rgba(27,30,36,0.10)", color: C.ink, fontWeight: 700 } : { color: C.inkSoft, fontWeight: 600 }}
+                  className="flex-1 h-9 rounded-full text-[12.5px]">{tt.label}</button>
               ))}
             </div>
 
-            <div><label className="font-mono text-[10px] uppercase tracking-widest" style={{ color: C.inkSoft }}>Título{initialData && <span className="ml-1.5" style={{ color: C.signal }}>· Cambios Ronda {initialData.changesRound}</span>}</label>
-              <input value={title} onChange={(e) => !initialData && setTitle(e.target.value)} readOnly={!!initialData} style={{ borderColor: C.hairline, background: initialData ? C.panel : C.panel, color: initialData ? C.inkSoft : C.ink, cursor: initialData ? "not-allowed" : "text" }} className="w-full border px-3 py-2 text-sm mt-1 outline-none" /></div>
-            <div><label className="font-mono text-[10px] uppercase tracking-widest" style={{ color: C.inkSoft }}>Descripción</label>
-              <textarea value={description} onChange={(e) => setDescription(e.target.value)} rows={3} style={{ borderColor: C.hairline, background: C.panel }} className="w-full border px-3 py-2 text-sm mt-1 outline-none" /></div>
+            <div className="grid grid-cols-2 gap-5">
+              <div className="flex flex-col gap-4">
+                <div><label className="text-[11.5px] font-bold tracking-[0.09em]" style={{ color: C.inkSoft }}>Título{initialData && <span className="ml-1.5" style={{ color: C.signal }}>· Cambios Ronda {initialData.changesRound}</span>}</label>
+                  <input value={title} onChange={(e) => !initialData && setTitle(e.target.value)} readOnly={!!initialData} style={{ background: C.paper, borderRadius: R.md, color: initialData ? C.inkSoft : C.ink, cursor: initialData ? "not-allowed" : "text" }} className="w-full px-3.5 py-2.5 text-sm mt-1.5 outline-none" /></div>
 
-            <div className="grid grid-cols-2 gap-3">
-              <div><label className="font-mono text-[10px] uppercase tracking-widest" style={{ color: C.inkSoft }}>Categoría</label>
-                <select value={category} onChange={(e) => setCategory(e.target.value)} style={{ borderColor: C.hairline, background: C.panel }} className="w-full border px-3 py-2 text-sm mt-1 outline-none">
-                  {DEFAULT_CATEGORIES.map((c) => <option key={c} value={c}>{c}</option>)}
-                </select></div>
-              <div><label className="font-mono text-[10px] uppercase tracking-widest" style={{ color: C.inkSoft }}>...o nueva</label>
-                <input value={newCategory} onChange={(e) => setNewCategory(e.target.value)} style={{ borderColor: C.hairline, background: C.panel }} className="w-full border px-3 py-2 text-sm mt-1 outline-none" /></div>
-            </div>
+                <div><label className="text-[11.5px] font-bold tracking-[0.09em]" style={{ color: C.inkSoft }}>Descripción</label>
+                  <textarea value={description} onChange={(e) => setDescription(e.target.value)} rows={3} style={{ background: C.paper, borderRadius: R.md }} className="w-full px-3.5 py-2.5 text-sm mt-1.5 outline-none" /></div>
 
-            {taskType === "individual" && (
-              <>
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <label className="font-mono text-[10px] uppercase tracking-widest flex items-center gap-1.5" style={{ color: C.inkSoft }}>
-                      Solicita
-                      <button type="button" onClick={() => setShowRequesterPicker((v) => !v)} title="Agregar más solicitantes" style={{ borderColor: C.signal, color: C.signal }} className="border rounded-full w-3.5 h-3.5 flex items-center justify-center leading-none"><Plus size={9} /></button>
-                    </label>
-                    <div style={{ borderColor: C.hairline, background: C.panel, color: C.inkSoft }} className="w-full border px-3 py-2 text-sm mt-1">
-                      {profile.name} (tú){coRequesterIds.length > 0 ? ` + ${coRequesterIds.map((id) => profiles.find((p) => p.id === id)?.name).filter(Boolean).join(", ")}` : ""}
-                    </div>
-                  </div>
-                  <div><label className="font-mono text-[10px] uppercase tracking-widest" style={{ color: C.inkSoft }}>Asignar a</label>
-                    <select value={assignedToId} onChange={(e) => setAssignedToId(e.target.value)} style={{ borderColor: C.hairline, background: C.panel }} className="w-full border px-3 py-2 text-sm mt-1 outline-none">
-                      <option value="">Elegir persona...</option>
-                      {individualAssignable.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
-                    </select></div>
-                </div>
-                {showRequesterPicker && (
-                  <div style={{ borderColor: C.hairline }} className="border p-2.5 flex flex-col gap-1.5">
-                    <div className="flex flex-wrap gap-1.5">
-                      {profiles.filter((p) => p.id !== profile.id).map((p) => (
-                        <button key={p.id} type="button" onClick={() => toggleCoRequester(p.id)}
-                          style={{ borderColor: coRequesterIds.includes(p.id) ? C.signal : C.hairline, background: coRequesterIds.includes(p.id) ? C.signal : "transparent", color: coRequesterIds.includes(p.id) ? "#fff" : C.ink }}
-                          className="border px-2.5 py-1 text-xs">{p.name}</button>
-                      ))}
-                    </div>
-                    <p className="text-[11px]" style={{ color: C.inkSoft }}>Las personas que selecciones aparecerán contigo como solicitantes.</p>
-                  </div>
-                )}
                 <div>
-                  <div className="flex items-center justify-between">
-                    <label className="font-mono text-[10px] uppercase tracking-widest" style={{ color: C.inkSoft }}>Subtareas</label>
-                    <button type="button" onClick={addSubtaskRow} disabled={!assignedToId} style={{ color: C.signal }} className="text-xs flex items-center gap-1 disabled:opacity-40"><Plus size={12} /> Agregar subtarea</button>
-                  </div>
-                  <div className="flex flex-col gap-2 mt-2">
-                    {subtaskRows.map((row, i) => (
-                      <div key={i} style={{ borderColor: C.hairline }} className="border p-2.5 flex flex-col gap-1.5">
-                        <div className="flex gap-1.5">
-                          <input value={row.title} onChange={(e) => updateSubtaskRow(i, "title", e.target.value)} placeholder="Título de la subtarea" style={{ borderColor: C.hairline, background: C.panel }} className="flex-1 border px-2 py-1.5 text-xs outline-none" />
-                          <button type="button" onClick={() => removeSubtaskRow(i)}><X size={14} style={{ color: C.inkSoft }} /></button>
-                        </div>
-                        <textarea value={row.description} onChange={(e) => updateSubtaskRow(i, "description", e.target.value)} placeholder="Descripción (opcional)" rows={2} style={{ borderColor: C.hairline, background: C.panel }} className="border px-2 py-1.5 text-xs outline-none resize-y" />
-                        <input type="date" value={row.deadline} min={baseDateStr} max={deadline || undefined} onChange={(e) => updateSubtaskRow(i, "deadline", e.target.value)} style={{ borderColor: C.hairline, background: C.panel }} className="border px-2 py-1.5 text-xs outline-none" />
-                      </div>
-                    ))}
-                    {subtaskRows.length === 0 && <p className="text-[11px]" style={{ color: C.inkSoft }}>Sin subtarea con deadline propio, hereda el deadline general de abajo. Se asignarán a {assignedToId ? (individualAssignable.find((p) => p.id === assignedToId)?.name || "la persona asignada") : "la persona que asignes"}.</p>}
-                  </div>
-                </div>
-                <div className="flex items-center gap-2 flex-wrap">
-                  <button type="button" onClick={() => setScheduling((v) => !v)}
-                    style={{ borderColor: scheduling ? C.signal : C.hairline, background: scheduling ? C.signal : "transparent", color: scheduling ? "#fff" : C.ink }}
-                    className="border px-3 py-1.5 text-xs font-medium flex items-center gap-1.5"><Clock size={13} /> Programar pendiente</button>
-                  {scheduling && (
-                    <select value={repeatMode} onChange={(e) => setRepeatMode(e.target.value)} style={{ borderColor: C.hairline, background: C.panel }} className="border px-2.5 py-1.5 text-xs outline-none">
-                      {REPEAT_MODES.map((m) => <option key={m.value} value={m.value}>{m.label}</option>)}
-                    </select>
-                  )}
-                </div>
-                {scheduling ? (
-                  <div className="grid grid-cols-2 gap-3">
-                    <div><label className="font-mono text-[10px] uppercase tracking-widest" style={{ color: C.inkSoft }}>Día programado</label>
-                      <input type="date" value={scheduledDate} min={todayStr} onChange={(e) => setScheduledDate(e.target.value)} style={{ borderColor: C.hairline, background: C.panel }} className="w-full border px-3 py-2 text-sm mt-1 outline-none" /></div>
-                    <div><label className="font-mono text-[10px] uppercase tracking-widest" style={{ color: C.inkSoft }}>Deadline General</label>
-                      <input type="date" value={deadline} min={minGeneralDeadline} onChange={(e) => setDeadline(e.target.value)} style={{ borderColor: C.hairline, background: C.panel }} className="w-full border px-3 py-2 text-sm mt-1 outline-none" /></div>
-                    <div className="col-span-2"><label className="font-mono text-[10px] uppercase tracking-widest" style={{ color: C.inkSoft }}>Urgencia</label>
-                      <select value={urgency} onChange={(e) => setUrgency(e.target.value)} style={{ borderColor: C.hairline, background: C.panel }} className="w-full border px-3 py-2 text-sm mt-1 outline-none">
-                        {URGENCIES.map((u) => <option key={u.label} value={u.label}>{u.label}</option>)}
-                      </select></div>
-                    {deadlineError && <p className="col-span-2 text-[11px]" style={{ color: C.urgent }}>{deadlineError}</p>}
-                  </div>
-                ) : (
-                  <div className="grid grid-cols-2 gap-3">
-                    <div><label className="font-mono text-[10px] uppercase tracking-widest" style={{ color: C.inkSoft }}>Deadline general</label>
-                      <input type="date" value={deadline} min={minGeneralDeadline} onChange={(e) => setDeadline(e.target.value)} style={{ borderColor: C.hairline, background: C.panel }} className="w-full border px-3 py-2 text-sm mt-1 outline-none" /></div>
-                    <div><label className="font-mono text-[10px] uppercase tracking-widest" style={{ color: C.inkSoft }}>Urgencia</label>
-                      <select value={urgency} onChange={(e) => setUrgency(e.target.value)} style={{ borderColor: C.hairline, background: C.panel }} className="w-full border px-3 py-2 text-sm mt-1 outline-none">
-                        {URGENCIES.map((u) => <option key={u.label} value={u.label}>{u.label}</option>)}
-                      </select></div>
-                    {deadlineError && <p className="col-span-2 text-[11px]" style={{ color: C.urgent }}>{deadlineError}</p>}
-                  </div>
-                )}
-              </>
-            )}
-
-            {taskType === "personal" && (
-              <div className="grid grid-cols-2 gap-3">
-                <div><label className="font-mono text-[10px] uppercase tracking-widest" style={{ color: C.inkSoft }}>Deadline</label>
-                  <input type="date" value={deadline} onChange={(e) => setDeadline(e.target.value)} style={{ borderColor: C.hairline, background: C.panel }} className="w-full border px-3 py-2 text-sm mt-1 outline-none" /></div>
-                <div><label className="font-mono text-[10px] uppercase tracking-widest" style={{ color: C.inkSoft }}>Urgencia</label>
-                  <select value={urgency} onChange={(e) => setUrgency(e.target.value)} style={{ borderColor: C.hairline, background: C.panel }} className="w-full border px-3 py-2 text-sm mt-1 outline-none">
-                    {URGENCIES.map((u) => <option key={u.label} value={u.label}>{u.label}</option>)}
-                  </select></div>
-              </div>
-            )}
-
-            {taskType === "colaborativo" && (
-              <>
-                <div>
-                  <label className="font-mono text-[10px] uppercase tracking-widest flex items-center gap-1.5" style={{ color: C.inkSoft }}>
-                    Solicita
-                    <button type="button" onClick={() => setShowRequesterPicker((v) => !v)} title="Agregar más solicitantes" style={{ borderColor: C.signal, color: C.signal }} className="border rounded-full w-3.5 h-3.5 flex items-center justify-center leading-none"><Plus size={9} /></button>
-                  </label>
-                  <div style={{ borderColor: C.hairline, background: C.panel, color: C.inkSoft }} className="w-full border px-3 py-2 text-sm mt-1">
-                    {profile.name} (tú){coRequesterIds.length > 0 ? ` + ${coRequesterIds.map((id) => profiles.find((p) => p.id === id)?.name).filter(Boolean).join(", ")}` : ""}
-                  </div>
-                </div>
-                {showRequesterPicker && (
-                  <div style={{ borderColor: C.hairline }} className="border p-2.5 flex flex-col gap-1.5">
-                    <div className="flex flex-wrap gap-1.5">
-                      {profiles.filter((p) => p.id !== profile.id).map((p) => (
-                        <button key={p.id} type="button" onClick={() => toggleCoRequester(p.id)}
-                          style={{ borderColor: coRequesterIds.includes(p.id) ? C.signal : C.hairline, background: coRequesterIds.includes(p.id) ? C.signal : "transparent", color: coRequesterIds.includes(p.id) ? "#fff" : C.ink }}
-                          className="border px-2.5 py-1 text-xs">{p.name}</button>
-                      ))}
-                    </div>
-                    <p className="text-[11px]" style={{ color: C.inkSoft }}>Las personas que selecciones aparecerán contigo como solicitantes.</p>
-                  </div>
-                )}
-                <div>
-                  <label className="font-mono text-[10px] uppercase tracking-widest" style={{ color: C.inkSoft }}>Equipo de trabajo</label>
+                  <label className="text-[11.5px] font-bold tracking-[0.09em]" style={{ color: C.inkSoft }}>Categoría</label>
                   <div className="flex flex-wrap gap-1.5 mt-1.5">
-                    {profiles.map((p) => (
-                      <button key={p.id} type="button" onClick={() => toggleTeamMember(p.id)}
-                        style={{ borderColor: teamMemberIds.includes(p.id) ? C.signal : C.hairline, background: teamMemberIds.includes(p.id) ? C.signal : "transparent", color: teamMemberIds.includes(p.id) ? "#fff" : C.ink }}
-                        className="border px-2.5 py-1 text-xs">{p.name}</button>
+                    {DEFAULT_CATEGORIES.map((c) => (
+                      <button key={c} type="button" onClick={() => { setCategory(c); setNewCategory(""); setShowNewCategory(false); }}
+                        style={!showNewCategory && category === c ? { background: C.ink, color: C.paper, fontWeight: 600 } : { background: C.panel, color: C.inkMedium, boxShadow: SH.soft, fontWeight: 500 }}
+                        className="h-9 px-3.5 rounded-full text-[13px]">{c}</button>
                     ))}
+                    <button type="button" onClick={() => setShowNewCategory((v) => !v)}
+                      style={showNewCategory ? { background: C.ink, color: C.paper, fontWeight: 600 } : { background: "transparent", color: C.inkSoft, fontWeight: 500, boxShadow: `inset 0 0 0 1.5px ${C.hairline}` }}
+                      className="h-9 px-3.5 rounded-full text-[13px] flex items-center gap-1"><Plus size={13} /> Nueva</button>
                   </div>
-                  {teamMemberIds.length < 2 && <p className="text-[11px] mt-1.5" style={{ color: C.urgent }}>Selecciona al menos 2 personas del equipo.</p>}
+                  {showNewCategory && (
+                    <input value={newCategory} onChange={(e) => setNewCategory(e.target.value)} placeholder="Escribe la categoría nueva" autoFocus
+                      style={{ background: C.paper, borderRadius: R.md }} className="w-full px-3.5 py-2.5 text-sm mt-2 outline-none" />
+                  )}
                 </div>
-                <div>
-                  <div className="flex items-center justify-between">
-                    <label className="font-mono text-[10px] uppercase tracking-widest" style={{ color: C.inkSoft }}>Subtareas</label>
-                    <button type="button" onClick={addSubtaskRow} disabled={teamMemberIds.length === 0} style={{ color: C.signal }} className="text-xs flex items-center gap-1 disabled:opacity-40"><Plus size={12} /> Agregar subtarea</button>
-                  </div>
-                  <div className="flex flex-col gap-2 mt-2">
-                    {subtaskRows.map((row, i) => (
-                      <div key={i} style={{ borderColor: C.hairline }} className="border p-2.5 flex flex-col gap-1.5">
-                        <div className="flex gap-1.5">
-                          <input value={row.title} onChange={(e) => updateSubtaskRow(i, "title", e.target.value)} placeholder="Título de la subtarea" style={{ borderColor: C.hairline, background: C.panel }} className="flex-1 border px-2 py-1.5 text-xs outline-none" />
-                          <button type="button" onClick={() => removeSubtaskRow(i)}><X size={14} style={{ color: C.inkSoft }} /></button>
+              </div>
+
+              <div className="flex flex-col gap-4">
+                {taskType === "individual" && (
+                  <>
+                    <div className="relative">
+                      <label className="text-[11.5px] font-bold tracking-[0.09em]" style={{ color: C.inkSoft }}>Asignar a</label>
+                      <button type="button" onClick={() => setShowAssignPicker((v) => !v)}
+                        style={{ background: C.paper, borderRadius: R.md }}
+                        className="w-full h-[46px] px-3 mt-1.5 flex items-center gap-2.5 text-sm outline-none">
+                        {assignedToProfile ? (
+                          <>
+                            <span style={{ width: 24, height: 24, borderRadius: R.pill, background: C.subtle, color: "#6F747E" }} className="flex-shrink-0 flex items-center justify-center text-[11px] font-bold">{(assignedToProfile.name || "?").trim().charAt(0).toUpperCase()}</span>
+                            <span className="font-semibold truncate" style={{ color: C.ink }}>{assignedToProfile.name}</span>
+                          </>
+                        ) : (
+                          <span style={{ color: C.inkFaint }}>Elegir persona...</span>
+                        )}
+                        <ChevronDown size={15} style={{ color: C.gray, marginLeft: "auto", flexShrink: 0, transform: showAssignPicker ? "rotate(180deg)" : "none" }} />
+                      </button>
+                      {showAssignPicker && (
+                        <div style={{ background: C.panel, borderRadius: R.lg, boxShadow: SH.card }} className="absolute left-0 right-0 top-full mt-1.5 z-20 p-1.5 max-h-56 overflow-y-auto">
+                          {individualAssignable.map((p) => (
+                            <button key={p.id} type="button" onClick={() => { setAssignedToId(p.id); setShowAssignPicker(false); }}
+                              style={{ background: assignedToId === p.id ? C.subtle : "transparent" }}
+                              className="w-full flex items-center gap-2.5 px-3 py-2 rounded-md text-left">
+                              <span style={{ width: 24, height: 24, borderRadius: R.pill, background: C.subtle, color: "#6F747E" }} className="flex-shrink-0 flex items-center justify-center text-[11px] font-bold">{(p.name || "?").trim().charAt(0).toUpperCase()}</span>
+                              <span className="text-sm font-semibold" style={{ color: C.ink }}>{p.name}</span>
+                            </button>
+                          ))}
                         </div>
-                        <textarea value={row.description} onChange={(e) => updateSubtaskRow(i, "description", e.target.value)} placeholder="Descripción (opcional)" rows={2} style={{ borderColor: C.hairline, background: C.panel }} className="border px-2 py-1.5 text-xs outline-none resize-y" />
-                        <div className="grid grid-cols-2 gap-1.5">
-                          <select value={row.assignedToId} onChange={(e) => updateSubtaskRow(i, "assignedToId", e.target.value)} style={{ borderColor: C.hairline, background: C.panel }} className="border px-2 py-1.5 text-xs outline-none">
-                            <option value="">Asignar a...</option>
-                            {profiles.filter((p) => teamMemberIds.includes(p.id)).map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
-                          </select>
-                          <input type="date" value={row.deadline} min={baseDateStr} max={deadline || undefined} onChange={(e) => updateSubtaskRow(i, "deadline", e.target.value)} style={{ borderColor: C.hairline, background: C.panel }} className="border px-2 py-1.5 text-xs outline-none" />
-                        </div>
+                      )}
+                    </div>
+
+                    {solicitaField}
+                    {repeatField}
+                    {scheduledDateField}
+                    {generalDeadlineUrgencyField}
+
+                    <div>
+                      <div className="flex flex-col gap-2 mb-2">
+                        {subtaskRows.map((row, i) => (
+                          <div key={i} style={{ background: C.panel, borderRadius: R.md, boxShadow: SH.soft }} className="p-3 flex flex-col gap-1.5">
+                            <div className="flex gap-1.5">
+                              <input value={row.title} onChange={(e) => updateSubtaskRow(i, "title", e.target.value)} placeholder="Título de la subtarea" style={{ background: C.paper, borderRadius: R.md }} className="flex-1 px-3 py-2 text-xs outline-none" />
+                              <button type="button" onClick={() => removeSubtaskRow(i)}><X size={14} style={{ color: C.inkSoft }} /></button>
+                            </div>
+                            <textarea value={row.description} onChange={(e) => updateSubtaskRow(i, "description", e.target.value)} placeholder="Descripción (opcional)" rows={2} style={{ background: C.paper, borderRadius: R.md }} className="px-3 py-2 text-xs outline-none resize-y" />
+                            <input type="date" value={row.deadline} min={baseDateStr} max={deadline || undefined} onChange={(e) => updateSubtaskRow(i, "deadline", e.target.value)} style={{ background: C.paper, borderRadius: R.md }} className="px-3 py-2 text-xs outline-none" />
+                          </div>
+                        ))}
                       </div>
-                    ))}
-                    {subtaskRows.length === 0 && <p className="text-[11px]" style={{ color: C.inkSoft }}>Sin subtarea con deadline propio, hereda el deadline general de abajo.</p>}
-                  </div>
-                  {missingSubtaskCoverage && (
-                    <p className="text-[11px] mt-1.5" style={{ color: C.urgent }}>
-                      Falta asignar subtarea a: {teamMemberIds.filter((id) => !subtaskRows.some((r) => r.assignedToId === id && r.title.trim())).map((id) => profiles.find((p) => p.id === id)?.name).filter(Boolean).join(", ")}
-                    </p>
-                  )}
-                </div>
-                <div className="flex items-center gap-2 flex-wrap">
-                  <button type="button" onClick={() => setScheduling((v) => !v)}
-                    style={{ borderColor: scheduling ? C.signal : C.hairline, background: scheduling ? C.signal : "transparent", color: scheduling ? "#fff" : C.ink }}
-                    className="border px-3 py-1.5 text-xs font-medium flex items-center gap-1.5"><Clock size={13} /> Programar pendiente</button>
-                  {scheduling && (
-                    <select value={repeatMode} onChange={(e) => setRepeatMode(e.target.value)} style={{ borderColor: C.hairline, background: C.panel }} className="border px-2.5 py-1.5 text-xs outline-none">
-                      {REPEAT_MODES.map((m) => <option key={m.value} value={m.value}>{m.label}</option>)}
-                    </select>
-                  )}
-                </div>
-                {scheduling ? (
-                  <div className="grid grid-cols-2 gap-3">
-                    <div><label className="font-mono text-[10px] uppercase tracking-widest" style={{ color: C.inkSoft }}>Día programado</label>
-                      <input type="date" value={scheduledDate} min={todayStr} onChange={(e) => setScheduledDate(e.target.value)} style={{ borderColor: C.hairline, background: C.panel }} className="w-full border px-3 py-2 text-sm mt-1 outline-none" /></div>
-                    <div><label className="font-mono text-[10px] uppercase tracking-widest" style={{ color: C.inkSoft }}>Deadline General</label>
-                      <input type="date" value={deadline} min={minGeneralDeadline} onChange={(e) => setDeadline(e.target.value)} style={{ borderColor: C.hairline, background: C.panel }} className="w-full border px-3 py-2 text-sm mt-1 outline-none" /></div>
-                    <div className="col-span-2"><label className="font-mono text-[10px] uppercase tracking-widest" style={{ color: C.inkSoft }}>Urgencia</label>
-                      <select value={urgency} onChange={(e) => setUrgency(e.target.value)} style={{ borderColor: C.hairline, background: C.panel }} className="w-full border px-3 py-2 text-sm mt-1 outline-none">
-                        {URGENCIES.map((u) => <option key={u.label} value={u.label}>{u.label}</option>)}
-                      </select></div>
-                    {deadlineError && <p className="col-span-2 text-[11px]" style={{ color: C.urgent }}>{deadlineError}</p>}
-                  </div>
-                ) : (
-                  <div className="grid grid-cols-2 gap-3">
-                    <div><label className="font-mono text-[10px] uppercase tracking-widest" style={{ color: C.inkSoft }}>Deadline general</label>
-                      <input type="date" value={deadline} min={minGeneralDeadline} onChange={(e) => setDeadline(e.target.value)} style={{ borderColor: C.hairline, background: C.panel }} className="w-full border px-3 py-2 text-sm mt-1 outline-none" /></div>
-                    <div><label className="font-mono text-[10px] uppercase tracking-widest" style={{ color: C.inkSoft }}>Urgencia</label>
-                      <select value={urgency} onChange={(e) => setUrgency(e.target.value)} style={{ borderColor: C.hairline, background: C.panel }} className="w-full border px-3 py-2 text-sm mt-1 outline-none">
-                        {URGENCIES.map((u) => <option key={u.label} value={u.label}>{u.label}</option>)}
-                      </select></div>
-                    {deadlineError && <p className="col-span-2 text-[11px]" style={{ color: C.urgent }}>{deadlineError}</p>}
-                  </div>
+                      <button type="button" onClick={addSubtaskRow} disabled={!assignedToId}
+                        style={{ borderRadius: R.md, boxShadow: `inset 0 0 0 1.5px ${C.hairline}`, color: C.inkSoft }}
+                        className="w-full h-12 flex items-center justify-center gap-1.5 text-sm font-medium disabled:opacity-40">
+                        <Plus size={15} /> Agregar subtarea
+                      </button>
+                      {subtaskRows.length === 0 && <p className="text-[11px] mt-1.5" style={{ color: C.inkSoft }}>Sin subtarea con deadline propio, hereda el deadline general de arriba. Se asignarán a {assignedToId ? (individualAssignable.find((p) => p.id === assignedToId)?.name || "la persona asignada") : "la persona que asignes"}.</p>}
+                    </div>
+                  </>
                 )}
-              </>
-            )}
+
+                {taskType === "personal" && generalDeadlineUrgencyField}
+
+                {taskType === "colaborativo" && (
+                  <>
+                    {solicitaField}
+
+                    <div>
+                      <label className="text-[11.5px] font-bold tracking-[0.09em]" style={{ color: C.inkSoft }}>Equipo de trabajo</label>
+                      <div className="flex flex-wrap gap-1.5 mt-1.5">
+                        {profiles.map((p) => (
+                          <button key={p.id} type="button" onClick={() => toggleTeamMember(p.id)}
+                            style={{ background: teamMemberIds.includes(p.id) ? C.ink : C.panel, boxShadow: teamMemberIds.includes(p.id) ? "none" : SH.soft, color: teamMemberIds.includes(p.id) ? C.paper : C.inkMedium, fontWeight: teamMemberIds.includes(p.id) ? 600 : 500 }}
+                            className="h-[30px] px-3 rounded-full text-xs">{p.name}</button>
+                        ))}
+                      </div>
+                      {teamMemberIds.length < 2 && <p className="text-[11px] mt-1.5" style={{ color: C.urgent }}>Selecciona al menos 2 personas del equipo.</p>}
+                    </div>
+
+                    {repeatField}
+                    {scheduledDateField}
+                    {generalDeadlineUrgencyField}
+
+                    <div>
+                      <div className="flex flex-col gap-2 mb-2">
+                        {subtaskRows.map((row, i) => (
+                          <div key={i} style={{ background: C.panel, borderRadius: R.md, boxShadow: SH.soft }} className="p-3 flex flex-col gap-1.5">
+                            <div className="flex gap-1.5">
+                              <input value={row.title} onChange={(e) => updateSubtaskRow(i, "title", e.target.value)} placeholder="Título de la subtarea" style={{ background: C.paper, borderRadius: R.md }} className="flex-1 px-3 py-2 text-xs outline-none" />
+                              <button type="button" onClick={() => removeSubtaskRow(i)}><X size={14} style={{ color: C.inkSoft }} /></button>
+                            </div>
+                            <textarea value={row.description} onChange={(e) => updateSubtaskRow(i, "description", e.target.value)} placeholder="Descripción (opcional)" rows={2} style={{ background: C.paper, borderRadius: R.md }} className="px-3 py-2 text-xs outline-none resize-y" />
+                            <div className="grid grid-cols-2 gap-1.5">
+                              <select value={row.assignedToId} onChange={(e) => updateSubtaskRow(i, "assignedToId", e.target.value)} style={{ background: C.paper, borderRadius: R.md }} className="px-3 py-2 text-xs outline-none">
+                                <option value="">Asignar a...</option>
+                                {profiles.filter((p) => teamMemberIds.includes(p.id)).map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
+                              </select>
+                              <input type="date" value={row.deadline} min={baseDateStr} max={deadline || undefined} onChange={(e) => updateSubtaskRow(i, "deadline", e.target.value)} style={{ background: C.paper, borderRadius: R.md }} className="px-3 py-2 text-xs outline-none" />
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                      <button type="button" onClick={addSubtaskRow} disabled={teamMemberIds.length === 0}
+                        style={{ borderRadius: R.md, boxShadow: `inset 0 0 0 1.5px ${C.hairline}`, color: C.inkSoft }}
+                        className="w-full h-12 flex items-center justify-center gap-1.5 text-sm font-medium disabled:opacity-40">
+                        <Plus size={15} /> Agregar subtarea
+                      </button>
+                      {subtaskRows.length === 0 && <p className="text-[11px] mt-1.5" style={{ color: C.inkSoft }}>Sin subtarea con deadline propio, hereda el deadline general de arriba.</p>}
+                      {missingSubtaskCoverage && (
+                        <p className="text-[11px] mt-1.5" style={{ color: C.urgent }}>
+                          Falta asignar subtarea a: {teamMemberIds.filter((id) => !subtaskRows.some((r) => r.assignedToId === id && r.title.trim())).map((id) => profiles.find((p) => p.id === id)?.name).filter(Boolean).join(", ")}
+                        </p>
+                      )}
+                    </div>
+                  </>
+                )}
+              </div>
+            </div>
           </div>
         )}
 
-        <div style={{ borderColor: C.hairline }} className="border-t px-5 py-4 flex justify-end gap-2">
-          <button onClick={onClose} style={{ color: C.inkSoft }} className="px-4 py-2 text-sm">Cancelar</button>
+        <div style={{ boxShadow: `inset 0 1px 0 ${C.hairline}` }} className="px-5 py-4 flex justify-end gap-2">
+          <button onClick={onClose} style={{ color: C.inkMedium, background: C.subtle, borderRadius: R.pill }} className="px-5 py-2.5 text-sm font-semibold">Cancelar</button>
           {mode === "popup" && isAdmin ? (
-            <button onClick={() => setShowPopupConfirm(true)} disabled={!popupTitle.trim() || popupSaving || !!popupImageError} style={{ background: C.spine, color: C.paper, opacity: popupSaving ? 0.6 : 1 }} className="px-4 py-2 text-sm disabled:cursor-not-allowed">¿Listo?</button>
+            <button onClick={() => setShowPopupConfirm(true)} disabled={!popupTitle.trim() || popupSaving || !!popupImageError} style={{ background: C.ink, color: C.paper, opacity: popupSaving ? 0.6 : 1, borderRadius: R.pill }} className="px-5 py-2.5 text-sm font-semibold disabled:cursor-not-allowed">¿Listo?</button>
           ) : (
-            <button onClick={handleCreateClick} disabled={usesDeadlineRules && !!deadlineError} style={{ background: C.spine, color: C.paper, opacity: usesDeadlineRules && deadlineError ? 0.5 : 1 }} className="px-4 py-2 text-sm disabled:cursor-not-allowed">Crear pendiente</button>
+            <button onClick={handleCreateClick} disabled={usesDeadlineRules && !!deadlineError} style={{ background: C.ink, color: C.paper, opacity: usesDeadlineRules && deadlineError ? 0.5 : 1, borderRadius: R.pill }} className="px-5 py-2.5 text-sm font-semibold disabled:cursor-not-allowed">Crear pendiente</button>
           )}
         </div>
       </div>
       {showSubtaskRule && (
-        <div className="fixed inset-0 z-[70] flex items-center justify-center p-4" style={{ background: "rgba(20,24,31,0.6)" }} onClick={() => setShowSubtaskRule(false)}>
-          <div style={{ background: C.paper, borderColor: C.hairline }} className="border max-w-xs p-4" onClick={(e) => e.stopPropagation()}>
+        <div className="fixed inset-0 z-[70] flex items-center justify-center p-4" style={{ background: "rgba(27,30,36,0.6)" }} onClick={() => setShowSubtaskRule(false)}>
+          <div style={{ background: C.paper, borderRadius: R.xl, boxShadow: SH.card }} className="max-w-xs p-5" onClick={(e) => e.stopPropagation()}>
             <p className="text-sm font-semibold" style={{ color: C.urgent }}>Tienes que asignar subtareas</p>
             <p className="text-sm mt-2" style={{ color: C.ink }}>Si no asignas subtareas los de tu equipo no podrán seleccionar que ya entregaron su parte y el pendiente no se podrá finalizar.</p>
-            <button onClick={() => setShowSubtaskRule(false)} style={{ background: C.spine, color: C.paper }} className="mt-3 px-3 py-1.5 text-xs w-full">Entendido</button>
+            <button onClick={() => setShowSubtaskRule(false)} style={{ background: C.ink, color: C.paper, borderRadius: R.pill }} className="mt-3 px-4 py-2 text-xs font-semibold w-full">Entendido</button>
           </div>
         </div>
       )}
@@ -1864,7 +1900,7 @@ function PopupsAdminPanel({ profile, profiles, tasks, subtasks }) {
           <button key={key} onClick={() => setTab(key)}
             style={{ borderColor: tab === key ? C.signal : C.hairline, background: tab === key ? C.signal : "transparent", color: tab === key ? "#fff" : C.ink }}
             className="border-2 px-3 py-1.5 text-sm font-medium">
-            {label} <span className="font-mono text-[10px]">({grouped[key].length})</span>
+            {label} <span className="text-[11px] font-semibold">({grouped[key].length})</span>
           </button>
         ))}
       </div>
@@ -1877,8 +1913,8 @@ function PopupsAdminPanel({ profile, profiles, tasks, subtasks }) {
           return (
             <button key={p.id} onClick={() => setEditing(p)} style={{ borderColor: C.hairline, background: C.panel }} className="border p-3.5 text-left flex items-center justify-between gap-3">
               <div className="min-w-0">
-                <div className="text-sm font-medium truncate" style={{ color: C.ink }}>{p.title}{p.only_notification && <span className="ml-1.5 font-mono text-[10px]" style={{ color: C.inkSoft }}>· solo notificación</span>}</div>
-                <div className="font-mono text-[11px] mt-0.5" style={{ color: C.inkSoft }}>
+                <div className="text-sm font-medium truncate" style={{ color: C.ink }}>{p.title}{p.only_notification && <span className="ml-1.5 text-[11px] font-semibold" style={{ color: C.inkSoft }}>· solo notificación</span>}</div>
+                <div className="text-[12px] mt-0.5" style={{ color: C.inkSoft }}>
                   {dateLabel} · {targetLabel}
                 </div>
               </div>
@@ -1985,16 +2021,16 @@ function PopupEditForm({ popup, profiles, tasks, subtasks, onClose, onSaved }) {
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: "rgba(20,24,31,0.55)" }}>
       <div style={{ background: C.paper, borderColor: C.hairline }} className="w-full max-w-lg border max-h-[90vh] overflow-y-auto">
         <div style={{ borderColor: C.hairline }} className="border-b px-5 py-4 flex items-center justify-between">
-          <h2 style={{ color: C.ink, fontFamily: "Georgia, serif" }} className="text-lg">Editar Pop Up</h2>
+          <h2 style={{ color: C.ink, fontFamily: FONT_SERIF }} className="text-lg">Editar Pop Up</h2>
           <button onClick={onClose}><X size={18} style={{ color: C.inkSoft }} /></button>
         </div>
         <div className="p-5 flex flex-col gap-4">
-          <div><label className="font-mono text-[10px] uppercase tracking-widest" style={{ color: C.inkSoft }}>Título</label>
+          <div><label className="text-[11.5px] font-bold tracking-[0.09em]" style={{ color: C.inkSoft }}>Título</label>
             <input value={title} onChange={(e) => setTitle(e.target.value)} style={{ borderColor: C.hairline, background: C.panel }} className="w-full border px-3 py-2 text-sm mt-1 outline-none" /></div>
-          <div><label className="font-mono text-[10px] uppercase tracking-widest" style={{ color: C.inkSoft }}>Descripción</label>
+          <div><label className="text-[11.5px] font-bold tracking-[0.09em]" style={{ color: C.inkSoft }}>Descripción</label>
             <textarea value={description} onChange={(e) => setDescription(e.target.value)} rows={4} style={{ borderColor: C.hairline, background: C.panel }} className="w-full border px-3 py-2 text-sm mt-1 outline-none" /></div>
           <div>
-            <label className="font-mono text-[10px] uppercase tracking-widest" style={{ color: C.inkSoft }}>¿A quién le sale?</label>
+            <label className="text-[11.5px] font-bold tracking-[0.09em]" style={{ color: C.inkSoft }}>¿A quién le sale?</label>
             <div className="flex flex-wrap gap-1.5 mt-1.5">
               {profiles.map((p) => (
                 <button key={p.id} type="button" onClick={() => toggleTarget(p.id)}
@@ -2010,7 +2046,7 @@ function PopupEditForm({ popup, profiles, tasks, subtasks, onClose, onSaved }) {
           )}
           {!onlyNotification && (
             <div>
-              <label className="font-mono text-[10px] uppercase tracking-widest flex items-center gap-1.5" style={{ color: C.inkSoft }}><ImageIcon size={12} /> Reemplazar imagen, GIF o video (opcional)</label>
+              <label className="text-[11.5px] font-bold tracking-[0.09em] flex items-center gap-1.5" style={{ color: C.inkSoft }}><ImageIcon size={12} /> Reemplazar imagen, GIF o video (opcional)</label>
               <input type="file" accept="image/*,video/mp4,video/webm,video/quicktime" onChange={handleImage} className="text-sm mt-1.5 block" />
               <p className="text-[11px] mt-1" style={{ color: C.inkSoft }}>Imagen: 800×450px, JPG/WebP, menos de 400 KB. Video/GIF: menos de 8 MB.</p>
               {imageError && <p className="text-[11px] mt-1" style={{ color: C.urgent }}>{imageError}</p>}
@@ -2027,10 +2063,10 @@ function PopupEditForm({ popup, profiles, tasks, subtasks, onClose, onSaved }) {
             </label>
           </div>
           <div className="grid grid-cols-2 gap-3">
-            <div><label className="font-mono text-[10px] uppercase tracking-widest" style={{ color: C.inkSoft }}>Día programado (opcional)</label>
+            <div><label className="text-[11.5px] font-bold tracking-[0.09em]" style={{ color: C.inkSoft }}>Día programado (opcional)</label>
               <input type="date" value={scheduledDate} onChange={(e) => setScheduledDate(e.target.value)} style={{ borderColor: C.hairline, background: C.panel }} className="w-full border px-3 py-2 text-sm mt-1 outline-none" />
               <p className="text-[11px] mt-1" style={{ color: C.inkSoft }}>Vacío = se queda en "Nuevos".</p></div>
-            <div><label className="font-mono text-[10px] uppercase tracking-widest" style={{ color: C.inkSoft }}>Hora (opcional)</label>
+            <div><label className="text-[11.5px] font-bold tracking-[0.09em]" style={{ color: C.inkSoft }}>Hora (opcional)</label>
               <input type="time" value={scheduledTime} onChange={(e) => setScheduledTime(e.target.value)} style={{ borderColor: C.hairline, background: C.panel }} className="w-full border px-3 py-2 text-sm mt-1 outline-none" /></div>
           </div>
         </div>
@@ -2102,34 +2138,34 @@ function PopupTaskBreakdown({ task, fields, profiles, subtasks, onFinalizeTask }
   };
 
   return (
-    <div style={{ borderColor: C.hairline, background: C.panel }} className="border-t px-3 py-2.5 flex flex-col gap-2.5 text-xs">
+    <div style={{ boxShadow: `inset 0 1px 0 ${C.hairline}` }} className="px-3 py-2.5 flex flex-col gap-2.5 text-xs">
       {fields.includes("requester") && (
-        <div><div className="font-mono text-[10px] uppercase tracking-widest" style={{ color: C.inkSoft }}>Solicitante/s</div><div style={{ color: C.ink }}>{task.requested_by}{coRequesterNames.length ? ` + ${coRequesterNames.join(", ")}` : ""}</div></div>
+        <div><div className="text-[11.5px] font-bold tracking-[0.09em]" style={{ color: C.inkSoft }}>Solicitante/s</div><div style={{ color: C.ink }}>{task.requested_by}{coRequesterNames.length ? ` + ${coRequesterNames.join(", ")}` : ""}</div></div>
       )}
       {fields.includes("assignee") && !isColaborativo && (
-        <div><div className="font-mono text-[10px] uppercase tracking-widest" style={{ color: C.inkSoft }}>Asignado</div><div style={{ color: C.ink }}>{task.assigned_to_name || "—"}</div></div>
+        <div><div className="text-[11.5px] font-bold tracking-[0.09em]" style={{ color: C.inkSoft }}>Asignado</div><div style={{ color: C.ink }}>{task.assigned_to_name || "—"}</div></div>
       )}
       {fields.includes("team") && isColaborativo && (
-        <div><div className="font-mono text-[10px] uppercase tracking-widest" style={{ color: C.inkSoft }}>Equipo de trabajo</div><div style={{ color: C.ink }}>{teamNames.join(", ") || "—"}</div></div>
+        <div><div className="text-[11.5px] font-bold tracking-[0.09em]" style={{ color: C.inkSoft }}>Equipo de trabajo</div><div style={{ color: C.ink }}>{teamNames.join(", ") || "—"}</div></div>
       )}
       {fields.includes("description") && task.description && (
-        <div><div className="font-mono text-[10px] uppercase tracking-widest" style={{ color: C.inkSoft }}>Descripción</div><div style={{ color: C.ink }} className="whitespace-pre-wrap break-words">{renderWithLinks(task.description, C.signal)}</div></div>
+        <div><div className="text-[11.5px] font-bold tracking-[0.09em]" style={{ color: C.inkSoft }}>Descripción</div><div style={{ color: C.ink }} className="whitespace-pre-wrap break-words">{renderWithLinks(task.description, C.signal)}</div></div>
       )}
       {fields.includes("status") && (
-        <div><div className="font-mono text-[10px] uppercase tracking-widest" style={{ color: C.inkSoft }}>Estado</div><div style={{ color: C.ink }}>{task.status}</div></div>
+        <div><div className="text-[11.5px] font-bold tracking-[0.09em]" style={{ color: C.inkSoft }}>Estado</div><div style={{ color: C.ink }}>{task.status}</div></div>
       )}
       {fields.includes("generalStatus") && hasSubtasks && (
-        <div><div className="font-mono text-[10px] uppercase tracking-widest" style={{ color: C.inkSoft }}>Estado general</div><div style={{ color: C.ink }}>{task.status} ({deliveredCount}/{subsForTask.length} subtareas entregadas)</div></div>
+        <div><div className="text-[11.5px] font-bold tracking-[0.09em]" style={{ color: C.inkSoft }}>Estado general</div><div style={{ color: C.ink }}>{task.status} ({deliveredCount}/{subsForTask.length} subtareas entregadas)</div></div>
       )}
       {fields.includes("requestedDate") && (
-        <div><div className="font-mono text-[10px] uppercase tracking-widest" style={{ color: C.inkSoft }}>Fecha de solicitud</div><div style={{ color: C.ink }}>{fmtDate(task.request_date)}</div></div>
+        <div><div className="text-[11.5px] font-bold tracking-[0.09em]" style={{ color: C.inkSoft }}>Fecha de solicitud</div><div style={{ color: C.ink }}>{fmtDate(task.request_date)}</div></div>
       )}
       {fields.includes("deadline") && (
-        <div><div className="font-mono text-[10px] uppercase tracking-widest" style={{ color: C.inkSoft }}>Fecha de deadline</div><div style={{ color: C.ink }}>{fmtDate(task.deadline)}</div></div>
+        <div><div className="text-[11.5px] font-bold tracking-[0.09em]" style={{ color: C.inkSoft }}>Fecha de deadline</div><div style={{ color: C.ink }}>{fmtDate(task.deadline)}</div></div>
       )}
       {fields.includes("deliveredDate") && (
         <div>
-          <div className="font-mono text-[10px] uppercase tracking-widest" style={{ color: C.inkSoft }}>Fecha de entregado</div>
+          <div className="text-[11.5px] font-bold tracking-[0.09em]" style={{ color: C.inkSoft }}>Fecha de entregado</div>
           {hasSubtasks ? (
             <div className="flex flex-col gap-0.5 mt-0.5">
               {subsForTask.map((s) => <div key={s.id} style={{ color: C.ink }}>{s.title}: {fmtDateTime(s.delivered_at) || "aún no entregada"}</div>)}
@@ -2141,17 +2177,17 @@ function PopupTaskBreakdown({ task, fields, profiles, subtasks, onFinalizeTask }
       )}
       {fields.includes("subtasksList") && hasSubtasks && (
         <div>
-          <div className="font-mono text-[10px] uppercase tracking-widest" style={{ color: C.inkSoft }}>Subtareas ({deliveredCount}/{subsForTask.length})</div>
+          <div className="text-[11.5px] font-bold tracking-[0.09em]" style={{ color: C.inkSoft }}>Subtareas ({deliveredCount}/{subsForTask.length})</div>
           <div className="flex flex-col gap-0.5 mt-0.5">
             {subsForTask.map((s) => <div key={s.id} style={{ color: C.ink }}>{s.title} — {s.assigned_to_name} · {s.status}</div>)}
           </div>
         </div>
       )}
       {canFinalize && (
-        <button onClick={handleFinalize} disabled={busy} style={{ background: C.signal, color: "#fff" }} className="px-3 py-1.5 text-xs disabled:opacity-60">{busy ? "Finalizando..." : "Finalizar pendiente"}</button>
+        <button onClick={handleFinalize} disabled={busy} style={{ background: C.signal, color: "#fff", borderRadius: R.pill }} className="px-3 py-2 text-xs font-semibold disabled:opacity-60">{busy ? "Finalizando..." : "Finalizar pendiente"}</button>
       )}
       {showDownload && (
-        <button onClick={handleDownload} style={{ borderColor: C.hairline, color: C.ink }} className="border px-3 py-1.5 text-xs flex items-center justify-center gap-1.5"><Download size={12} /> Descargar historial</button>
+        <button onClick={handleDownload} style={{ background: C.subtle, color: C.inkMedium, borderRadius: R.pill }} className="px-3 py-2 text-xs font-semibold flex items-center justify-center gap-1.5"><Download size={12} /> Descargar historial</button>
       )}
     </div>
   );
@@ -2165,10 +2201,10 @@ function PopupModal({ popup, onClose, tasks, subtasks, profiles, onFinalizeTask 
     .filter((x) => x.task);
 
   return (
-    <div className="fixed inset-0 z-[60] flex items-center justify-center p-4" style={{ background: "rgba(20,24,31,0.7)" }}>
-      <div style={{ background: C.paper, borderColor: C.hairline }} className="w-full max-w-sm border relative overflow-hidden max-h-[90vh] overflow-y-auto">
-        <button onClick={onClose} style={{ background: C.paper }} className="absolute top-3 right-3 z-10 p-1 rounded-full">
-          <X size={18} style={{ color: C.inkSoft }} />
+    <div className="fixed inset-0 z-[60] flex items-center justify-center p-4" style={{ background: "rgba(27,30,36,0.65)" }}>
+      <div style={{ background: C.panel, borderRadius: R.xxl, boxShadow: SH.card }} className="w-full max-w-sm relative overflow-hidden max-h-[90vh] overflow-y-auto">
+        <button onClick={onClose} style={{ width: 30, height: 30, borderRadius: R.pill, background: C.panel, boxShadow: SH.soft, color: C.inkMedium }} className="absolute top-3 right-3 z-10 flex items-center justify-center">
+          <X size={16} />
         </button>
         {popup.image_url && (
           <button type="button" onClick={() => setShowFullMedia(true)} className="block w-full cursor-zoom-in">
@@ -2210,20 +2246,20 @@ function PopupModal({ popup, onClose, tasks, subtasks, profiles, onFinalizeTask 
           </div>
         )}
         <div className="p-5">
-          <div className="flex items-center gap-1.5 mb-2 font-mono text-[10px] uppercase tracking-widest" style={{ color: C.inkSoft }}>
+          <div className="flex items-center gap-1.5 mb-2 text-[11.5px] font-bold tracking-[0.09em]" style={{ color: C.inkSoft }}>
             <Megaphone size={12} /> Aviso
           </div>
-          <h2 style={{ color: C.ink, fontFamily: "Georgia, serif" }} className="text-lg mb-2">{popup.title}</h2>
+          <h2 style={{ color: C.ink, fontFamily: FONT_SERIF }} className="text-lg mb-2">{popup.title}</h2>
           {popup.description && <p className="text-sm whitespace-pre-wrap break-words" style={{ color: C.ink }}>{renderWithLinks(popup.description, C.signal)}</p>}
           {relatedEntries.length > 0 && (
             <div className="mt-3 flex flex-col gap-1.5">
-              <div className="font-mono text-[10px] uppercase tracking-widest" style={{ color: C.inkSoft }}>Pendientes relacionados</div>
+              <div className="text-[11.5px] font-bold tracking-[0.09em]" style={{ color: C.inkSoft }}>Pendientes relacionados</div>
               {relatedEntries.map(({ entry, task }) => {
                 const open = openTaskId === task.id;
                 return (
-                  <div key={task.id} style={{ borderColor: C.hairline }} className="border">
-                    <button onClick={() => setOpenTaskId(open ? null : task.id)} className="w-full px-2.5 py-1.5 text-left flex items-center justify-between gap-2">
-                      <span className="text-xs truncate" style={{ color: C.ink }}>{task.title}</span>
+                  <div key={task.id} style={{ background: C.paper, borderRadius: R.md, overflow: "hidden" }}>
+                    <button onClick={() => setOpenTaskId(open ? null : task.id)} className="w-full px-3 py-2.5 text-left flex items-center justify-between gap-2">
+                      <span className="text-xs font-semibold truncate" style={{ color: C.ink }}>{task.title}</span>
                       <ChevronDown size={12} style={{ color: C.inkSoft, flexShrink: 0, transform: open ? "rotate(180deg)" : "none" }} />
                     </button>
                     {open && (entry.fields || []).length > 0 && (
@@ -2234,7 +2270,7 @@ function PopupModal({ popup, onClose, tasks, subtasks, profiles, onFinalizeTask 
               })}
             </div>
           )}
-          <button onClick={onClose} style={{ background: C.spine, color: C.paper }} className="mt-4 px-4 py-2 text-sm w-full">Entendido</button>
+          <button onClick={onClose} style={{ background: C.ink, color: C.paper, borderRadius: R.pill }} className="mt-4 px-4 py-2.5 text-sm font-semibold w-full">Entendido</button>
         </div>
       </div>
     </div>
@@ -2295,26 +2331,26 @@ function ConvertToColaborativoModal({ task, profiles, profile, onClose, onConver
     <div className="fixed inset-0 z-[70] flex items-center justify-center p-4" style={{ background: "rgba(20,24,31,0.55)" }}>
       <div style={{ background: C.paper, borderColor: C.hairline }} className="w-full max-w-lg border max-h-[90vh] overflow-y-auto">
         <div style={{ borderColor: C.hairline }} className="border-b px-5 py-4 flex items-center justify-between">
-          <h2 style={{ color: C.ink, fontFamily: "Georgia, serif" }} className="text-lg">Convertir a Colaborativo</h2>
+          <h2 style={{ color: C.ink, fontFamily: FONT_SERIF }} className="text-lg">Convertir a Colaborativo</h2>
           <button onClick={onClose}><X size={18} style={{ color: C.inkSoft }} /></button>
         </div>
         <div className="p-5 flex flex-col gap-4">
-          <div><label className="font-mono text-[10px] uppercase tracking-widest" style={{ color: C.inkSoft }}>Título</label>
+          <div><label className="text-[11.5px] font-bold tracking-[0.09em]" style={{ color: C.inkSoft }}>Título</label>
             <input value={task.title} readOnly style={{ borderColor: C.hairline, background: C.panel, color: C.inkSoft, cursor: "not-allowed" }} className="w-full border px-3 py-2 text-sm mt-1 outline-none" /></div>
-          <div><label className="font-mono text-[10px] uppercase tracking-widest" style={{ color: C.inkSoft }}>Descripción</label>
+          <div><label className="text-[11.5px] font-bold tracking-[0.09em]" style={{ color: C.inkSoft }}>Descripción</label>
             <textarea value={description} onChange={(e) => setDescription(e.target.value)} rows={3} style={{ borderColor: C.hairline, background: C.panel }} className="w-full border px-3 py-2 text-sm mt-1 outline-none" /></div>
 
           <div className="grid grid-cols-2 gap-3">
-            <div><label className="font-mono text-[10px] uppercase tracking-widest" style={{ color: C.inkSoft }}>Categoría</label>
+            <div><label className="text-[11.5px] font-bold tracking-[0.09em]" style={{ color: C.inkSoft }}>Categoría</label>
               <select value={category} onChange={(e) => { setCategory(e.target.value); setNewCategory(""); }} style={{ borderColor: C.hairline, background: C.panel }} className="w-full border px-3 py-2 text-sm mt-1 outline-none">
                 {DEFAULT_CATEGORIES.map((c) => <option key={c} value={c}>{c}</option>)}
               </select></div>
-            <div><label className="font-mono text-[10px] uppercase tracking-widest" style={{ color: C.inkSoft }}>...o nueva</label>
+            <div><label className="text-[11.5px] font-bold tracking-[0.09em]" style={{ color: C.inkSoft }}>...o nueva</label>
               <input value={newCategory} onChange={(e) => setNewCategory(e.target.value)} style={{ borderColor: C.hairline, background: C.panel }} className="w-full border px-3 py-2 text-sm mt-1 outline-none" /></div>
           </div>
 
           <div>
-            <label className="font-mono text-[10px] uppercase tracking-widest flex items-center gap-1.5" style={{ color: C.inkSoft }}>
+            <label className="text-[11.5px] font-bold tracking-[0.09em] flex items-center gap-1.5" style={{ color: C.inkSoft }}>
               Solicita
               <button type="button" onClick={() => setShowRequesterPicker((v) => !v)} title="Agregar más solicitantes" style={{ borderColor: C.signal, color: C.signal }} className="border rounded-full w-3.5 h-3.5 flex items-center justify-center leading-none"><Plus size={9} /></button>
             </label>
@@ -2336,7 +2372,7 @@ function ConvertToColaborativoModal({ task, profiles, profile, onClose, onConver
           )}
 
           <div>
-            <label className="font-mono text-[10px] uppercase tracking-widest" style={{ color: C.inkSoft }}>Equipo de trabajo</label>
+            <label className="text-[11.5px] font-bold tracking-[0.09em]" style={{ color: C.inkSoft }}>Equipo de trabajo</label>
             <div className="flex flex-wrap gap-1.5 mt-1.5">
               {profiles.map((p) => (
                 <button key={p.id} type="button" onClick={() => toggleTeamMember(p.id)}
@@ -2349,7 +2385,7 @@ function ConvertToColaborativoModal({ task, profiles, profile, onClose, onConver
 
           <div>
             <div className="flex items-center justify-between">
-              <label className="font-mono text-[10px] uppercase tracking-widest" style={{ color: C.inkSoft }}>Subtareas</label>
+              <label className="text-[11.5px] font-bold tracking-[0.09em]" style={{ color: C.inkSoft }}>Subtareas</label>
               <button type="button" onClick={addSubtaskRow} disabled={teamMemberIds.length === 0} style={{ color: C.signal }} className="text-xs flex items-center gap-1 disabled:opacity-40"><Plus size={12} /> Agregar subtarea</button>
             </div>
             <div className="flex flex-col gap-2 mt-2">
@@ -2379,9 +2415,9 @@ function ConvertToColaborativoModal({ task, profiles, profile, onClose, onConver
           </div>
 
           <div className="grid grid-cols-2 gap-3">
-            <div><label className="font-mono text-[10px] uppercase tracking-widest" style={{ color: C.inkSoft }}>Deadline general</label>
+            <div><label className="text-[11.5px] font-bold tracking-[0.09em]" style={{ color: C.inkSoft }}>Deadline general</label>
               <input type="date" value={deadline} min={minGeneralDeadline} onChange={(e) => setDeadline(e.target.value)} style={{ borderColor: C.hairline, background: C.panel }} className="w-full border px-3 py-2 text-sm mt-1 outline-none" /></div>
-            <div><label className="font-mono text-[10px] uppercase tracking-widest" style={{ color: C.inkSoft }}>Urgencia</label>
+            <div><label className="text-[11.5px] font-bold tracking-[0.09em]" style={{ color: C.inkSoft }}>Urgencia</label>
               <select value={urgency} onChange={(e) => setUrgency(e.target.value)} style={{ borderColor: C.hairline, background: C.panel }} className="w-full border px-3 py-2 text-sm mt-1 outline-none">
                 {URGENCIES.map((u) => <option key={u.label} value={u.label}>{u.label}</option>)}
               </select></div>
@@ -2646,7 +2682,7 @@ function TaskDetail({ task, onClose, onUpdate, onDelete, onDeleteRecurring, recu
   const sendReminderEmail = async () => {
     if (!reminderRecipient) return;
     const subject = encodeURIComponent(`Recordatorio: ${task.title}`);
-    const body = encodeURIComponent(`Hola ${reminderRecipient.name},\n\nRecordatorio del pendiente "${task.title}" (${task.category}).\nDeadline: ${fmtDate(task.deadline)}\nEstado: ${task.status}\n\nDe parte de ${profile.name}, panel Sevenly.`);
+    const body = encodeURIComponent(`Hola ${reminderRecipient.name},\n\nRecordatorio del pendiente "${task.title}" (${task.category}).\nDeadline: ${fmtDate(task.deadline)}\nEstado: ${task.status}\n\nDe parte de ${profile.name}, panel Terregal.`);
     const to = encodeURIComponent(reminderRecipient.email || "");
     window.open(`https://outlook.office.com/mail/deeplink/compose?to=${to}&subject=${subject}&body=${body}`, "_blank");
     await onUpdate(task, {}, `${profile.name} envió recordatorio por correo a ${reminderRecipient.name}`);
@@ -2654,7 +2690,7 @@ function TaskDetail({ task, onClose, onUpdate, onDelete, onDeleteRecurring, recu
   const sendReminderWhatsapp = async () => {
     if (!reminderRecipient || !reminderRecipient.phone) return;
     const cleanPhone = reminderRecipient.phone.replace(/\D/g, "");
-    const text = encodeURIComponent(`Hola ${reminderRecipient.name}, recordatorio: "${task.title}" (${task.category}). Deadline: ${fmtDate(task.deadline)}. Estado: ${task.status}. — ${profile.name}, Sevenly`);
+    const text = encodeURIComponent(`Hola ${reminderRecipient.name}, recordatorio: "${task.title}" (${task.category}). Deadline: ${fmtDate(task.deadline)}. Estado: ${task.status}. — ${profile.name}, Terregal`);
     window.open(`https://wa.me/${cleanPhone}?text=${text}`, "_blank");
     await onUpdate(task, {}, `${profile.name} envió recordatorio por WhatsApp a ${reminderRecipient.name}`);
   };
@@ -2685,48 +2721,87 @@ function TaskDetail({ task, onClose, onUpdate, onDelete, onDeleteRecurring, recu
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-stretch justify-end" style={{ background: "rgba(20,24,31,0.5)" }} onClick={onClose}>
-      <div style={{ background: C.paper }} className="w-full max-w-md h-full overflow-y-auto shadow-2xl" onClick={(e) => e.stopPropagation()}>
-        <div style={{ borderColor: C.hairline, background: C.paper }} className="border-b px-5 py-4 sticky top-0 flex items-start justify-between gap-3">
-          <div className="flex-1 min-w-0"><div className="font-mono text-[10px] uppercase tracking-widest mb-1 flex items-center gap-1.5 flex-wrap" style={{ color: C.inkSoft }}>
+    <div className="fixed inset-0 z-50 flex items-stretch justify-end" style={{ background: "rgba(27,30,36,0.5)" }} onClick={onClose}>
+      <div style={{ background: C.paper, borderTopLeftRadius: 28, borderBottomLeftRadius: 28 }} className="w-full max-w-md h-full overflow-y-auto shadow-2xl" onClick={(e) => e.stopPropagation()}>
+        <div style={{ background: C.paper }} className="px-5 pt-4 sticky top-0 z-10 flex items-center justify-between gap-3">
+          <div className="min-w-0">
+            <span style={{ background: C.subtle, color: "#6F747E", borderRadius: R.pill, fontWeight: 600 }} className="text-[10.5px] px-2.5 py-1 inline-flex items-center gap-1">
               {task.category}
               {!isFinalized && !viewerIsGerente && (
-                <button onClick={() => { setCategoryDraft(task.category || DEFAULT_CATEGORIES[0]); setNewCategoryDraft(""); setEditingCategory((v) => !v); }} title="Cambiar categoría">
-                  <Pencil size={11} style={{ color: C.inkSoft }} />
+                <button onClick={() => { setCategoryDraft(task.category || DEFAULT_CATEGORIES[0]); setNewCategoryDraft(""); setEditingCategory((v) => !v); }} title="Cambiar categoría" className="flex-shrink-0">
+                  <Pencil size={10} />
                 </button>
               )}
-              {task.task_type && effectiveTaskType(task) !== "individual" && <span style={{ color: C.signal }}>· {TASK_TYPES.find((t) => t.key === effectiveTaskType(task))?.label}</span>}
-              {task.recurring_template_id && <span>· 🔁 {recurringTpl?.frequency_type === "monthly" ? "Mensual" : "Semanal"}</span>}
-              {isFinalized && <><Lock size={10} /> Finalizado — solo lectura</>}
-              {viewerIsGerente && !isFinalized && <><Eye size={10} /> Modo lectura</>}
-            </div>
-            {editingCategory && (
-              <div style={{ borderColor: C.hairline, background: C.panel }} className="border p-2.5 mb-2 flex flex-col gap-1.5 max-w-xs">
-                <select value={categoryDraft} onChange={(e) => { setCategoryDraft(e.target.value); setNewCategoryDraft(""); }} style={{ borderColor: C.hairline, background: C.paper }} className="border px-2 py-1 text-xs outline-none">
-                  {DEFAULT_CATEGORIES.map((c) => <option key={c} value={c}>{c}</option>)}
-                </select>
-                <input value={newCategoryDraft} onChange={(e) => setNewCategoryDraft(e.target.value)} placeholder="...o escribe una nueva" style={{ borderColor: C.hairline, background: C.paper }} className="border px-2 py-1 text-xs outline-none" />
-                <div className="flex gap-2 justify-end">
-                  <button onClick={() => setEditingCategory(false)} className="text-xs" style={{ color: C.inkSoft }}>Cancelar</button>
-                  <button onClick={saveCategory} style={{ background: C.spine, color: C.paper }} className="text-xs px-2.5 py-1">Guardar</button>
-                </div>
-              </div>
-            )}
-            <h2 style={{ color: C.ink, fontFamily: "Georgia, serif" }} className="text-lg leading-tight">
-              {task.title}
-              {task.changes_round > 0 && (
-                <span className="font-mono text-[10px] uppercase tracking-wider ml-2" style={{ color: C.signal, fontFamily: "inherit" }}>Cambios Ronda {task.changes_round}</span>
-              )}
-            </h2></div>
-          <button onClick={onClose}><X size={18} style={{ color: C.inkSoft }} /></button>
+            </span>
+          </div>
+          <div className="flex items-center gap-2 flex-shrink-0">
+            <button onClick={downloadHistory} disabled={!isFinalized} title={isFinalized ? "Descargar" : "Se habilita cuando el solicitante finaliza el pendiente"}
+              style={{ width: 34, height: 34, borderRadius: R.pill, background: C.panel, boxShadow: SH.soft, color: isFinalized ? C.inkMedium : C.inkFaint }}
+              className="flex items-center justify-center disabled:cursor-not-allowed"><Download size={15} /></button>
+            <button onClick={onClose}
+              style={{ width: 34, height: 34, borderRadius: R.pill, background: C.panel, boxShadow: SH.soft, color: C.inkMedium }}
+              className="flex items-center justify-center"><X size={17} /></button>
+          </div>
         </div>
-        <div className="p-5 flex flex-col gap-5">
+        <div className="px-5 pb-2 pt-2.5 flex flex-wrap items-center gap-1.5 text-[11px]" style={{ color: C.inkSoft }}>
+          {task.task_type && effectiveTaskType(task) !== "individual" && <span style={{ color: C.signal, fontWeight: 600 }}>{TASK_TYPES.find((t) => t.key === effectiveTaskType(task))?.label}</span>}
+          {task.recurring_template_id && <span>🔁 {recurringTpl?.frequency_type === "monthly" ? "Mensual" : "Semanal"}</span>}
+          {isFinalized && <span className="flex items-center gap-1"><Lock size={10} /> Finalizado — solo lectura</span>}
+          {viewerIsGerente && !isFinalized && <span className="flex items-center gap-1"><Eye size={10} /> Modo lectura</span>}
+        </div>
+        {editingCategory && (
+          <div className="px-5 pb-3">
+            <div style={{ background: C.panel, borderRadius: R.lg, boxShadow: SH.card }} className="p-3 flex flex-col gap-1.5 max-w-xs">
+              <select value={categoryDraft} onChange={(e) => { setCategoryDraft(e.target.value); setNewCategoryDraft(""); }} style={{ background: C.paper, borderRadius: R.sm }} className="px-2.5 py-1.5 text-xs outline-none">
+                {DEFAULT_CATEGORIES.map((c) => <option key={c} value={c}>{c}</option>)}
+              </select>
+              <input value={newCategoryDraft} onChange={(e) => setNewCategoryDraft(e.target.value)} placeholder="...o escribe una nueva" style={{ background: C.paper, borderRadius: R.sm }} className="px-2.5 py-1.5 text-xs outline-none" />
+              <div className="flex gap-2 justify-end">
+                <button onClick={() => setEditingCategory(false)} className="text-xs" style={{ color: C.inkSoft }}>Cancelar</button>
+                <button onClick={saveCategory} style={{ background: C.ink, color: C.paper, borderRadius: R.pill }} className="text-xs px-3.5 py-1.5 font-semibold">Guardar</button>
+              </div>
+            </div>
+          </div>
+        )}
+        <div className="px-5 pb-5 flex flex-col gap-5">
+          <h2 style={{ color: C.ink, fontFamily: FONT_SERIF, fontSize: 27, fontWeight: 500 }} className="leading-tight -mt-2">
+            {task.title}
+            {task.changes_round > 0 && (
+              <span className="text-[11px] font-semibold uppercase tracking-wider ml-2" style={{ color: C.signal, fontFamily: "inherit" }}>Cambios Ronda {task.changes_round}</span>
+            )}
+          </h2>
+          {(() => {
+            const legend = dueLegend(task.deadline, task.status);
+            const urg = URGENCIES.find((u) => u.label === task.urgency) || URGENCIES[0];
+            const legendPill = legend && (
+              legend.color === C.amber ? { background: C.amberSoft, color: C.amberInk } :
+              legend.color === C.urgent ? { background: C.urgentSoft, color: C.urgentInk } :
+              null
+            );
+            if (!legend && !canEditUrgency) return null;
+            return (
+              <div className="flex items-center gap-2.5">
+                {legend && (legendPill ? (
+                  <span style={{ ...legendPill, borderRadius: R.pill, fontWeight: 700 }} className="text-[11.5px] px-3 py-1.5">{legend.text}</span>
+                ) : (
+                  <span className="text-[12.5px]" style={{ color: C.inkSoft }}>{legend.text}</span>
+                ))}
+                {canEditUrgency && !isFinalized && !viewerIsGerente ? (
+                  <select value={task.urgency} onChange={(e) => changeUrgency(e.target.value)} style={{ background: C.paper, borderRadius: R.pill, color: urg.color }} className="px-3 py-1.5 text-[12.5px] font-semibold outline-none">
+                    {URGENCIES.map((u) => <option key={u.label} value={u.label}>{u.label}</option>)}
+                  </select>
+                ) : (
+                  <UrgencyFlag urgency={task.urgency} />
+                )}
+              </div>
+            );
+          })()}
           {editingDescription ? (
             <div className="flex flex-col gap-1.5">
-              <textarea value={descriptionDraft} onChange={(e) => setDescriptionDraft(e.target.value)} rows={3} style={{ borderColor: C.hairline, background: C.panel, color: C.ink }} className="w-full border px-3 py-2 text-sm outline-none resize-y" />
+              <textarea value={descriptionDraft} onChange={(e) => setDescriptionDraft(e.target.value)} rows={3} style={{ borderColor: C.hairline, background: C.panel, color: C.ink }} className="w-full px-3.5 py-2.5 text-sm outline-none resize-y" />
               <div className="flex gap-2 justify-end">
                 <button onClick={() => { setDescriptionDraft(task.description || ""); setEditingDescription(false); }} className="text-xs" style={{ color: C.inkSoft }}>Cancelar</button>
-                <button onClick={saveDescription} style={{ background: C.spine, color: C.paper }} className="text-xs px-2.5 py-1">Guardar</button>
+                <button onClick={saveDescription} style={{ background: C.spine, color: C.paper, borderRadius: R.pill }} className="text-xs px-3.5 py-1.5 font-semibold">Guardar</button>
               </div>
             </div>
           ) : (
@@ -2745,51 +2820,39 @@ function TaskDetail({ task, onClose, onUpdate, onDelete, onDeleteRecurring, recu
               </div>
             )
           )}
-          <div className="grid grid-cols-2 gap-3 text-sm">
+          {isOverdueUrgent(task) && canEditUrgency && !isFinalized && !viewerIsGerente && (
+            <div className="text-[11px] font-semibold -mt-3" style={{ color: C.urgent }}>Venció — aún sin entregar</div>
+          )}
+
+          <div className="grid grid-cols-2 gap-2">
             {isPersonalSolo ? (
-              <div className="col-span-2"><div className="font-mono text-[10px] uppercase tracking-widest mb-0.5" style={{ color: C.inkSoft }}>Tipo</div><div style={{ color: C.ink }}>Pendiente personal (solo tuyo)</div></div>
+              <InfoCell label="TIPO" value="Pendiente personal (solo tuyo)" full />
             ) : (
               <>
-                <div>
-                  <div className="font-mono text-[10px] uppercase tracking-widest mb-0.5" style={{ color: C.inkSoft }}>Solicita</div>
-                  <div style={{ color: C.ink }}>{task.requested_by}{coRequesterNames.length ? ` + ${coRequesterNames.join(", ")}` : ""}</div>
-                </div>
+                <InfoCell label="SOLICITA" value={`${task.requested_by}${coRequesterNames.length ? ` + ${coRequesterNames.join(", ")}` : ""}`} />
                 {isColaborativo ? (
-                  <div><div className="font-mono text-[10px] uppercase tracking-widest mb-0.5" style={{ color: C.inkSoft }}>Equipo</div><div style={{ color: C.ink }} className="text-xs leading-relaxed">{teamProfiles.map((p) => p.name).join(", ") || "—"}</div></div>
+                  <InfoCell label="EQUIPO" value={teamProfiles.map((p) => p.name).join(", ") || "—"} />
                 ) : (
-                  <div>
-                    <div className="font-mono text-[10px] uppercase tracking-widest mb-0.5 flex items-center gap-1" style={{ color: C.inkSoft }}>
-                      Asignado a
+                  <InfoCell
+                    label={<span className="flex items-center gap-1">ASIGNADO A
                       {task.task_type === "individual" && isRequester && !isFinalized && !viewerIsGerente && (
-                        <button type="button" onClick={() => setShowConvertModal(true)} title="Convertir a Colaborativo" style={{ borderColor: C.signal, color: C.signal }} className="border rounded-full w-3.5 h-3.5 flex items-center justify-center leading-none"><Plus size={9} /></button>
+                        <button type="button" onClick={() => setShowConvertModal(true)} title="Convertir a Colaborativo" style={{ background: C.signalSoft, color: C.signal }} className="rounded-full w-3.5 h-3.5 flex items-center justify-center leading-none flex-shrink-0"><Plus size={9} /></button>
                       )}
-                    </div>
-                    <div style={{ color: C.ink }}>{task.assigned_to_name}</div>
-                  </div>
+                    </span>}
+                    value={task.assigned_to_name}
+                  />
                 )}
               </>
             )}
-            <div><div className="font-mono text-[10px] uppercase tracking-widest mb-0.5" style={{ color: C.inkSoft }}>Fecha de solicitud</div><div style={{ color: C.ink }}>{fmtDate(task.request_date)}</div></div>
-            <div></div>
-            <div>
-              <div className="font-mono text-[10px] uppercase tracking-widest mb-0.5" style={{ color: C.inkSoft }}>Deadline{showSubtasks ? " general" : ""}</div>
-              {canEditDeadline ? (
-                <input type="date" value={task.deadline || ""} min={showSubtasks ? minGeneralDeadline : undefined} onChange={(e) => changeDeadline(e.target.value)} style={{ borderColor: C.hairline, background: C.panel }} className="border px-2 py-1 text-xs outline-none" />
-              ) : <div style={{ color: C.ink }}>{fmtDate(task.deadline)}</div>}
-              {sameDay && <div className="font-mono text-[10px] uppercase tracking-wider mt-1" style={{ color: C.urgent }}>De hoy para hoy 💀</div>}
-            </div>
-            <div>
-              <div className="font-mono text-[10px] uppercase tracking-widest mb-0.5" style={{ color: C.inkSoft }}>Urgencia</div>
-              {canEditUrgency && !isFinalized && !viewerIsGerente ? (
-                <>
-                  <select value={task.urgency} onChange={(e) => changeUrgency(e.target.value)} style={{ borderColor: C.hairline, background: C.panel }} className="border px-2 py-1 text-xs outline-none">
-                    {URGENCIES.map((u) => <option key={u.label} value={u.label}>{u.label}</option>)}
-                  </select>
-                  {isOverdueUrgent(task) && <div className="font-mono text-[9px] uppercase tracking-wide mt-1" style={{ color: C.urgent }}>Venció — aún sin entregar</div>}
-                </>
-              ) : <UrgencyFlag urgency={task.urgency} />}
-            </div>
+            <InfoCell label="SOLICITUD" value={fmtDate(task.request_date)} />
+            <InfoCell
+              label={showSubtasks ? "DEADLINE GENERAL" : "DEADLINE"}
+              value={canEditDeadline ? (
+                <input type="date" value={task.deadline || ""} min={showSubtasks ? minGeneralDeadline : undefined} onChange={(e) => changeDeadline(e.target.value)} style={{ background: "transparent" }} className="w-full outline-none -ml-0.5" />
+              ) : fmtDate(task.deadline)}
+            />
           </div>
+          {sameDay && <div className="text-[11px] font-bold -mt-3 text-right" style={{ color: C.urgent }}>De hoy para hoy 💀</div>}
 
           {showConvertModal && (
             <ConvertToColaborativoModal
@@ -2803,21 +2866,24 @@ function TaskDetail({ task, onClose, onUpdate, onDelete, onDeleteRecurring, recu
 
           {!isColaborativo && !hasSubtasks && (
             <div>
-              <div className="font-mono text-[10px] uppercase tracking-widest mb-2 flex items-center gap-2 flex-wrap" style={{ color: C.inkSoft }}>
+              <div className="text-[11.5px] font-bold tracking-[0.09em] mb-2 flex items-center gap-2 flex-wrap" style={{ color: C.inkSoft }}>
                 Estado
                 {isOverdueUrgent(task) && <span className="normal-case tracking-normal" style={{ color: C.urgent }}>Marca entregado y avisa para que te finalicen</span>}
               </div>
-              <div className="flex flex-wrap gap-1.5">
+              <div className="flex flex-wrap gap-2">
                 {ASSIGNEE_STATUSES.map((s) => { const Icon = STATUS_ICON[s]; const active = task.status === s;
-                  return <button key={s} disabled={isFinalized || viewerIsGerente} onClick={() => setStatus(s)} style={{ borderColor: active ? C.spine : C.hairline, background: active ? C.spine : "transparent", color: active ? C.paper : C.inkSoft }} className="border px-2.5 py-1.5 text-xs flex items-center gap-1.5 disabled:opacity-50"><Icon size={13} /> {s}</button>; })}
-                {isFinalized && <span style={{ borderColor: C.signal, color: C.signal }} className="border px-2.5 py-1.5 text-xs flex items-center gap-1.5"><CheckCheck size={13} /> Finalizado</span>}
+                  return <button key={s} disabled={isFinalized || viewerIsGerente}
+                    onClick={() => setStatus(s)}
+                    style={{ height: 38, background: active ? C.ink : C.panel, boxShadow: active ? "none" : SH.soft, color: active ? C.paper : C.inkSoft, fontWeight: active ? 600 : 500, borderRadius: R.pill }}
+                    className="px-3.5 text-[13px] flex items-center gap-1.5 disabled:opacity-50"><Icon size={15} /> {s}</button>; })}
+                {isFinalized && <span style={{ height: 38, background: C.signalSoft, color: C.signal, borderRadius: R.pill, fontWeight: 600 }} className="px-3.5 text-[13px] flex items-center gap-1.5"><CheckCheck size={15} /> Finalizado</span>}
               </div>
             </div>
           )}
 
           {(isColaborativo || (effType === "individual" && hasSubtasks)) && (
             <div>
-              <div className="font-mono text-[10px] uppercase tracking-widest mb-2" style={{ color: C.inkSoft }}>Estado general</div>
+              <div className="text-[11.5px] font-bold tracking-[0.09em] mb-2" style={{ color: C.inkSoft }}>Estado general</div>
               <div className="flex items-center gap-1.5">
                 {(() => { const Icon = STATUS_ICON[isFinalized ? "Finalizado" : task.status]; return <Icon size={14} style={{ color: isFinalized ? C.signal : C.inkSoft }} />; })()}
                 <span className="text-sm" style={{ color: C.ink }}>{isFinalized ? "Finalizado" : task.status}</span>
@@ -2829,29 +2895,29 @@ function TaskDetail({ task, onClose, onUpdate, onDelete, onDeleteRecurring, recu
           )}
 
           {showSubtasks && (
-            <div style={{ borderColor: C.hairline }} className="border-t pt-4">
+            <div className="pt-5">
               <div className="flex items-center justify-between mb-2">
                 <div className="flex items-center gap-1.5">
-                  <span className="font-mono text-[10px] uppercase tracking-widest" style={{ color: C.inkSoft }}>Subtareas ({subtasks.filter((s) => s.status === "Entregado").length}/{subtasks.length})</span>
+                  <span className="text-[11.5px] font-bold tracking-[0.09em]" style={{ color: C.inkSoft }}>Subtareas ({subtasks.filter((s) => s.status === "Entregado").length}/{subtasks.length})</span>
                   {canAddSubtask && (
-                    <button onClick={() => setShowAddSubtask((v) => !v)} title="Agregar subtarea" style={{ borderColor: C.signal, color: C.signal }} className="border rounded-full w-4 h-4 flex items-center justify-center leading-none"><Plus size={10} /></button>
+                    <button onClick={() => setShowAddSubtask((v) => !v)} title="Agregar subtarea" style={{ background: C.signalSoft, color: C.signal }} className="rounded-full w-5 h-5 flex items-center justify-center leading-none"><Plus size={11} /></button>
                   )}
                 </div>
               </div>
               {showAddSubtask && (
-                <div style={{ borderColor: C.hairline }} className="border p-2.5 flex flex-col gap-1.5 mb-2">
-                  <input value={newSubtask.title} onChange={(e) => setNewSubtask((s) => ({ ...s, title: e.target.value }))} placeholder="Título" style={{ borderColor: C.hairline, background: C.panel }} className="border px-2 py-1.5 text-xs outline-none" />
-                  <textarea value={newSubtask.description} onChange={(e) => setNewSubtask((s) => ({ ...s, description: e.target.value }))} placeholder="Descripción (opcional)" rows={2} style={{ borderColor: C.hairline, background: C.panel }} className="border px-2 py-1.5 text-xs outline-none resize-y" />
+                <div style={{ background: C.panel, borderRadius: R.lg, boxShadow: SH.card }} className="p-3.5 flex flex-col gap-1.5 mb-2">
+                  <input value={newSubtask.title} onChange={(e) => setNewSubtask((s) => ({ ...s, title: e.target.value }))} placeholder="Título" style={{ background: C.paper, borderRadius: R.md }} className="px-3 py-2 text-xs outline-none" />
+                  <textarea value={newSubtask.description} onChange={(e) => setNewSubtask((s) => ({ ...s, description: e.target.value }))} placeholder="Descripción (opcional)" rows={2} style={{ background: C.paper, borderRadius: R.md }} className="px-3 py-2 text-xs outline-none resize-y" />
                   <div className="grid grid-cols-2 gap-1.5">
                     {isColaborativo ? (
-                      <select value={newSubtask.assignedToId} onChange={(e) => setNewSubtask((s) => ({ ...s, assignedToId: e.target.value }))} style={{ borderColor: C.hairline, background: C.panel }} className="border px-2 py-1.5 text-xs outline-none">
+                      <select value={newSubtask.assignedToId} onChange={(e) => setNewSubtask((s) => ({ ...s, assignedToId: e.target.value }))} style={{ background: C.paper, borderRadius: R.md }} className="px-3 py-2 text-xs outline-none">
                         <option value="">Asignar a...</option>
                         {teamProfiles.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
                       </select>
                     ) : (
-                      <div style={{ borderColor: C.hairline, background: C.panel, color: C.inkSoft }} className="border px-2 py-1.5 text-xs flex items-center truncate">{task.assigned_to_name}</div>
+                      <div style={{ background: C.paper, borderRadius: R.md, color: C.inkSoft }} className="px-3 py-2 text-xs flex items-center truncate">{task.assigned_to_name}</div>
                     )}
-                    <input type="date" value={newSubtask.deadline} min={todayISO()} max={task.deadline || undefined} onChange={(e) => setNewSubtask((s) => ({ ...s, deadline: e.target.value }))} style={{ borderColor: C.hairline, background: C.panel }} className="border px-2 py-1.5 text-xs outline-none" />
+                    <input type="date" value={newSubtask.deadline} min={todayISO()} max={task.deadline || undefined} onChange={(e) => setNewSubtask((s) => ({ ...s, deadline: e.target.value }))} style={{ background: C.paper, borderRadius: R.md }} className="px-3 py-2 text-xs outline-none" />
                   </div>
                   {subtaskDeadlineError && <p className="text-[11px]" style={{ color: C.urgent }}>{subtaskDeadlineError}</p>}
                   <button onClick={submitNewSubtask} disabled={!!subtaskDeadlineError} style={{ background: C.spine, color: C.paper }} className="px-3 py-1.5 text-xs disabled:opacity-50">Agregar subtarea</button>
@@ -2864,11 +2930,11 @@ function TaskDetail({ task, onClose, onUpdate, onDelete, onDeleteRecurring, recu
                   const StIcon = STATUS_ICON[s.status];
                   const expanded = expandedSubtaskId === s.id;
                   return (
-                    <div key={s.id} style={{ borderColor: mine ? C.signal : C.hairline, background: mine ? C.signalSoft : C.panel }} className="border p-2.5 cursor-pointer" onClick={() => setExpandedSubtaskId((id) => (id === s.id ? null : s.id))}>
+                    <div key={s.id} style={{ background: mine ? C.signalSoft : C.panel, borderRadius: R.md, boxShadow: mine ? "none" : SH.soft }} className="p-3 cursor-pointer" onClick={() => setExpandedSubtaskId((id) => (id === s.id ? null : s.id))}>
                       <div className="flex items-center justify-between gap-2">
                         <div className="min-w-0">
                           <div className={`text-sm font-medium ${expanded ? "whitespace-pre-wrap break-words" : "truncate"}`} style={{ color: C.ink }}>{expanded ? renderWithLinks(s.title, C.signal) : s.title}</div>
-                          <div className="font-mono text-[10px]" style={{ color: C.inkSoft }}>{s.assigned_to_name} · {fmtDate(s.deadline || task.deadline)}</div>
+                          <div className="text-[11px] font-semibold" style={{ color: C.inkSoft }}>{s.assigned_to_name} · {fmtDate(s.deadline || task.deadline)}</div>
                         </div>
                         {mine && !isFinalized ? (
                           <select value={s.status} onClick={(e) => e.stopPropagation()} onChange={(e) => onUpdateSubtaskStatus(s, e.target.value)} style={{ borderColor: C.hairline, background: C.paper }} className="border px-1.5 py-1 text-[11px] outline-none shrink-0">
@@ -2880,15 +2946,15 @@ function TaskDetail({ task, onClose, onUpdate, onDelete, onDeleteRecurring, recu
                       </div>
                       {expanded && (
                         editingSubtaskId === s.id ? (
-                          <div className="mt-2 pt-2 border-t flex flex-col gap-1.5" style={{ borderColor: C.hairline }} onClick={(e) => e.stopPropagation()}>
-                            <textarea value={subtaskDescriptionDraft} onChange={(e) => setSubtaskDescriptionDraft(e.target.value)} rows={2} style={{ borderColor: C.hairline, background: C.paper, color: C.ink }} className="border px-2 py-1.5 text-xs outline-none resize-y" />
+                          <div className="mt-2 pt-2.5 flex flex-col gap-1.5" style={{ borderColor: C.hairline }} onClick={(e) => e.stopPropagation()}>
+                            <textarea value={subtaskDescriptionDraft} onChange={(e) => setSubtaskDescriptionDraft(e.target.value)} rows={2} style={{ borderColor: C.hairline, background: C.paper, color: C.ink }} className="px-3 py-2 text-xs outline-none resize-y" />
                             <div className="flex gap-2 justify-end">
                               <button onClick={() => setEditingSubtaskId(null)} className="text-xs" style={{ color: C.inkSoft }}>Cancelar</button>
-                              <button onClick={() => saveSubtaskDescription(s)} style={{ background: C.spine, color: C.paper }} className="text-xs px-2.5 py-1">Guardar</button>
+                              <button onClick={() => saveSubtaskDescription(s)} style={{ background: C.spine, color: C.paper, borderRadius: R.pill }} className="text-xs px-3.5 py-1.5 font-semibold">Guardar</button>
                             </div>
                           </div>
                         ) : (s.description || (isAnyRequester && !isFinalized && !viewerIsGerente)) && (
-                          <div className="mt-2 pt-2 border-t flex items-start gap-1.5" style={{ borderColor: C.hairline }}>
+                          <div className="mt-2 pt-2.5 flex items-start gap-1.5" style={{ borderColor: C.hairline }}>
                             {s.description ? (
                               <div className="text-xs whitespace-pre-wrap break-words flex-1" style={{ color: C.ink }}>{renderWithLinks(s.description, C.signal)}</div>
                             ) : (
@@ -2917,7 +2983,7 @@ function TaskDetail({ task, onClose, onUpdate, onDelete, onDeleteRecurring, recu
                 <span className="text-xs" style={{ color: C.signal }}>Una vez finalizado, nadie podrá volver a moverlo. ¿Seguro?</span>
                 <div className="flex gap-2 flex-shrink-0">
                   <button onClick={() => setConfirmFinalize(false)} style={{ color: C.inkSoft }} className="text-xs">Cancelar</button>
-                  <button onClick={() => onFinalize(task)} style={{ background: C.signal, color: "#fff" }} className="text-xs px-2.5 py-1">Sí, finalizar</button>
+                  <button onClick={() => onFinalize(task)} style={{ background: C.signal, color: "#fff", borderRadius: R.pill }} className="text-xs px-3.5 py-1.5 font-semibold">Sí, finalizar</button>
                 </div>
               </div>
             )
@@ -2930,55 +2996,88 @@ function TaskDetail({ task, onClose, onUpdate, onDelete, onDeleteRecurring, recu
             !confirmAssignChanges ? (
               <button onClick={() => setConfirmAssignChanges(true)} style={{ background: C.spine, color: C.paper }} className="px-3 py-2 text-sm flex items-center justify-center gap-2"><ArrowRightLeft size={14} /> Asignar cambios</button>
             ) : (
-              <div style={{ borderColor: C.hairline, background: C.panel }} className="border px-3 py-2.5 flex items-center justify-between gap-2">
+              <div style={{ background: C.paper, borderRadius: R.md }} className="border px-3 py-2.5 flex items-center justify-between gap-2">
                 <span className="text-xs" style={{ color: C.ink }}>Crearás un nuevo pendiente para solicitar estos cambios.</span>
                 <div className="flex gap-2 flex-shrink-0">
                   <button onClick={() => setConfirmAssignChanges(false)} style={{ color: C.inkSoft }} className="text-xs">Cancelar</button>
-                  <button onClick={() => { setConfirmAssignChanges(false); onAssignChanges(task); }} style={{ background: C.spine, color: C.paper }} className="text-xs px-2.5 py-1">Aceptar</button>
+                  <button onClick={() => { setConfirmAssignChanges(false); onAssignChanges(task); }} style={{ background: C.spine, color: C.paper, borderRadius: R.pill }} className="text-xs px-3.5 py-1.5 font-semibold">Aceptar</button>
                 </div>
               </div>
             )
           )}
 
           {!isColaborativo && isPersonalSolo && !viewerIsGerente && (
-            <div style={{ borderColor: C.hairline }} className="border-t pt-4">
-              <div className="font-mono text-[10px] uppercase tracking-widest mb-1" style={{ color: C.inkSoft }}>Asignar Responsables</div>
+            <div className="pt-5">
+              <div className="text-[11.5px] font-bold tracking-[0.09em] mb-1" style={{ color: C.inkSoft }}>Asignar Responsables</div>
               <p className="text-[11px] mb-2" style={{ color: C.inkSoft }}>Esas personas se vuelven las solicitantes y tú te quedas como asignado.</p>
               <div className="flex flex-wrap gap-1.5 mb-2">
                 {assignableProfiles.filter((p) => p.id !== profile.id).map((p) => (
                   <button key={p.id} type="button" disabled={isFinalized} onClick={() => toggleResponsibleId(p.id)}
-                    style={{ borderColor: responsibleIds.includes(p.id) ? C.signal : C.hairline, background: responsibleIds.includes(p.id) ? C.signal : "transparent", color: responsibleIds.includes(p.id) ? "#fff" : C.ink }}
-                    className="border px-2.5 py-1 text-xs disabled:opacity-50">{p.name}</button>
+                    style={{ background: responsibleIds.includes(p.id) ? C.ink : C.panel, boxShadow: responsibleIds.includes(p.id) ? "none" : SH.soft, color: responsibleIds.includes(p.id) ? C.paper : C.inkMedium, fontWeight: responsibleIds.includes(p.id) ? 600 : 500 }}
+                    className="rounded-full px-3 py-1.5 text-xs disabled:opacity-50">{p.name}</button>
                 ))}
               </div>
-              <button disabled={isFinalized || responsibleIds.length === 0} onClick={assignResponsible} style={{ borderColor: C.hairline, color: C.ink }} className="border px-3 py-2 text-sm flex items-center gap-1 disabled:opacity-50"><ArrowRightLeft size={14} /> Asignar Responsables</button>
+              <button disabled={isFinalized || responsibleIds.length === 0} onClick={assignResponsible}
+                style={{ background: C.subtle, color: C.inkMedium, borderRadius: R.md, height: 48 }}
+                className="px-4 text-sm font-semibold flex items-center gap-2 disabled:opacity-50"><ArrowRightLeft size={16} /> Asignar Responsables</button>
             </div>
           )}
 
-          {!isColaborativo && !viewerIsGerente && (
-            <div style={{ borderColor: C.hairline }} className="border-t pt-4">
-              <div className="font-mono text-[10px] uppercase tracking-widest mb-1" style={{ color: C.inkSoft }}>{isPersonalSolo ? "Asignar a" : "Delegar"}</div>
-              {isPersonalSolo && <p className="text-[11px] mb-2" style={{ color: C.inkSoft }}>Esa persona se vuelve la asignada y tú te quedas como solicitante.</p>}
-              <div className="flex gap-2">
-                <select disabled={isFinalized} value={delegateId} onChange={(e) => setDelegateId(e.target.value)} style={{ borderColor: C.hairline, background: C.panel }} className="flex-1 border px-3 py-2 text-sm outline-none disabled:opacity-50">
-                  <option value="">Elegir persona...</option>
-                  {(isPersonalSolo ? assignableProfiles.filter((p) => p.id !== profile.id) : assignableProfiles).map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
-                </select>
-                <button disabled={isFinalized} onClick={delegate} style={{ borderColor: C.hairline, color: C.ink }} className="border px-3 py-2 text-sm flex items-center gap-1 disabled:opacity-50"><ArrowRightLeft size={14} /> {isPersonalSolo ? "Asignar a" : "Delegar"}</button>
+          <div className="pt-5 grid grid-cols-2 gap-4">
+            {!isColaborativo && !viewerIsGerente ? (
+              <div>
+                <div className="text-[11.5px] font-bold tracking-[0.09em] mb-1" style={{ color: C.inkSoft }}>{isPersonalSolo ? "Asignar a" : "Delegar"}</div>
+                <div className="flex flex-col gap-2">
+                  <select disabled={isFinalized} value={delegateId} onChange={(e) => setDelegateId(e.target.value)}
+                    style={{ background: C.panel, borderRadius: R.md, boxShadow: SH.soft, height: 48 }}
+                    className="w-full px-3.5 text-sm outline-none disabled:opacity-50">
+                    <option value="">Elegir persona...</option>
+                    {(isPersonalSolo ? assignableProfiles.filter((p) => p.id !== profile.id) : assignableProfiles).map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
+                  </select>
+                  <button disabled={isFinalized} onClick={delegate}
+                    style={{ background: C.subtle, color: C.inkMedium, borderRadius: R.md, height: 48 }}
+                    className="px-3.5 text-sm font-semibold flex items-center justify-center gap-1.5 whitespace-nowrap disabled:opacity-50"><ArrowRightLeft size={15} /> {isPersonalSolo ? "Asignar a" : "Delegar"}</button>
+                </div>
               </div>
+            ) : <div />}
+            <div>
+              <div className="text-[11.5px] font-bold tracking-[0.09em] mb-1" style={{ color: C.inkSoft }}>Recordatorios</div>
+              <button
+                type="button"
+                disabled={iAlreadyAskedToRemind || isFinalized}
+                onClick={toggleRemindMe}
+                style={{ height: 48, ...(iAlreadyAskedToRemind ? { color: C.inkSoft, background: C.subtle } : { color: C.signal, background: C.signalSoft }) }}
+                className="w-full px-3 text-xs font-semibold rounded-md flex items-center justify-center gap-1.5 text-center disabled:cursor-default"
+              >
+                {iAlreadyAskedToRemind ? <><CheckCircle2 size={13} /> Te avisamos</> : <><Bell size={13} /> Avisarme del deadline</>}
+              </button>
             </div>
-          )}
+          </div>
 
-          <div style={{ borderColor: C.hairline }} className="border-t pt-4">
-            <div className="font-mono text-[10px] uppercase tracking-widest mb-2" style={{ color: C.inkSoft }}>Recordatorios</div>
-            <div className="flex flex-col gap-1.5 text-sm mb-3" style={{ color: C.ink }}>
+          <div className="flex flex-col gap-1.5 text-sm" style={{ color: C.ink }}>
+              {!isColaborativo && isPersonalSolo && !viewerIsGerente && (
+                <div>
+                  <div className="text-[11.5px] font-bold tracking-[0.09em] mb-1" style={{ color: C.inkSoft }}>Asignar Responsables</div>
+                  <p className="text-[11px] mb-2" style={{ color: C.inkSoft }}>Esas personas se vuelven las solicitantes y tú te quedas como asignado.</p>
+                  <div className="flex flex-wrap gap-1.5 mb-2">
+                    {assignableProfiles.filter((p) => p.id !== profile.id).map((p) => (
+                      <button key={p.id} type="button" disabled={isFinalized} onClick={() => toggleResponsibleId(p.id)}
+                        style={{ background: responsibleIds.includes(p.id) ? C.ink : C.panel, boxShadow: responsibleIds.includes(p.id) ? "none" : SH.soft, color: responsibleIds.includes(p.id) ? C.paper : C.inkMedium, fontWeight: responsibleIds.includes(p.id) ? 600 : 500 }}
+                        className="rounded-full px-3 py-1.5 text-xs disabled:opacity-50">{p.name}</button>
+                    ))}
+                  </div>
+                  <button disabled={isFinalized || responsibleIds.length === 0} onClick={assignResponsible}
+                    style={{ background: C.subtle, color: C.inkMedium, borderRadius: R.md, height: 48 }}
+                    className="px-4 text-sm font-semibold flex items-center gap-2 disabled:opacity-50"><ArrowRightLeft size={16} /> Asignar Responsables</button>
+                </div>
+              )}
               {!isPersonalSolo && !viewerIsGerente && isDelivered && isAssignee && (
                 <button
                   type="button"
                   disabled={!!task.notify_requester || isFinalized}
                   onClick={toggleNotifyRequester}
-                  style={task.notify_requester ? { borderColor: C.hairline, color: C.inkSoft, background: C.panel } : { borderColor: C.signal, color: C.signal }}
-                  className="border px-2.5 py-1.5 text-xs flex items-center gap-1.5 self-start disabled:cursor-default"
+                  style={task.notify_requester ? { color: C.inkSoft, background: C.subtle } : { color: C.signal, background: C.signalSoft }}
+                  className="px-3.5 py-2.5 text-xs font-semibold rounded-full flex items-center gap-1.5 self-start disabled:cursor-default"
                 >
                   {task.notify_requester ? <><CheckCircle2 size={13} /> Avisado</> : <><Bell size={13} /> Avisar al solicitante</>}
                 </button>
@@ -2989,19 +3088,10 @@ function TaskDetail({ task, onClose, onUpdate, onDelete, onDeleteRecurring, recu
                   Dar seguimiento <span className="text-[11px]" style={{ color: C.inkSoft }}>(te llegan todas las notificaciones de cambios de este pendiente)</span>
                 </label>
               )}
-              <button
-                type="button"
-                disabled={iAlreadyAskedToRemind || isFinalized}
-                onClick={toggleRemindMe}
-                style={iAlreadyAskedToRemind ? { borderColor: C.hairline, color: C.inkSoft, background: C.panel } : { borderColor: C.signal, color: C.signal }}
-                className="border px-2.5 py-1.5 text-xs flex items-center gap-1.5 self-start disabled:cursor-default"
-              >
-                {iAlreadyAskedToRemind ? <><CheckCircle2 size={13} /> Te avisamos</> : <><Bell size={13} /> Avisarme cuando se acerque el deadline</>}
-              </button>
               {!isPersonalSolo && isColaborativo && canRemind && (
                 <div>
-                  <label className="font-mono text-[10px] uppercase tracking-widest" style={{ color: C.inkSoft }}>Recordatorio para</label>
-                  <select value={reminderTargetId} onChange={(e) => setReminderTargetId(e.target.value)} style={{ borderColor: C.hairline, background: C.panel }} className="w-full border px-2 py-1.5 text-xs outline-none mt-1">
+                  <label className="text-[11.5px] font-bold tracking-[0.09em]" style={{ color: C.inkSoft }}>Recordatorio para</label>
+                  <select value={reminderTargetId} onChange={(e) => setReminderTargetId(e.target.value)} style={{ background: C.paper, borderRadius: R.md }} className="w-full px-3 py-2 text-xs outline-none mt-1.5">
                     <option value="">Elegir miembro del equipo...</option>
                     {teamProfiles.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
                   </select>
@@ -3010,28 +3100,27 @@ function TaskDetail({ task, onClose, onUpdate, onDelete, onDeleteRecurring, recu
               {!isPersonalSolo && !isColaborativo && isAnyRequester && !viewerIsGerente && (
                 <div className="flex items-center justify-between">
                   <span className="text-xs" style={{ color: C.inkSoft }}>Resaltar para {task.assigned_to_name} ({task.remind_assignee_count || 0}/3 hoy máx. 1)</span>
-                  <button disabled={isFinalized || (task.remind_assignee_count || 0) >= 3 || task.remind_assignee_last_date === todayISO()} onClick={bumpRemindAssignee} style={{ borderColor: C.hairline, color: C.ink }} className="border px-2 py-1 text-xs disabled:opacity-40">Resaltar</button>
+                  <button disabled={isFinalized || (task.remind_assignee_count || 0) >= 3 || task.remind_assignee_last_date === todayISO()} onClick={bumpRemindAssignee} style={{ background: C.subtle, color: C.inkMedium }} className="px-3 py-1.5 text-xs font-semibold rounded-full disabled:opacity-40">Resaltar</button>
                 </div>
               )}
               {!isPersonalSolo && isColaborativo && isAnyRequester && !viewerIsGerente && (
                 <div className="flex items-center justify-end">
-                  <button disabled={isFinalized || !reminderRecipient} onClick={bumpRemindAssignee} style={{ borderColor: C.hairline, color: C.ink }} className="border px-2 py-1 text-xs disabled:opacity-40">Resaltar</button>
+                  <button disabled={isFinalized || !reminderRecipient} onClick={bumpRemindAssignee} style={{ background: C.subtle, color: C.inkMedium }} className="px-3 py-1.5 text-xs font-semibold rounded-full disabled:opacity-40">Resaltar</button>
                 </div>
               )}
             </div>
             {!isPersonalSolo && canRemind && (
               <div className="flex flex-col gap-2">
-                <button onClick={sendReminderEmail} disabled={isColaborativo && !reminderRecipient} style={{ borderColor: C.hairline, color: C.ink }} className="border px-3 py-2 text-sm flex items-center gap-2 w-full justify-center disabled:opacity-40"><Mail size={14} /> Enviar recordatorio por correo</button>
-                <button onClick={sendReminderWhatsapp} disabled={!reminderRecipient?.phone} style={{ borderColor: C.signal, color: reminderRecipient?.phone ? C.signal : C.gray }} className="border px-3 py-2 text-sm flex items-center gap-2 w-full justify-center disabled:cursor-not-allowed"><Send size={14} /> {reminderRecipient?.phone ? "Recordar por WhatsApp" : "Sin celular registrado"}</button>
+                <button onClick={sendReminderEmail} disabled={isColaborativo && !reminderRecipient} style={{ background: C.panel, color: C.inkMedium, borderRadius: R.md, height: 48, boxShadow: SH.soft }} className="text-sm flex items-center gap-2 w-full justify-center disabled:opacity-40"><Mail size={16} /> Enviar recordatorio por correo</button>
+                <button onClick={sendReminderWhatsapp} disabled={!reminderRecipient?.phone} style={{ background: reminderRecipient?.phone ? C.signalSoft : C.subtle, color: reminderRecipient?.phone ? C.signal : C.gray, borderRadius: R.md, height: 48 }} className="text-sm font-semibold flex items-center gap-2 w-full justify-center disabled:cursor-not-allowed"><Send size={16} /> {reminderRecipient?.phone ? "Recordar por WhatsApp" : "Sin celular registrado"}</button>
               </div>
             )}
             {!isPersonalSolo && canRemind && <p className="text-[11px] mt-1.5" style={{ color: C.inkSoft }}>Correo abre Outlook Web ya redactado (solo dale enviar); WhatsApp abre con el mensaje listo. Ninguno sale automático.</p>}
-          </div>
 
           {!isPersonalSolo && (
-            <div style={{ borderColor: C.hairline }} className="border-t pt-4">
+            <div className="pt-5">
               <div className="flex items-center justify-between mb-2">
-                <div className="font-mono text-[10px] uppercase tracking-widest flex items-center gap-1.5" style={{ color: C.inkSoft }}><MessageSquare size={12} /> Comentarios</div>
+                <div className="text-[11.5px] font-bold tracking-[0.09em]" style={{ color: C.inkSoft }}>Comentarios</div>
                 {extractCommentLinks(comments).length > 0 && (
                   <button onClick={() => setShowAttachments((v) => !v)} className="text-xs flex items-center gap-1" style={{ color: C.signal }}>
                     <Paperclip size={12} /> Archivos adjuntos ({extractCommentLinks(comments).length})
@@ -3039,43 +3128,46 @@ function TaskDetail({ task, onClose, onUpdate, onDelete, onDeleteRecurring, recu
                 )}
               </div>
               {showAttachments && (
-                <div style={{ borderColor: C.hairline, background: C.panel }} className="border p-2.5 mb-3 flex flex-col gap-1.5 max-h-40 overflow-y-auto">
+                <div style={{ background: C.panel, borderRadius: R.md, boxShadow: SH.soft }} className="p-3 mb-3 flex flex-col gap-1.5 max-h-40 overflow-y-auto">
                   {extractCommentLinks(comments).map((l, i) => (
                     <a key={i} href={l.url} target="_blank" rel="noopener noreferrer" className="text-xs underline break-all" style={{ color: C.signal }}>{l.url}</a>
                   ))}
                 </div>
               )}
               <div className="flex flex-col gap-2 mb-3 max-h-52 overflow-y-auto">
-                {comments.length === 0 && <div className="text-xs" style={{ color: C.inkSoft }}>Sin comentarios todavía.</div>}
+                {comments.length === 0 && <div className="text-[13.5px]" style={{ color: C.inkFaint }}>Sin comentarios todavía.</div>}
                 {comments.map((c) => (
-                  <div key={c.id} style={{ background: C.panel, borderColor: C.hairline }} className="border px-3 py-2">
+                  <div key={c.id} style={{ background: C.panel, borderRadius: R.md, boxShadow: SH.soft }} className="px-3.5 py-2.5">
                     <div className="flex items-center justify-between mb-0.5"><span className="text-xs font-medium" style={{ color: C.ink }}>{c.author_name}</span>
-                      <span className="font-mono text-[10px]" style={{ color: C.inkSoft }}>{new Date(c.created_at).toLocaleDateString("es-MX", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" })}</span></div>
+                      <span className="text-[11px] font-semibold" style={{ color: C.inkSoft }}>{new Date(c.created_at).toLocaleDateString("es-MX", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" })}</span></div>
                     <div className="text-sm break-words whitespace-pre-wrap" style={{ color: C.ink }}>{renderWithLinks(c.text, C.signal)}</div>
                   </div>
                 ))}
               </div>
               {!isFinalized && (
-                <div className="flex gap-2 items-end">
-                  <textarea value={comment} onChange={(e) => setComment(e.target.value)} placeholder="Agregar link, avance o lo que falta..." rows={2} style={{ borderColor: C.hairline, background: C.panel }} className="flex-1 border px-3 py-2 text-sm outline-none resize-y" />
-                  <button onClick={addComment} style={{ background: C.spine, color: C.paper }} className="px-3 py-2"><Send size={14} /></button>
+                <div className="flex gap-2.5 items-end">
+                  <textarea value={comment} onChange={(e) => setComment(e.target.value)} placeholder="Agregar link, avance o lo que falta..." rows={1}
+                    style={{ background: C.panel, borderRadius: R.pill, boxShadow: SH.soft }} className="flex-1 px-4 py-3 text-sm outline-none resize-none" />
+                  <button onClick={addComment}
+                    style={{ width: 44, height: 44, borderRadius: R.pill, background: C.ink, color: C.paper, boxShadow: SH.float }}
+                    className="flex items-center justify-center flex-shrink-0"><Send size={17} /></button>
                 </div>
               )}
             </div>
           )}
 
-          <div style={{ borderColor: C.hairline }} className="border-t pt-4 flex items-center justify-between gap-2">
-            <button onClick={() => setShowHistory((v) => !v)} className="flex items-center gap-1.5 text-sm" style={{ color: C.ink }}>
-              <History size={14} /> Historial <ChevronDown size={13} style={{ color: C.inkSoft, transform: showHistory ? "rotate(180deg)" : "none" }} />
+          <div style={{ boxShadow: `inset 0 1px 0 ${C.hairline}` }} className="pt-4 flex items-center justify-between gap-2">
+            <button onClick={() => setShowHistory((v) => !v)} className="flex items-center gap-1.5 text-sm font-semibold" style={{ color: C.inkMedium }}>
+              <History size={16} /> Historial <ChevronDown size={14} style={{ color: C.gray, transform: showHistory ? "rotate(180deg)" : "none" }} />
             </button>
-            <button onClick={downloadHistory} disabled={!isFinalized} title={isFinalized ? "" : "Se habilita cuando el solicitante finaliza el pendiente"} style={{ color: isFinalized ? C.ink : C.gray }} className="flex items-center gap-1.5 text-sm disabled:cursor-not-allowed"><Download size={14} /> Descargar</button>
+            <button onClick={downloadHistory} disabled={!isFinalized} title={isFinalized ? "" : "Se habilita cuando el solicitante finaliza el pendiente"} style={{ color: isFinalized ? C.inkMedium : C.inkFaint }} className="flex items-center gap-1.5 text-sm disabled:cursor-not-allowed"><Download size={16} /> Descargar</button>
           </div>
           {showHistory && (
             <div className="flex flex-col gap-1.5 border-l-2 pl-3 -mt-3" style={{ borderColor: C.hairline }}>
               {history.map((h) => (
                 <div key={h.id} className="text-xs">
                   <div style={{ color: C.ink }}>{h.text}</div>
-                  <div className="font-mono text-[10px]" style={{ color: C.inkSoft }}>{new Date(h.created_at).toLocaleDateString("es-MX", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" })}</div>
+                  <div className="text-[11px] font-semibold" style={{ color: C.inkSoft }}>{new Date(h.created_at).toLocaleDateString("es-MX", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" })}</div>
                 </div>
               ))}
             </div>
@@ -3086,8 +3178,8 @@ function TaskDetail({ task, onClose, onUpdate, onDelete, onDeleteRecurring, recu
               <span className="text-xs" style={{ color: C.urgent }}>Este pendiente es de frecuencia. No se puede deshacer.</span>
               <div className="flex gap-2 flex-wrap items-center">
                 <button onClick={() => setConfirmDelete(false)} style={{ color: C.inkSoft }} className="text-xs">Cancelar</button>
-                <button onClick={() => onDelete(task.id)} style={{ borderColor: C.urgent, color: C.urgent }} className="border text-xs px-2.5 py-1">Borrar</button>
-                <button onClick={() => onDeleteRecurring(task.id, task.recurring_template_id)} style={{ background: C.urgent, color: "#fff" }} className="text-xs px-2.5 py-1">Borrar pendientes programados</button>
+                <button onClick={() => onDelete(task.id)} style={{ background: C.urgentSoft, color: C.urgentInk, borderRadius: R.pill }} className="text-xs px-3.5 py-1.5 font-semibold">Borrar</button>
+                <button onClick={() => onDeleteRecurring(task.id, task.recurring_template_id)} style={{ background: C.urgent, color: "#fff", borderRadius: R.pill }} className="text-xs px-3.5 py-1.5 font-semibold">Borrar pendientes programados</button>
               </div>
               <span className="text-[10px]" style={{ color: C.inkSoft }}>"Borrar" solo elimina este — la próxima ocurrencia se sigue generando normal. "Borrar pendientes programados" detiene la recurrencia por completo.</span>
             </div>
@@ -3096,7 +3188,7 @@ function TaskDetail({ task, onClose, onUpdate, onDelete, onDeleteRecurring, recu
               <span className="text-xs" style={{ color: C.urgent }}>¿Eliminar? {isFinalized ? "Su registro de finalizado seguirá contando en el perfil de quien lo hizo. " : ""}No se puede deshacer.</span>
               <div className="flex gap-2 flex-shrink-0">
                 <button onClick={() => setConfirmDelete(false)} style={{ color: C.inkSoft }} className="text-xs">Cancelar</button>
-                <button onClick={() => onDelete(task.id)} style={{ background: C.urgent, color: "#fff" }} className="text-xs px-2.5 py-1">Sí, eliminar</button>
+                <button onClick={() => onDelete(task.id)} style={{ background: C.urgent, color: "#fff", borderRadius: R.pill }} className="text-xs px-3.5 py-1.5 font-semibold">Sí, eliminar</button>
               </div>
             </div>
           ))}
@@ -3105,7 +3197,7 @@ function TaskDetail({ task, onClose, onUpdate, onDelete, onDeleteRecurring, recu
               <span className="text-xs" style={{ color: C.urgent }}>Dejarás de ser responsable de este pendiente.</span>
               <div className="flex gap-2 flex-shrink-0">
                 <button onClick={() => setConfirmLeave(false)} style={{ color: C.inkSoft }} className="text-xs">Cancelar</button>
-                <button onClick={leaveTask} style={{ background: C.urgent, color: "#fff" }} className="text-xs px-2.5 py-1">Sí, abandonar</button>
+                <button onClick={leaveTask} style={{ background: C.urgent, color: "#fff", borderRadius: R.pill }} className="text-xs px-3.5 py-1.5 font-semibold">Sí, abandonar</button>
               </div>
             </div>
           )}
@@ -3136,29 +3228,29 @@ function SearchModal({ onClose, tasks, profiles, resources, onOpenTask, onOpenRe
   const resourceResults = query.trim() ? (resources || []).filter((r) => matchesResourceQuery(r, query)) : [];
 
   return (
-    <div className="fixed inset-0 z-50 flex items-start justify-center p-4" style={{ background: "rgba(20,24,31,0.5)" }} onClick={onClose}>
-      <div style={{ background: C.paper, borderColor: C.hairline }} className="border w-full max-w-md mt-14 max-h-[70vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
-        <div style={{ borderColor: C.hairline, background: C.paper }} className="border-b px-4 py-3 flex items-center gap-2 sticky top-0">
-          <Search size={15} style={{ color: C.inkSoft, flexShrink: 0 }} />
+    <div className="fixed inset-0 z-50 flex items-start justify-center p-4" style={{ background: "rgba(27,30,36,0.5)" }} onClick={onClose}>
+      <div style={{ background: C.paper, borderRadius: R.xxl, boxShadow: SH.card }} className="w-full max-w-md mt-14 max-h-[70vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
+        <div style={{ background: C.paper, boxShadow: `inset 0 -1px 0 ${C.hairline}` }} className="px-4 py-3.5 flex items-center gap-2.5 sticky top-0 z-10">
+          <Search size={16} style={{ color: C.inkSoft, flexShrink: 0 }} />
           {/* eslint-disable-next-line jsx-a11y/no-autofocus */}
           <input autoFocus value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Busca palabras clave..." className="text-sm outline-none bg-transparent flex-1" />
-          <button onClick={onClose}><X size={16} style={{ color: C.inkSoft }} /></button>
+          <button onClick={onClose} style={{ width: 28, height: 28, borderRadius: R.pill, background: C.subtle, color: C.inkMedium }} className="flex items-center justify-center flex-shrink-0"><X size={14} /></button>
         </div>
-        <div className="p-2">
-          {query.trim() && results.length === 0 && resourceResults.length === 0 && <div className="text-xs px-2 py-4" style={{ color: C.inkSoft }}>Sin resultados para "{query}".</div>}
+        <div className="p-2.5 flex flex-col gap-1.5">
+          {query.trim() && results.length === 0 && resourceResults.length === 0 && <div className="text-xs px-2.5 py-4" style={{ color: C.inkSoft }}>Sin resultados para "{query}".</div>}
           {results.map((t) => (
-            <button key={t.id} onClick={() => onOpenTask(t)} style={{ borderColor: C.hairline }} className="w-full text-left border-b last:border-b-0 px-2.5 py-2.5 flex flex-col gap-0.5">
+            <button key={t.id} onClick={() => onOpenTask(t)} style={{ background: C.panel, borderRadius: R.md, boxShadow: SH.soft }} className="w-full text-left px-3.5 py-2.5 flex flex-col gap-0.5">
               <span className="text-sm font-medium truncate" style={{ color: C.ink }}>{t.title}</span>
-              <span className="font-mono text-[10px]" style={{ color: C.inkSoft }}>{t.status} · {t.category} · solicita {t.requested_by} → {t.task_type === "colaborativo" ? "equipo" : t.assigned_to_name}</span>
+              <span className="text-[11px]" style={{ color: C.inkSoft }}>{t.status} · {t.category} · solicita {t.requested_by} → {t.task_type === "colaborativo" ? "equipo" : t.assigned_to_name}</span>
             </button>
           ))}
           {resourceResults.length > 0 && (
-            <div className="font-mono text-[10px] uppercase tracking-widest px-2.5 pt-3 pb-1" style={{ color: C.inkSoft }}>Biblioteca</div>
+            <div className="text-[11px] font-bold tracking-[0.09em] px-2 pt-2 pb-0.5" style={{ color: C.inkSoft }}>BIBLIOTECA</div>
           )}
           {resourceResults.map((r) => (
-            <button key={r.id} onClick={() => onOpenResource(r)} style={{ borderColor: C.hairline }} className="w-full text-left border-b last:border-b-0 px-2.5 py-2.5 flex flex-col gap-0.5">
+            <button key={r.id} onClick={() => onOpenResource(r)} style={{ background: C.panel, borderRadius: R.md, boxShadow: SH.soft }} className="w-full text-left px-3.5 py-2.5 flex flex-col gap-0.5">
               <span className="text-sm font-medium truncate flex items-center gap-1.5" style={{ color: C.ink }}><BookOpen size={12} style={{ color: C.signal, flexShrink: 0 }} /> {r.title}</span>
-              <span className="font-mono text-[10px]" style={{ color: C.inkSoft }}>{r.is_general ? "Recurso general" : "Mis recursos"}{(r.tags || []).length > 0 ? ` · ${r.tags.join(", ")}` : ""}</span>
+              <span className="text-[11px]" style={{ color: C.inkSoft }}>{r.is_general ? "Recurso general" : "Mis recursos"}{(r.tags || []).length > 0 ? ` · ${r.tags.join(", ")}` : ""}</span>
             </button>
           ))}
         </div>
@@ -3170,33 +3262,35 @@ function SearchModal({ onClose, tasks, profiles, resources, onOpenTask, onOpenRe
 function NotificationsPanel({ onClose, notifications, onOpenTask, onOpenFilter, pushSupported, pushEnabled, onEnablePush }) {
   const [fullMediaUrl, setFullMediaUrl] = useState(null);
   return (
-    <div className="fixed inset-0 z-50 flex items-start justify-end p-4" style={{ background: "rgba(20,24,31,0.35)" }} onClick={onClose}>
-      <div style={{ background: C.paper, borderColor: C.hairline }} className="border w-full max-w-sm mt-14 max-h-[70vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
-        <div style={{ borderColor: C.hairline, background: C.paper }} className="border-b px-4 py-3 flex items-center justify-between sticky top-0">
-          <div className="flex items-center gap-1.5 text-sm font-medium" style={{ color: C.ink }}><Bell size={14} /> Notificaciones</div>
+    <div className="fixed inset-0 z-50 flex items-start justify-end p-4" style={{ background: "rgba(27,30,36,0.35)" }} onClick={onClose}>
+      <div style={{ background: C.paper, borderRadius: R.xxl, boxShadow: SH.card }} className="w-full max-w-sm mt-14 max-h-[70vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
+        <div style={{ background: C.paper, boxShadow: `inset 0 -1px 0 ${C.hairline}` }} className="px-4 py-3.5 flex items-center justify-between sticky top-0 z-10">
+          <div className="flex items-center gap-1.5 text-sm font-semibold" style={{ color: C.ink }}><Bell size={15} /> Notificaciones</div>
           <div className="flex items-center gap-2">
             {pushSupported && !pushEnabled && (
-              <button onClick={onEnablePush} style={{ borderColor: C.signal, color: C.signal }} className="border px-2 py-1 text-[11px] flex items-center gap-1"><BellRing size={11} /> Activar</button>
+              <button onClick={onEnablePush} style={{ background: C.signalSoft, color: C.signal, borderRadius: R.pill }} className="px-2.5 py-1.5 text-[11px] font-semibold flex items-center gap-1"><BellRing size={11} /> Activar</button>
             )}
-            <button onClick={onClose}><X size={15} style={{ color: C.inkSoft }} /></button>
+            <button onClick={onClose} style={{ width: 28, height: 28, borderRadius: R.pill, background: C.subtle, color: C.inkMedium }} className="flex items-center justify-center flex-shrink-0"><X size={14} /></button>
           </div>
         </div>
-        <div className="p-2">
-          {notifications.length === 0 && <div className="text-xs px-2 py-4" style={{ color: C.inkSoft }}>Sin notificaciones todavía.</div>}
+        <div className="p-2.5 flex flex-col gap-1.5">
+          {notifications.length === 0 && <div className="text-xs px-2.5 py-4" style={{ color: C.inkSoft }}>Sin notificaciones todavía.</div>}
           {notifications.map((n) => (
-            <div key={n.id} role={(n.task_id || n.target) ? "button" : undefined} onClick={() => { if (n.task_id) onOpenTask(n.task_id); else if (n.target) onOpenFilter(n.target); }} style={{ background: n.read ? "transparent" : C.signalSoft, cursor: (n.task_id || n.target) ? "pointer" : "default" }} className="w-full text-left px-3 py-2.5 flex flex-col gap-0.5">
+            <div key={n.id} role={(n.task_id || n.target) ? "button" : undefined} onClick={() => { if (n.task_id) onOpenTask(n.task_id); else if (n.target) onOpenFilter(n.target); }}
+              style={{ background: n.read ? C.panel : C.signalSoft, borderRadius: R.md, boxShadow: n.read ? SH.soft : "none", cursor: (n.task_id || n.target) ? "pointer" : "default" }}
+              className="w-full text-left px-3.5 py-3 flex flex-col gap-0.5">
               {n.title && <span className="text-sm font-medium break-words" style={{ color: C.ink }}>{n.title}</span>}
               <span className="text-sm break-words" style={{ color: n.title ? C.inkSoft : C.ink }}>{renderWithLinks(n.message, C.signal)}</span>
               {n.image_url && (
                 <button
                   onClick={(e) => { e.stopPropagation(); setFullMediaUrl(n.image_url); }}
-                  className="text-xs font-medium self-start"
+                  className="text-xs font-semibold self-start"
                   style={{ color: C.signal }}
                 >
                   Ver más
                 </button>
               )}
-              <span className="font-mono text-[10px]" style={{ color: C.inkSoft }}>{new Date(n.created_at).toLocaleDateString("es-MX", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" })}</span>
+              <span className="text-[11px]" style={{ color: C.inkSoft }}>{new Date(n.created_at).toLocaleDateString("es-MX", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" })}</span>
             </div>
           ))}
         </div>
@@ -3242,26 +3336,38 @@ function NotificationsPanel({ onClose, notifications, onOpenTask, onOpenFilter, 
 function TeamPanel({ onClose, profiles, tasks }) {
   const [picked, setPicked] = useState(null);
   return (
-    <div className="fixed inset-0 z-50 flex items-stretch justify-end" style={{ background: "rgba(20,24,31,0.5)" }} onClick={onClose}>
-      <div style={{ background: C.paper }} className="w-full max-w-sm h-full overflow-y-auto shadow-2xl" onClick={(e) => e.stopPropagation()}>
-        <div style={{ borderColor: C.hairline, background: C.paper }} className="border-b px-5 py-4 sticky top-0 flex items-center justify-between">
-          <div className="flex items-center gap-1.5 text-lg" style={{ color: C.ink, fontFamily: "Georgia, serif" }}><Users size={17} /> Equipo</div>
-          <button onClick={onClose}><X size={18} style={{ color: C.inkSoft }} /></button>
+    <div className="fixed inset-0 z-50 flex items-stretch justify-end" style={{ background: "rgba(27,30,36,0.5)" }} onClick={onClose}>
+      <div style={{ background: C.paper, borderTopLeftRadius: 28, borderBottomLeftRadius: 28 }} className="w-full max-w-sm h-full overflow-y-auto shadow-2xl" onClick={(e) => e.stopPropagation()}>
+        <div style={{ background: C.paper, boxShadow: `inset 0 -1px 0 ${C.hairline}` }} className="px-5 py-4 sticky top-0 z-10 flex items-center justify-between">
+          <div className="flex items-center gap-2" style={{ color: C.ink, fontFamily: FONT_SERIF, fontSize: 23, fontWeight: 500 }}><Users size={19} /> Equipo</div>
+          <button onClick={onClose} style={{ width: 34, height: 34, borderRadius: R.pill, background: C.subtle, color: C.inkMedium }} className="flex items-center justify-center"><X size={17} /></button>
         </div>
-        <div className="p-4 flex flex-col gap-1.5">
+        <div className="p-4 flex flex-col gap-2.5">
           {profiles.map((p) => {
             const inProgress = tasks.filter((t) => t.assigned_to_id === p.id && t.status === "En progreso");
             const open = picked === p.id;
+            const initial = (p.name || "?").trim().charAt(0).toUpperCase();
             return (
-              <div key={p.id}>
-                <button onClick={() => setPicked(open ? null : p.id)} style={{ borderColor: C.hairline, background: open ? C.panel : "transparent" }} className="w-full text-left border px-3 py-2.5 flex items-center justify-between">
-                  <span className="text-sm" style={{ color: C.ink }}>{p.name}</span>
-                  <span className="flex items-center gap-2"><span className="font-mono text-[11px]" style={{ color: C.inkSoft }}>{inProgress.length} en progreso</span><ChevronDown size={13} style={{ color: C.inkSoft, transform: open ? "rotate(180deg)" : "none" }} /></span>
+              <div key={p.id} style={{ background: C.panel, borderRadius: R.xl, boxShadow: SH.card }} className="overflow-hidden">
+                <button onClick={() => setPicked(open ? null : p.id)} className="w-full text-left flex items-center gap-3 px-4 py-3.5">
+                  <div style={{ width: 40, height: 40, borderRadius: R.pill, background: inProgress.length > 0 ? C.ink : C.subtle, color: inProgress.length > 0 ? C.paper : "#6F747E" }} className="flex items-center justify-center flex-shrink-0 text-[14px] font-bold">{initial}</div>
+                  <div className="flex-1 min-w-0 flex flex-col gap-0.5">
+                    <span className="text-[15.5px] font-semibold">{p.name}</span>
+                    <span className="text-[12.5px]" style={{ color: inProgress.length > 0 ? C.inkSoft : C.inkFaint }}>{inProgress.length > 0 ? `${inProgress.length} en progreso` : "Nada en progreso"}</span>
+                  </div>
+                  <ChevronDown size={18} style={{ color: C.gray, transform: open ? "rotate(180deg)" : "none", flexShrink: 0 }} />
                 </button>
-                {open && (
-                  <div style={{ borderColor: C.hairline }} className="border-l-2 ml-3 pl-3 mt-1.5 mb-2 flex flex-col gap-2">
-                    {inProgress.length === 0 && <div className="text-xs" style={{ color: C.inkSoft }}>Nada "en progreso" ahora mismo.</div>}
-                    {inProgress.map((t) => <div key={t.id} className="text-xs"><div style={{ color: C.ink }}>{t.title}</div><div className="font-mono text-[10px]" style={{ color: C.inkSoft }}>{t.category} · deadline {fmtDate(t.deadline)}</div></div>)}
+                {open && inProgress.length > 0 && (
+                  <div className="px-4 pb-4 flex flex-col gap-2">
+                    {inProgress.map((t) => (
+                      <div key={t.id} style={{ background: C.paper, borderRadius: R.md }} className="px-3.5 py-2.5 flex items-center gap-2.5">
+                        <span style={{ width: 8, height: 8, borderRadius: R.pill, background: C.signal, flexShrink: 0 }} />
+                        <div className="min-w-0 flex flex-col gap-0.5">
+                          <span className="text-[14px] font-semibold truncate block">{t.title}</span>
+                          <span className="text-[12px]" style={{ color: C.inkSoft }}>{t.category} · vence {fmtDate(t.deadline)}</span>
+                        </div>
+                      </div>
+                    ))}
                   </div>
                 )}
               </div>
@@ -3273,54 +3379,3 @@ function TeamPanel({ onClose, profiles, tasks }) {
   );
 }
 
-function ActivityPanel({ onClose, profile, router }) {
-  const [log, setLog] = useState([]);
-  useEffect(() => {
-    (async () => {
-      const { data } = await supabase.from("finalized_log").select("*").eq("user_id", profile.id).order("finalized_at", { ascending: false }).limit(100);
-      setLog(data || []);
-    })();
-  }, [profile.id]);
-  const today = todayISO();
-  // CHANGES.md #4e: un pendiente finalizado cuenta con la fecha en que se
-  // ENTREGÓ, no la que se finalizó — tanto aquí (y solo si esa fecha sigue
-  // dentro de esta ventana de 7 días) como en el reporte descargable.
-  const days = Array.from({ length: 7 }).map((_, i) => {
-    const dt = new Date(); dt.setDate(dt.getDate() - i);
-    const iso = dt.toISOString().slice(0, 10);
-    const count = log.filter((l) => (l.delivered_at || l.finalized_at).slice(0, 10) === iso).length;
-    return { iso, label: dt.toLocaleDateString("es-MX", { weekday: "short", day: "2-digit" }), count };
-  });
-  const todayCount = days[0].count;
-
-  const downloadLog = () => {
-    const lines = [
-      `Pendientes finalizados por ${profile.name}`, `Total histórico: ${log.length}`, "",
-      ...log.map((l) => `[${new Date(l.delivered_at || l.finalized_at).toLocaleString("es-MX")}] ${l.task_title}`),
-    ];
-    const blob = new Blob([lines.join("\n")], { type: "text/plain" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url; a.download = `finalizados_${profile.name.replace(/[^a-z0-9]/gi, "_")}.txt`;
-    a.click(); URL.revokeObjectURL(url);
-  };
-
-  return (
-    <div className="fixed inset-0 z-50 flex items-start justify-end p-4" style={{ background: "rgba(20,24,31,0.35)" }} onClick={onClose}>
-      <div style={{ background: C.paper, borderColor: C.hairline }} className="border w-full max-w-xs mt-14 p-4" onClick={(e) => e.stopPropagation()}>
-        <div className="flex items-center justify-between mb-3">
-          <div className="flex items-center gap-1.5 text-sm font-medium" style={{ color: C.ink }}><TrendingUp size={14} /> Mi actividad
-            <button onClick={() => router.push("/perfil")} style={{ borderColor: C.hairline, color: C.ink }} className="border px-2 py-0.5 text-[11px] ml-1">Ver perfil</button>
-          </div>
-          <button onClick={onClose}><X size={15} style={{ color: C.inkSoft }} /></button>
-        </div>
-        <div style={{ background: C.signalSoft, color: C.signal }} className="px-3 py-2 text-sm mb-3">Hoy: <strong>{todayCount}</strong> finalizado(s). {activityMsg(todayCount)}</div>
-        <div className="flex flex-col gap-1 mb-3">
-          {days.map((d) => <div key={d.iso} className="flex items-center justify-between text-xs"><span style={{ color: C.inkSoft }} className="capitalize">{d.label}</span><span style={{ color: C.ink }} className="font-mono">{d.count}</span></div>)}
-        </div>
-        <button onClick={downloadLog} disabled={log.length === 0} style={{ borderColor: C.hairline, color: C.ink }} className="border px-3 py-2 text-xs flex items-center justify-center gap-2 w-full mb-2 disabled:opacity-40"><Download size={13} /> Descargar mi lista de finalizados</button>
-        <p className="text-[10px]" style={{ color: C.inkSoft }}>Este registro se queda aunque el pendiente se borre después de finalizado.</p>
-      </div>
-    </div>
-  );
-}

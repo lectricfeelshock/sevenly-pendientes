@@ -1,4 +1,4 @@
-# Sevenly · Panel de pendientes (versión real)
+# Terregal · Panel de pendientes (versión real)
 
 ## Paso 1 — Base de datos en Supabase
 1. Entra a tu proyecto en supabase.com

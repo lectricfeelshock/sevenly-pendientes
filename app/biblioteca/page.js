@@ -3,15 +3,12 @@ import { Suspense, useState, useEffect, useCallback, useRef } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { supabase } from "@/lib/supabaseClient";
 import {
-  ArrowLeft, Plus, ExternalLink, X, Trash2, Pencil, BookOpen, Play,
+  Plus, ExternalLink, X, Trash2, Pencil, BookOpen, Play,
   Search, Share2, Copy, Upload, Link2, FileText, FileSpreadsheet, Image as ImageIcon, Users,
 } from "lucide-react";
-
-const C = {
-  paper: "#F6F4EE", panel: "#FFFFFF", ink: "#1C1F26", inkSoft: "#5B5F6B",
-  hairline: "#DCD6C8", signal: "#0F6E5C", signalSoft: "#E4EFEA",
-  urgent: "#B3402B", urgentSoft: "#F6E4DF", spine: "#14181F",
-};
+import { C, R, SH, FONT_SERIF } from "@/lib/theme";
+import BottomNav from "@/components/BottomNav";
+import LoadingScreen from "@/components/LoadingScreen";
 
 // CHANGES.md #2d: bucket "resource-files" — 20 MB por archivo, solo estos
 // tipos (confirmado viable: plan Free de Supabase, 1 GB de storage total,
@@ -104,7 +101,7 @@ function getVideoEmbed(url) {
 
 export default function BibliotecaPage() {
   return (
-    <Suspense fallback={<div style={{ background: C.spine, minHeight: "100vh" }} className="w-full" />}>
+    <Suspense fallback={<LoadingScreen />}>
       <BibliotecaPageInner />
     </Suspense>
   );
@@ -124,7 +121,6 @@ function BibliotecaPageInner() {
   const [sharing, setSharing] = useState(null);
   const [view, setView] = useState("general"); // "general" | "mine"
   const [activeTags, setActiveTags] = useState([]);
-  const [searchOpen, setSearchOpen] = useState(false);
   const [query, setQuery] = useState("");
   const autoOpenedRef = useRef(false);
 
@@ -221,122 +217,118 @@ function BibliotecaPageInner() {
     setSharing(null); load();
   };
 
-  if (!ready) return <div style={{ background: C.spine, minHeight: "100vh" }} className="w-full" />;
+  if (!ready) return <LoadingScreen />;
 
   return (
-    <div style={{ background: C.paper, minHeight: "100vh" }} className="w-full font-sans">
-      <div style={{ borderColor: C.hairline, background: C.paper }} className="border-b sticky top-0 z-20 px-5 py-3.5 flex items-center justify-between gap-3 flex-wrap">
-        <div className="flex items-center gap-3">
-          <button onClick={() => router.push("/dashboard")}><ArrowLeft size={18} style={{ color: C.inkSoft }} /></button>
-          <div>
-            <div className="font-mono text-[10px] tracking-[0.2em] uppercase flex items-center gap-1" style={{ color: C.inkSoft }}><BookOpen size={11} /> Sevenly</div>
-            <h1 style={{ color: C.ink, fontFamily: "Georgia, serif" }} className="text-xl leading-tight">Biblioteca</h1>
-          </div>
-        </div>
-        <button onClick={() => { setSearchOpen((v) => !v); if (searchOpen) setQuery(""); }} title="Buscar en Biblioteca" style={{ background: C.spine }} className="p-2 flex items-center justify-center">
-          <Search size={15} style={{ color: C.paper }} />
-        </button>
+    <div style={{ background: C.paper, minHeight: "100vh" }} className="w-full font-sans pb-28 md:pb-10 md:pl-[248px]">
+      <div className="px-5 pt-4 pb-1 flex items-center justify-between md:hidden">
+        <div className="text-[11px] font-bold tracking-[0.18em]" style={{ color: C.inkSoft }}>TERREGAL</div>
       </div>
 
-      <div className="max-w-3xl mx-auto p-5">
-        {searchOpen && (
-          <div style={{ borderColor: C.hairline, background: C.panel }} className="border flex items-center gap-2 px-3 py-2.5 mb-5">
-            <Search size={14} style={{ color: C.inkSoft, flexShrink: 0 }} />
-            {/* eslint-disable-next-line jsx-a11y/no-autofocus */}
-            <input autoFocus value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Busca por nombre o etiqueta..." className="text-sm outline-none bg-transparent flex-1" />
-            {query && <button onClick={() => setQuery("")}><X size={14} style={{ color: C.inkSoft }} /></button>}
+      <div className="max-w-3xl mx-auto p-5 md:pt-10">
+        <div className="flex items-center gap-2.5 mb-5">
+          <div style={{ background: C.panel, borderRadius: R.pill, boxShadow: SH.soft }} className="flex-1 min-w-0 h-11 px-4 flex items-center gap-2.5">
+            <Search size={16} style={{ color: C.gray, flexShrink: 0 }} />
+            <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Buscar" className="text-sm outline-none bg-transparent flex-1 min-w-0" style={{ color: C.ink }} />
+            {query && <button onClick={() => setQuery("")} className="flex-shrink-0"><X size={14} style={{ color: C.inkSoft }} /></button>}
           </div>
+        </div>
+
+        {!searching && (
+          <>
+            <h1 style={{ color: C.ink, fontFamily: FONT_SERIF, fontSize: 32, fontWeight: 500, letterSpacing: "-0.01em" }} className="leading-tight mb-1">Biblioteca</h1>
+            <p style={{ color: C.inkSoft, fontSize: 14 }} className="mb-5">Todo lo que necesitas para crear, en un solo lugar.</p>
+          </>
         )}
 
         {searching ? (
           <>
-            <div className="font-mono text-[10px] uppercase tracking-widest mb-2" style={{ color: C.inkSoft }}>Resultados ({searchResults.length})</div>
+            <div className="text-[11.5px] font-bold tracking-[0.09em] mb-3" style={{ color: C.inkSoft }}>RESULTADOS ({searchResults.length})</div>
             {searchResults.length === 0 && <p className="text-sm" style={{ color: C.inkSoft }}>Nada para "{query}".</p>}
-            <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
               {searchResults.map((r) => <ResourceCard key={r.id} r={r} profiles={profiles} profile={profile} onOpen={() => setSelected(r)} />)}
             </div>
           </>
         ) : (
           <>
-            <p className="text-sm mb-5" style={{ color: C.inkSoft }}>Todo lo que necesitas para crear, en un solo lugar.</p>
-
-            <div className="flex gap-1.5 mb-4">
-              <button
-                onClick={() => changeView("general")}
-                style={{ borderColor: view === "general" ? C.spine : C.hairline, background: view === "general" ? C.spine : "transparent", color: view === "general" ? C.paper : C.ink }}
-                className="border px-3 py-1.5 text-sm flex-1"
-              >
-                Recursos generales
-              </button>
-              <button
-                onClick={() => changeView("mine")}
-                style={{ borderColor: view === "mine" ? C.spine : C.hairline, background: view === "mine" ? C.spine : "transparent", color: view === "mine" ? C.paper : C.ink }}
-                className="border px-3 py-1.5 text-sm flex-1"
-              >
-                Mis recursos
-              </button>
-            </div>
-
-            {allTags.length > 0 && (
-              <div className="flex flex-wrap gap-1.5 mb-6">
+            <div className="flex flex-wrap items-center gap-2.5 mb-6">
+              <div style={{ background: C.subtle, borderRadius: R.pill }} className="flex gap-1 p-1 flex-shrink-0">
                 <button
-                  onClick={() => setActiveTags([])}
-                  style={{ borderColor: activeTags.length === 0 ? C.spine : C.hairline, background: activeTags.length === 0 ? C.spine : "transparent", color: activeTags.length === 0 ? C.paper : C.inkSoft }}
-                  className="border px-2.5 py-1.5 text-xs whitespace-nowrap"
+                  onClick={() => changeView("general")}
+                  style={view === "general" ? { background: C.panel, boxShadow: "0 1px 3px rgba(27,30,36,0.10)", color: C.ink, fontWeight: 700 } : { color: C.inkSoft, fontWeight: 600 }}
+                  className="h-9 px-3.5 rounded-full text-[13px] whitespace-nowrap"
                 >
-                  Todas
+                  Recursos generales
                 </button>
-                {allTags.map((tag) => {
-                  const active = activeTags.includes(tag);
-                  return (
-                    <button
-                      key={tag}
-                      onClick={() => setActiveTags((prev) => active ? prev.filter((t) => t !== tag) : [...prev, tag])}
-                      style={{ borderColor: active ? C.spine : C.hairline, background: active ? C.spine : "transparent", color: active ? C.paper : C.inkSoft }}
-                      className="border px-2.5 py-1.5 text-xs whitespace-nowrap"
-                    >
-                      {tag}
-                    </button>
-                  );
-                })}
+                <button
+                  onClick={() => changeView("mine")}
+                  style={view === "mine" ? { background: C.panel, boxShadow: "0 1px 3px rgba(27,30,36,0.10)", color: C.ink, fontWeight: 700 } : { color: C.inkSoft, fontWeight: 600 }}
+                  className="h-9 px-3.5 rounded-full text-[13px] whitespace-nowrap"
+                >
+                  Mis recursos
+                </button>
               </div>
-            )}
+
+              {allTags.length > 0 && (
+                <>
+                  <span style={{ width: 1, height: 20, background: C.hairline, flexShrink: 0 }} />
+                  <button
+                    onClick={() => setActiveTags([])}
+                    style={activeTags.length === 0 ? { background: C.ink, color: C.paper, fontWeight: 600 } : { background: C.panel, color: C.inkMedium, boxShadow: SH.soft, fontWeight: 500 }}
+                    className="h-[34px] px-3.5 rounded-full text-[12.5px] whitespace-nowrap"
+                  >
+                    Todas
+                  </button>
+                  {allTags.map((tag) => {
+                    const active = activeTags.includes(tag);
+                    return (
+                      <button
+                        key={tag}
+                        onClick={() => setActiveTags((prev) => active ? prev.filter((t) => t !== tag) : [...prev, tag])}
+                        style={active ? { background: C.ink, color: C.paper, fontWeight: 600 } : { background: C.panel, color: C.inkMedium, boxShadow: SH.soft, fontWeight: 500 }}
+                        className="h-[34px] px-3.5 rounded-full text-[12.5px] whitespace-nowrap"
+                      >
+                        {tag}
+                      </button>
+                    );
+                  })}
+                </>
+              )}
+            </div>
 
             {view === "general" ? (
               <section>
-                <div className="flex items-center justify-between mb-3">
-                  <h2 style={{ color: C.ink, fontFamily: "Georgia, serif" }} className="text-base">Recursos generales</h2>
+                {generalResources.length === 0 && <p className="text-sm mb-3" style={{ color: C.inkSoft }}>Todavía no hay recursos generales{isAdmin ? " — dale a \"Agregar recurso\" para el primero." : "."}</p>}
+                {generalResources.length > 0 && byTags(generalResources).length === 0 && <p className="text-sm mb-3" style={{ color: C.inkSoft }}>Nada con esas etiquetas todavía.</p>}
+                <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
+                  {byTags(generalResources).map((r) => <ResourceCard key={r.id} r={r} profiles={profiles} profile={profile} onOpen={() => setSelected(r)} />)}
                   {isAdmin && (
-                    <button onClick={openNewGeneral} style={{ background: C.spine, color: C.paper }} className="px-3 py-1.5 text-xs flex items-center gap-1.5">
-                      <Plus size={13} /> Agregar recurso
+                    <button onClick={openNewGeneral} style={{ background: C.subtle, color: C.inkSoft, borderRadius: R.xxl, borderColor: C.hairline }} className="aspect-[4/3] flex flex-col items-center justify-center gap-2 border-2 border-dashed">
+                      <Plus size={20} />
+                      <span className="text-xs font-medium">Agregar recurso</span>
                     </button>
                   )}
-                </div>
-                {generalResources.length === 0 && <p className="text-sm" style={{ color: C.inkSoft }}>Todavía no hay recursos generales{isAdmin ? " — dale a \"Agregar recurso\" para el primero." : "."}</p>}
-                {generalResources.length > 0 && byTags(generalResources).length === 0 && <p className="text-sm" style={{ color: C.inkSoft }}>Nada con esas etiquetas todavía.</p>}
-                <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-                  {byTags(generalResources).map((r) => <ResourceCard key={r.id} r={r} profiles={profiles} profile={profile} onOpen={() => setSelected(r)} />)}
                 </div>
               </section>
             ) : (
               <section>
-                <div className="flex items-center justify-between mb-3">
-                  <h2 style={{ color: C.ink, fontFamily: "Georgia, serif" }} className="text-base">Mis recursos</h2>
-                  <button onClick={openNewPersonal} style={{ background: C.spine, color: C.paper }} className="px-3 py-1.5 text-xs flex items-center gap-1.5">
-                    <Plus size={13} /> Agregar nuevo recurso
-                  </button>
-                </div>
                 <p className="text-[11px] mb-3" style={{ color: C.inkSoft }}>Los que tú agregaste, más los que te compartieron.</p>
-                {myResources.length === 0 && <p className="text-sm" style={{ color: C.inkSoft }}>Todavía no tienes recursos personales — dale a "Agregar nuevo recurso".</p>}
-                {myResources.length > 0 && byTags(myResources).length === 0 && <p className="text-sm" style={{ color: C.inkSoft }}>Nada con esas etiquetas todavía.</p>}
-                <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                {myResources.length === 0 && <p className="text-sm mb-3" style={{ color: C.inkSoft }}>Todavía no tienes recursos personales — dale a "Agregar recurso".</p>}
+                {myResources.length > 0 && byTags(myResources).length === 0 && <p className="text-sm mb-3" style={{ color: C.inkSoft }}>Nada con esas etiquetas todavía.</p>}
+                <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
                   {byTags(myResources).map((r) => <ResourceCard key={r.id} r={r} profiles={profiles} profile={profile} onOpen={() => setSelected(r)} />)}
+                  <button onClick={openNewPersonal} style={{ background: C.subtle, color: C.inkSoft, borderRadius: R.xxl, borderColor: C.hairline }} className="aspect-[4/3] flex flex-col items-center justify-center gap-2 border-2 border-dashed">
+                    <Plus size={20} />
+                    <span className="text-xs font-medium">Agregar recurso</span>
+                  </button>
                 </div>
               </section>
             )}
           </>
         )}
       </div>
+
+      <BottomNav active="biblioteca" profile={profile} />
 
       {selected && (
         <ResourceDetail
@@ -383,31 +375,39 @@ function ResourceCard({ r, profiles, profile, onOpen }) {
   const sharedByOther = !r.is_general && r.owner_id !== profile.id;
   const ownerName = sharedByOther ? profiles.find((p) => p.id === r.owner_id)?.name : null;
   return (
-    <button onClick={onOpen} style={{ borderColor: C.hairline, background: C.panel, backgroundImage: thumbnail ? `url(${thumbnail})` : undefined, backgroundSize: "cover", backgroundPosition: "center" }} className="relative border p-4 text-left flex flex-col gap-2 aspect-square justify-between hover:brightness-[0.98] overflow-hidden">
-      {thumbnail && <div className="absolute inset-0" style={{ background: "linear-gradient(to top, rgba(20,24,31,0.75), rgba(20,24,31,0.15))" }} />}
+    <button
+      onClick={onOpen}
+      style={{ borderRadius: R.xxl, background: C.panel, boxShadow: SH.card, backgroundImage: thumbnail ? `url(${thumbnail})` : undefined, backgroundSize: "cover", backgroundPosition: "center" }}
+      className="relative p-4 text-left flex flex-col gap-2 aspect-[4/3] justify-between hover:brightness-[0.98] overflow-hidden"
+    >
+      {thumbnail && <div className="absolute inset-0" style={{ background: "linear-gradient(to top, rgba(27,30,36,0.75), rgba(27,30,36,0.15))" }} />}
       <div className="relative flex items-center justify-between">
         {embed ? (
-          <span className="flex items-center justify-center rounded-full" style={{ background: C.spine, width: 26, height: 26 }}>
+          <span className="flex items-center justify-center rounded-full" style={{ background: C.ink, width: 28, height: 28 }}>
             <Play size={12} style={{ color: C.paper }} fill={C.paper} />
           </span>
         ) : r.file_path ? (
-          <FileIcon size={20} style={{ color: thumbnail ? C.paper : C.signal }} />
+          <span style={{ width: 36, height: 36, borderRadius: 13, background: thumbnail ? "rgba(255,255,255,0.18)" : C.signalSoft, color: thumbnail ? C.paper : C.signal }} className="flex items-center justify-center">
+            <FileIcon size={18} />
+          </span>
         ) : (
-          <BookOpen size={20} style={{ color: C.signal }} />
+          <span style={{ width: 36, height: 36, borderRadius: 13, background: thumbnail ? "rgba(255,255,255,0.18)" : C.signalSoft, color: thumbnail ? C.paper : C.signal }} className="flex items-center justify-center">
+            <BookOpen size={18} />
+          </span>
         )}
         {isNewResource(r.created_at) && (
-          <span className="font-mono text-[9px] uppercase tracking-wider px-1.5 py-0.5" style={{ background: C.urgentSoft, color: C.urgent, border: `1px solid ${C.urgent}` }}>Nuevo</span>
+          <span style={{ background: C.urgentSoft, color: C.urgentInk, borderRadius: R.pill, fontWeight: 700 }} className="text-[10px] px-2 py-0.5">Nuevo</span>
         )}
       </div>
       <div className="relative">
-        <span style={{ color: thumbnail ? C.paper : C.ink, fontFamily: "Georgia, serif" }} className="text-base leading-tight block mb-1">{r.title}</span>
+        <span style={{ color: thumbnail ? C.paper : C.ink, fontFamily: FONT_SERIF, fontSize: 17 }} className="leading-tight block mb-1.5">{r.title}</span>
         {ownerName && (
-          <span className="font-mono text-[9px] uppercase tracking-wider block mb-1" style={{ color: thumbnail ? "rgba(255,255,255,0.85)" : C.inkSoft }}>de {ownerName}</span>
+          <span style={{ color: thumbnail ? "rgba(255,255,255,0.85)" : C.inkSoft, fontSize: 10.5, fontWeight: 600 }} className="block mb-1">de {ownerName}</span>
         )}
         {r.tags && r.tags.length > 0 && (
           <div className="flex flex-wrap gap-1">
             {r.tags.slice(0, 3).map((tag) => (
-              <span key={tag} className="font-mono text-[9px] uppercase tracking-wider px-1.5 py-0.5" style={{ background: thumbnail ? "rgba(255,255,255,0.15)" : C.paper, color: thumbnail ? C.paper : C.inkSoft, border: `1px solid ${thumbnail ? "rgba(255,255,255,0.4)" : C.hairline}` }}>{tag}</span>
+              <span key={tag} style={{ background: thumbnail ? "rgba(255,255,255,0.18)" : C.subtle, color: thumbnail ? C.paper : C.inkMedium, borderRadius: R.pill, fontWeight: 600 }} className="text-[9px] px-1.5 py-[1px]">{tag}</span>
             ))}
           </div>
         )}
@@ -426,63 +426,64 @@ function ResourceDetail({ resource, profile, profiles, isAdmin, alreadyCopied, o
   const canManage = resource.is_general ? isAdmin : isMine;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: "rgba(20,24,31,0.55)" }} onClick={onClose}>
-      <div style={{ background: C.paper, borderColor: C.hairline }} className="w-full max-w-sm border p-6" onClick={(e) => e.stopPropagation()}>
-        <div className="flex items-start justify-between mb-3">
-          <h2 style={{ color: C.ink, fontFamily: "Georgia, serif" }} className="text-lg">{resource.title}</h2>
-          <button onClick={onClose}><X size={18} style={{ color: C.inkSoft }} /></button>
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: "rgba(27,30,36,0.55)" }} onClick={onClose}>
+      <div style={{ background: C.panel, borderRadius: R.xxl, boxShadow: SH.card }} className="w-full max-w-sm max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
+        <div style={{ boxShadow: `inset 0 -1px 0 ${C.hairline}` }} className="px-5 py-4 flex items-start justify-between gap-3">
+          <h2 style={{ color: C.ink, fontFamily: FONT_SERIF, fontSize: 20, fontWeight: 500 }} className="leading-tight">{resource.title}</h2>
+          <button onClick={onClose} style={{ width: 30, height: 30, borderRadius: R.pill, background: C.subtle, color: C.inkMedium }} className="flex items-center justify-center flex-shrink-0"><X size={15} /></button>
         </div>
-        {!resource.is_general && !isMine && owner && (
-          <p className="text-[11px] mb-2 flex items-center gap-1" style={{ color: C.inkSoft }}><Users size={11} /> Compartido por {owner.name}</p>
-        )}
-        <p className="text-sm mb-3" style={{ color: C.ink }}>{resource.description}</p>
-        {resource.tags && resource.tags.length > 0 && (
-          <div className="flex flex-wrap gap-1 mb-4">
-            {resource.tags.map((tag) => (
-              <span key={tag} className="font-mono text-[9px] uppercase tracking-wider px-1.5 py-0.5" style={{ background: C.paper, color: C.inkSoft, border: `1px solid ${C.hairline}` }}>{tag}</span>
-            ))}
+        <div className="p-5 flex flex-col gap-3">
+          {!resource.is_general && !isMine && owner && (
+            <p className="text-[11px] flex items-center gap-1" style={{ color: C.inkSoft }}><Users size={11} /> Compartido por {owner.name}</p>
+          )}
+          {resource.description && <p className="text-sm" style={{ color: C.ink }}>{resource.description}</p>}
+          {resource.tags && resource.tags.length > 0 && (
+            <div className="flex flex-wrap gap-1">
+              {resource.tags.map((tag) => (
+                <span key={tag} className="text-[9px] font-semibold px-1.5 py-[1px]" style={{ background: C.subtle, color: C.inkMedium, borderRadius: R.pill }}>{tag}</span>
+              ))}
+            </div>
+          )}
+          {embed && (
+            <div className="w-full" style={{ aspectRatio: "16/9", borderRadius: R.lg, overflow: "hidden" }}>
+              <iframe
+                src={embed.embedUrl}
+                className="w-full h-full border-0"
+                allow="autoplay; encrypted-media; picture-in-picture; fullscreen"
+                allowFullScreen
+              />
+            </div>
+          )}
+          {isImageFile && fileUrl && (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img src={fileUrl} alt={resource.title} className="w-full object-contain" style={{ maxHeight: 260, background: C.paper, borderRadius: R.lg }} />
+          )}
+          {resource.url && (
+            <a href={resource.url} target="_blank" rel="noopener noreferrer" style={{ background: C.ink, color: C.paper, borderRadius: R.pill }} className="px-4 py-2.5 text-sm font-semibold flex items-center justify-center gap-2">
+              <ExternalLink size={14} /> Abrir link
+            </a>
+          )}
+          {fileUrl && (
+            <a href={fileUrl} target="_blank" rel="noopener noreferrer" style={{ background: C.ink, color: C.paper, borderRadius: R.pill }} className="px-4 py-2.5 text-sm font-semibold flex items-center justify-center gap-2">
+              <FileIcon size={14} /> {resource.file_name || "Abrir archivo"}{resource.file_size ? ` · ${fmtFileSize(resource.file_size)}` : ""}
+            </a>
+          )}
+          <div className="flex gap-4 justify-center flex-wrap pt-1">
+            {resource.is_general && (
+              <button onClick={onAddToMine} disabled={alreadyCopied} className="text-xs font-semibold flex items-center gap-1 disabled:opacity-40" style={{ color: C.signal }}>
+                <Copy size={12} /> {alreadyCopied ? "Ya en mis recursos" : "Añadir a mis recursos"}
+              </button>
+            )}
+            {!resource.is_general && isMine && (
+              <button onClick={onShare} className="text-xs font-semibold flex items-center gap-1" style={{ color: C.signal }}><Share2 size={12} /> Compartir</button>
+            )}
+            {canManage && (
+              <>
+                <button onClick={onEdit} className="text-xs font-semibold flex items-center gap-1" style={{ color: C.inkSoft }}><Pencil size={12} /> Editar</button>
+                <button onClick={onDelete} className="text-xs font-semibold flex items-center gap-1" style={{ color: C.urgent }}><Trash2 size={12} /> Borrar</button>
+              </>
+            )}
           </div>
-        )}
-        {embed && (
-          <div className="w-full mb-3" style={{ aspectRatio: "16/9" }}>
-            <iframe
-              src={embed.embedUrl}
-              className="w-full h-full border-0"
-              style={{ borderColor: C.hairline }}
-              allow="autoplay; encrypted-media; picture-in-picture; fullscreen"
-              allowFullScreen
-            />
-          </div>
-        )}
-        {isImageFile && fileUrl && (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img src={fileUrl} alt={resource.title} className="w-full mb-3 object-contain" style={{ maxHeight: 260, background: C.panel, border: `1px solid ${C.hairline}` }} />
-        )}
-        {resource.url && (
-          <a href={resource.url} target="_blank" rel="noopener noreferrer" style={{ background: C.spine, color: C.paper }} className="px-4 py-2 text-sm flex items-center justify-center gap-2 mb-3">
-            <ExternalLink size={14} /> Abrir link
-          </a>
-        )}
-        {fileUrl && (
-          <a href={fileUrl} target="_blank" rel="noopener noreferrer" style={{ background: C.spine, color: C.paper }} className="px-4 py-2 text-sm flex items-center justify-center gap-2 mb-3">
-            <FileIcon size={14} /> {resource.file_name || "Abrir archivo"}{resource.file_size ? ` · ${fmtFileSize(resource.file_size)}` : ""}
-          </a>
-        )}
-        <div className="flex gap-3 justify-center flex-wrap">
-          {resource.is_general && (
-            <button onClick={onAddToMine} disabled={alreadyCopied} className="text-xs flex items-center gap-1 disabled:opacity-40" style={{ color: C.signal }}>
-              <Copy size={12} /> {alreadyCopied ? "Ya en mis recursos" : "Añadir a mis recursos"}
-            </button>
-          )}
-          {!resource.is_general && isMine && (
-            <button onClick={onShare} className="text-xs flex items-center gap-1" style={{ color: C.signal }}><Share2 size={12} /> Compartir</button>
-          )}
-          {canManage && (
-            <>
-              <button onClick={onEdit} className="text-xs flex items-center gap-1" style={{ color: C.inkSoft }}><Pencil size={12} /> Editar</button>
-              <button onClick={onDelete} className="text-xs flex items-center gap-1" style={{ color: C.urgent }}><Trash2 size={12} /> Borrar</button>
-            </>
-          )}
         </div>
       </div>
     </div>
@@ -493,25 +494,27 @@ function ShareResourceModal({ resource, profiles, onClose, onSave }) {
   const [selected, setSelected] = useState(resource.shared_with || []);
   const toggle = (id) => setSelected((prev) => prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]);
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: "rgba(20,24,31,0.55)" }} onClick={onClose}>
-      <div style={{ background: C.paper, borderColor: C.hairline }} className="w-full max-w-sm border p-6" onClick={(e) => e.stopPropagation()}>
-        <div className="flex items-center justify-between mb-4">
-          <h2 style={{ color: C.ink, fontFamily: "Georgia, serif" }} className="text-lg flex items-center gap-1.5"><Share2 size={16} /> Compartir "{resource.title}"</h2>
-          <button onClick={onClose}><X size={18} style={{ color: C.inkSoft }} /></button>
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: "rgba(27,30,36,0.55)" }} onClick={onClose}>
+      <div style={{ background: C.panel, borderRadius: R.xxl, boxShadow: SH.card }} className="w-full max-w-sm max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
+        <div style={{ boxShadow: `inset 0 -1px 0 ${C.hairline}` }} className="px-5 py-4 flex items-center justify-between gap-3">
+          <h2 style={{ color: C.ink, fontFamily: FONT_SERIF, fontSize: 20, fontWeight: 500 }} className="flex items-center gap-1.5"><Share2 size={16} /> Compartir "{resource.title}"</h2>
+          <button onClick={onClose} style={{ width: 30, height: 30, borderRadius: R.pill, background: C.subtle, color: C.inkMedium }} className="flex items-center justify-center flex-shrink-0"><X size={15} /></button>
         </div>
-        <p className="text-[11px] mb-3" style={{ color: C.inkSoft }}>Aparecerá en "Mis recursos" de quien elijas, sin volverse general.</p>
-        <div className="flex flex-col gap-1.5 mb-4 max-h-64 overflow-y-auto">
-          {profiles.map((p) => (
-            <label key={p.id} className="flex items-center gap-2 text-sm px-1 py-1" style={{ color: C.ink }}>
-              <input type="checkbox" checked={selected.includes(p.id)} onChange={() => toggle(p.id)} />
-              {p.name}
-            </label>
-          ))}
-          {profiles.length === 0 && <p className="text-xs" style={{ color: C.inkSoft }}>No hay más gente en el equipo todavía.</p>}
-        </div>
-        <div className="flex justify-end gap-2">
-          <button onClick={onClose} style={{ color: C.inkSoft }} className="px-4 py-2 text-sm">Cancelar</button>
-          <button onClick={() => onSave(selected)} style={{ background: C.spine, color: C.paper }} className="px-4 py-2 text-sm">Guardar</button>
+        <div className="p-5">
+          <p className="text-[11px] mb-3" style={{ color: C.inkSoft }}>Aparecerá en "Mis recursos" de quien elijas, sin volverse general.</p>
+          <div style={{ background: C.paper, borderRadius: R.md }} className="flex flex-col gap-0.5 mb-4 max-h-64 overflow-y-auto p-2">
+            {profiles.map((p) => (
+              <label key={p.id} className="flex items-center gap-2 text-sm px-1.5 py-1.5 rounded-md" style={{ color: C.ink }}>
+                <input type="checkbox" checked={selected.includes(p.id)} onChange={() => toggle(p.id)} />
+                {p.name}
+              </label>
+            ))}
+            {profiles.length === 0 && <p className="text-xs px-1.5 py-1" style={{ color: C.inkSoft }}>No hay más gente en el equipo todavía.</p>}
+          </div>
+          <div className="flex justify-end gap-2">
+            <button onClick={onClose} style={{ color: C.inkMedium, background: C.subtle, borderRadius: R.pill }} className="px-5 py-2.5 text-sm font-semibold">Cancelar</button>
+            <button onClick={() => onSave(selected)} style={{ background: C.ink, color: C.paper, borderRadius: R.pill }} className="px-5 py-2.5 text-sm font-semibold">Guardar</button>
+          </div>
         </div>
       </div>
     </div>
@@ -568,33 +571,37 @@ function ResourceForm({ initial, isGeneral, ownerId, onClose, onSave }) {
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: "rgba(20,24,31,0.55)" }}>
-      <div style={{ background: C.paper, borderColor: C.hairline }} className="w-full max-w-md border p-6 max-h-[90vh] overflow-y-auto">
-        <div className="flex items-center justify-between mb-4">
-          <h2 style={{ color: C.ink, fontFamily: "Georgia, serif" }} className="text-lg">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: "rgba(27,30,36,0.55)" }}>
+      <div style={{ background: C.panel, borderRadius: R.xxl, boxShadow: SH.card }} className="w-full max-w-md max-h-[90vh] overflow-y-auto">
+        <div style={{ boxShadow: `inset 0 -1px 0 ${C.hairline}` }} className="px-5 py-4 flex items-center justify-between gap-3">
+          <h2 style={{ color: C.ink, fontFamily: FONT_SERIF, fontSize: 20, fontWeight: 500 }}>
             {initial ? "Editar recurso" : isGeneral ? "Nuevo recurso general" : "Nuevo recurso personal"}
           </h2>
-          <button onClick={onClose}><X size={18} style={{ color: C.inkSoft }} /></button>
+          <button onClick={onClose} style={{ width: 30, height: 30, borderRadius: R.pill, background: C.subtle, color: C.inkMedium }} className="flex items-center justify-center flex-shrink-0"><X size={15} /></button>
         </div>
-        <div className="flex flex-col gap-3 mb-4">
+        <div className="p-5 flex flex-col gap-3.5">
           <div>
-            <label className="font-mono text-[10px] uppercase tracking-widest" style={{ color: C.inkSoft }}>Nombre (ej. "Stock")</label>
-            <input value={title} onChange={(e) => setTitle(e.target.value)} style={{ borderColor: C.hairline, background: C.panel }} className="w-full border px-3 py-2 text-sm mt-1 outline-none" />
+            <label className="text-[11.5px] font-bold tracking-[0.09em]" style={{ color: C.inkSoft }}>Nombre (ej. "Stock")</label>
+            <input value={title} onChange={(e) => setTitle(e.target.value)} style={{ background: C.paper, borderRadius: R.md }} className="w-full px-3.5 py-2.5 text-sm mt-1.5 outline-none" />
           </div>
           <div>
-            <label className="font-mono text-[10px] uppercase tracking-widest" style={{ color: C.inkSoft }}>Descripción</label>
-            <textarea value={description} onChange={(e) => setDescription(e.target.value)} rows={2} placeholder='Ej. "Aquí podrás encontrar fotos y videos de stock"' style={{ borderColor: C.hairline, background: C.panel }} className="w-full border px-3 py-2 text-sm mt-1 outline-none" />
+            <label className="text-[11.5px] font-bold tracking-[0.09em]" style={{ color: C.inkSoft }}>Descripción</label>
+            <textarea value={description} onChange={(e) => setDescription(e.target.value)} rows={2} placeholder='Ej. "Aquí podrás encontrar fotos y videos de stock"' style={{ background: C.paper, borderRadius: R.md }} className="w-full px-3.5 py-2.5 text-sm mt-1.5 outline-none" />
           </div>
 
           <div>
-            <label className="font-mono text-[10px] uppercase tracking-widest" style={{ color: C.inkSoft }}>Link o archivo</label>
-            <div className="flex gap-1.5 mt-1 mb-2">
-              <button type="button" onClick={() => setInputMode("link")} style={{ borderColor: inputMode === "link" ? C.signal : C.hairline, background: inputMode === "link" ? C.signal : "transparent", color: inputMode === "link" ? "#fff" : C.ink }} className="border px-2.5 py-1.5 text-xs flex items-center gap-1.5"><Link2 size={12} /> Link</button>
-              <button type="button" onClick={() => setInputMode("file")} style={{ borderColor: inputMode === "file" ? C.signal : C.hairline, background: inputMode === "file" ? C.signal : "transparent", color: inputMode === "file" ? "#fff" : C.ink }} className="border px-2.5 py-1.5 text-xs flex items-center gap-1.5"><Upload size={12} /> Subir archivo</button>
+            <label className="text-[11.5px] font-bold tracking-[0.09em]" style={{ color: C.inkSoft }}>Link o archivo</label>
+            <div style={{ background: C.subtle, borderRadius: R.pill }} className="flex gap-1 p-1 mt-1.5 mb-2">
+              <button type="button" onClick={() => setInputMode("link")}
+                style={inputMode === "link" ? { background: C.panel, boxShadow: "0 1px 3px rgba(27,30,36,0.10)", color: C.ink, fontWeight: 700 } : { color: C.inkSoft, fontWeight: 600 }}
+                className="flex-1 h-9 rounded-full text-[12.5px] flex items-center justify-center gap-1.5"><Link2 size={12} /> Link</button>
+              <button type="button" onClick={() => setInputMode("file")}
+                style={inputMode === "file" ? { background: C.panel, boxShadow: "0 1px 3px rgba(27,30,36,0.10)", color: C.ink, fontWeight: 700 } : { color: C.inkSoft, fontWeight: 600 }}
+                className="flex-1 h-9 rounded-full text-[12.5px] flex items-center justify-center gap-1.5"><Upload size={12} /> Subir archivo</button>
             </div>
             {inputMode === "link" ? (
               <>
-                <input value={url} onChange={(e) => setUrl(e.target.value)} placeholder="https://..." style={{ borderColor: C.hairline, background: C.panel }} className="w-full border px-3 py-2 text-sm outline-none" />
+                <input value={url} onChange={(e) => setUrl(e.target.value)} placeholder="https://..." style={{ background: C.paper, borderRadius: R.md }} className="w-full px-3.5 py-2.5 text-sm outline-none" />
                 <p className="text-[11px] mt-1" style={{ color: C.inkSoft }}>Los links de YouTube, Google Drive o Vimeo se muestran como video, el resto como link normal.</p>
               </>
             ) : (
@@ -611,22 +618,22 @@ function ResourceForm({ initial, isGeneral, ownerId, onClose, onSave }) {
           </div>
 
           <div>
-            <label className="font-mono text-[10px] uppercase tracking-widest" style={{ color: C.inkSoft }}>Etiquetas</label>
-            <div className="flex gap-2 mt-1">
+            <label className="text-[11.5px] font-bold tracking-[0.09em]" style={{ color: C.inkSoft }}>Etiquetas</label>
+            <div className="flex gap-2 mt-1.5">
               <input
                 value={tagInput}
                 onChange={(e) => setTagInput(e.target.value)}
                 onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); addTag(); } }}
                 placeholder="Ej. video, fotos, plantillas..."
-                style={{ borderColor: C.hairline, background: C.panel }}
-                className="flex-1 border px-3 py-2 text-sm outline-none"
+                style={{ background: C.paper, borderRadius: R.md }}
+                className="flex-1 px-3.5 py-2.5 text-sm outline-none"
               />
-              <button type="button" onClick={addTag} style={{ borderColor: C.hairline, color: C.ink }} className="border px-3 py-2 text-sm">Agregar</button>
+              <button type="button" onClick={addTag} style={{ background: C.subtle, color: C.inkMedium, borderRadius: R.md }} className="px-4 text-sm font-semibold">Agregar</button>
             </div>
             {tags.length > 0 && (
               <div className="flex flex-wrap gap-1.5 mt-2">
                 {tags.map((t) => (
-                  <span key={t} style={{ background: C.paper, borderColor: C.hairline, color: C.ink }} className="border px-2 py-1 text-xs flex items-center gap-1">
+                  <span key={t} style={{ background: C.subtle, color: C.inkMedium, borderRadius: R.pill, fontWeight: 600 }} className="px-2.5 py-1 text-xs flex items-center gap-1">
                     {t}
                     <button type="button" onClick={() => removeTag(t)}><X size={11} style={{ color: C.inkSoft }} /></button>
                   </span>
@@ -636,9 +643,9 @@ function ResourceForm({ initial, isGeneral, ownerId, onClose, onSave }) {
           </div>
           {error && <p className="text-xs" style={{ color: C.urgent }}>{error}</p>}
         </div>
-        <div className="flex justify-end gap-2">
-          <button onClick={onClose} style={{ color: C.inkSoft }} className="px-4 py-2 text-sm">Cancelar</button>
-          <button onClick={submit} disabled={saving} style={{ background: C.spine, color: C.paper, opacity: saving ? 0.6 : 1 }} className="px-4 py-2 text-sm">{saving ? "Guardando..." : "Guardar"}</button>
+        <div style={{ boxShadow: `inset 0 1px 0 ${C.hairline}` }} className="px-5 py-4 flex justify-end gap-2">
+          <button onClick={onClose} style={{ color: C.inkMedium, background: C.subtle, borderRadius: R.pill }} className="px-5 py-2.5 text-sm font-semibold">Cancelar</button>
+          <button onClick={submit} disabled={saving} style={{ background: C.ink, color: C.paper, opacity: saving ? 0.6 : 1, borderRadius: R.pill }} className="px-5 py-2.5 text-sm font-semibold">{saving ? "Guardando..." : "Guardar"}</button>
         </div>
       </div>
     </div>
