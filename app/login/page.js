@@ -3,7 +3,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabaseClient";
 import { Eye, EyeOff } from "lucide-react";
-import { C, R, SH, FONT_SERIF } from "@/lib/theme";
+import { C, R } from "@/lib/theme";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -81,15 +81,10 @@ export default function LoginPage() {
     <div style={{ background: C.paper, minHeight: "100vh" }} className="w-full flex items-center justify-center p-6 font-sans">
       <div className="w-full max-w-sm flex flex-col items-center">
 
-        <div className="flex flex-col items-center gap-[18px] mb-[30px]">
-          <div
-            style={{ width: 60, height: 60, borderRadius: R.xl, background: C.ink, color: C.paper, fontFamily: FONT_SERIF, fontSize: 30, fontWeight: 500, boxShadow: SH.float }}
-            className="flex items-center justify-center"
-          >T</div>
-          <div className="flex flex-col items-center gap-2">
-            <div style={{ fontFamily: FONT_SERIF, fontSize: 34, fontWeight: 500, letterSpacing: "-0.01em" }}>Terregal</div>
-            <div style={{ fontSize: 14.5, color: C.inkSoft }} className="text-center">Los pendientes del equipo, en orden.</div>
-          </div>
+        <div className="flex flex-col items-center gap-3 mb-[30px]">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src="/logo-mark.png" alt="Terregal" className="w-[230px]" />
+          <div style={{ fontSize: 14.5, color: C.inkSoft }} className="text-center">Los pendientes del equipo, en orden.</div>
         </div>
 
         <div
@@ -159,7 +154,7 @@ export default function LoginPage() {
         </button>
 
         <div style={{ color: "#B6B2A8", fontSize: 11.5, fontWeight: 600, letterSpacing: "0.14em" }} className="mt-10">
-          TERREGAL · EQUIPO DE CONTENIDO
+          TERREGAL · CONTROL DE TAREAS
         </div>
       </div>
     </div>
