@@ -12,6 +12,7 @@ import {
 import { C, R, SH, FONT_SERIF } from "@/lib/theme";
 import BottomNav from "@/components/BottomNav";
 import LoadingScreen from "@/components/LoadingScreen";
+import AccountsOnboarding from "@/components/AccountsOnboarding";
 
 // Estados que puede elegir la persona ASIGNADA
 const ASSIGNEE_STATUSES = ["No iniciado", "En progreso", "Detenido", "Entregado"];
@@ -1038,6 +1039,13 @@ export default function Dashboard() {
   };
 
   if (!ready) return <LoadingScreen />;
+
+  // CHANGES.md #24: onboarding de "cuentas" + puesto — bloqueante, antes de
+  // dejar entrar al dashboard. Les sale a los usuarios nuevos y, una sola
+  // vez, a los que ya estaban registrados desde antes de que esto existiera.
+  if (!profile.account_ids?.length || !profile.job_title) {
+    return <AccountsOnboarding profile={profile} onDone={setProfile} />;
+  }
 
   const isAdmin = profile?.role === "admin";
   const isGerente = profile?.role === "gerente" || profile?.role === "admin";

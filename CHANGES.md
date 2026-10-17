@@ -24,24 +24,6 @@ si suena alguna alerta al terminar cada uno, si se puede personalizar,
 etc. Lo dejo como opción por ahora; cuando lo tenga más claro lo
 detallo.
 
-### 19. Quitar el tipo "Personal": que Individual pueda cubrir ese caso
-La idea es dejar de necesitar el tipo "Personal" (donde tú te asignas
-un pendiente a ti mismo), haciendo que "Individual" pueda hacer lo
-mismo:
-
-a. Al crear un pendiente **Individual**, en "Solicita" podrás elegir a
-   otra persona del equipo como solicitante — ya no tienes que ser
-   siempre tú el que solicita.
-b. En "Asignar a", tu propio nombre también aparecerá como opción (hoy
-   se excluye).
-c. Con esas dos, puedes armar un Individual con solicitante = tú y
-   asignado = tú — igual que hacía "Personal" — y ya no haría falta
-   tener el tipo aparte.
-
-Falta decidir qué pasa con los pendientes "Personal" que ya existen
-(¿se migran a Individual, o se dejan convivir sin que se puedan crear
-nuevos?) — lo dejo pendiente de aterrizar antes de construirlo.
-
 ### 20. Cronograma diario: línea de tiempo con tus pendientes como bloques que arrastras
 Un apartado nuevo (tipo "mi día") donde eliges de tus pendientes ya
 asignados cuáles vas a trabajar hoy, le pones a cada uno cuánto tiempo
@@ -73,69 +55,67 @@ puesto, para ver de un vistazo qué semana está más saturada — pintando
 los días según qué tan cerca está la fecha (se puede reusar la lógica
 que ya existe en `dueLegend()`).
 
-### 22. Quitar "Avisar a solicitante": que se avise automático al entregar
-Hoy, cuando el asignado marca un pendiente como "Entregado", tiene que
-además darle aparte al botón "Avisar a solicitante" para que le llegue
-la notificación. La idea es quitar ese botón — en cuanto se marque
-"Entregado", que se le mande esa misma notificación al solicitante
-automáticamente, sin que nadie tenga que acordarse de avisar aparte.
-
-La notificación es la misma que ya existe (ver #4a en el Historial):
-título `Te entregaron un pendiente`; descripción `(Nombre del que
-entregó) ya entregó su pendiente, revísalo y dale finalizado. Al
-finalizar pendientes podrá sumarle al registro personal de (nombre del
-que entregó)`.
-
-### 23. Que cualquiera pueda editar el deadline, pero que siempre se le avise al solicitante
-Hoy solo el solicitante (o el admin) puede cambiar el deadline de un
-pendiente — lo tenía bloqueado por si alguien quería cambiarlo para
-"excusarse" de que la fecha decía otra cosa. Prefiero quitar esa
-restricción: que **cualquiera** con acceso al pendiente pueda editar
-el deadline, tanto el del pendiente general como el de cualquier
-subtarea — pero que, cada vez que alguien que no sea el propio
-solicitante haga ese cambio, le llegue una notificación avisándole.
-
-### 24. Onboarding de "cuentas": a qué cliente perteneces + tu puesto
-Vamos a agregar el concepto de "cuentas" (clientes/marcas, no
-categorías — como Sevenly, WorkHub, Ragasa, Mobil, 7-Eleven, Promanuez,
-Berel). Para capturar esa info, un flujo nuevo de dos ventanas:
-
-a. **Ventana 1 — elegir cuentas.** Copy: "¿En qué cuenta estás?" /
-   "Elige todas las cuentas a las que pertenezcas" (si se te ocurre un
-   copy mejor, bien — por ejemplo "¿A qué cuentas le haces?" o
-   "Selecciona las cuentas en las que trabajas"). Muestra como opciones
-   (selección múltiple, tipo chips o checkboxes): **Sevenly, WorkHub,
-   Ragasa, Mobil, 7-Eleven, Promanuez, Berel**. Al final de la lista,
-   una opción **"Otras"** que, al darle clic, abre un campo de texto
-   para escribir el nombre de una cuenta nueva — al darle "Ok" se
-   agrega a la lista de opciones **para todos** (no solo para quien la
-   escribió), y queda seleccionada para esa persona.
-
-   Abajo, un botón **"Son todas"** que confirma la selección y pasa a
-   la ventana 2.
-
-b. **Ventana 2 — puesto.** Le pide a la persona escribir su puesto (un
-   campo de texto libre). Al darle "Ok", termina el flujo y ya puede
-   entrar normal a la app.
-
-c. **A quién le aparece.** A los usuarios **nuevos** (en su primer
-   login, antes de dejarlos entrar), y también, una sola vez, a los
-   que **ya estaban registrados** desde antes de que existiera esto —
-   la próxima vez que entren les aparece este mismo flujo para que
-   capturen sus cuentas y puesto retroactivamente. Es bloqueante (no
-   se puede cerrar ni saltar) hasta terminarlo.
-
-Falta aterrizar antes de construirlo: dónde se guarda y usa esto
-después (¿se ve en la tarjeta de perfil? ¿sirve para filtrar
-pendientes por cuenta?), y si el admin puede además editar la lista de
-cuentas a mano (agregar/quitar/renombrar) desde algún lado, no solo por
-la vía de "Otras".
-
-(Relacionado con las propuestas #13-#15 que ya tenía anotadas en
-PROPUESTAS.md sobre "puesto" y la ambigüedad de qué significaba
-"cuenta" — esto ya la resuelve: cuenta = cliente/marca.)
-
 ## Historial (aplicadas)
+
+### [x] 19. Quitar el tipo "Personal" al crear: Individual permite elegir solicitante y asignarte a ti
+_Aplicada 2026-10-17._
+
+Se quitó "Personal" del selector de tipo al crear un pendiente (los
+que ya existen se quedan igual — solo ya no se pueden crear nuevos).
+En Individual:
+
+a. "Solicita" ahora es un selector — por default eres tú, pero puedes
+   elegir a cualquiera del equipo como solicitante principal (se le
+   avisa igual que a un co-solicitante).
+b. "Asignar a" también te incluye a ti mismo como opción.
+c. Así puedes armar un Individual con solicitante = tú y asignado =
+   tú, igual que hacía "Personal".
+
+### [x] 22. Quitar "Avisar a solicitante": aviso automático al entregar
+_Aplicada 2026-10-17._
+
+Se quitó el botón "Avisar al solicitante" — en cuanto el asignado
+marca un pendiente como "Entregado", se le manda automático al
+solicitante la misma notificación de siempre (ver #4a): título `Te
+entregaron un pendiente`; descripción `(Nombre de quien entregó) ya
+entregó su pendiente, revísalo y dale finalizado. Al finalizar
+pendientes podrá sumarle al registro personal de (nombre de quien
+entregó)`.
+
+### [x] 23. Cualquiera puede editar el deadline, con aviso al solicitante
+_Aplicada 2026-10-17._
+
+Se quitó la restricción de que solo el solicitante/admin podía
+cambiar el deadline — cualquiera con acceso al pendiente puede
+editarlo, tanto el general como el de cualquier subtarea (se agregó
+edición del deadline de subtarea, que antes no existía después de
+crearla). Si quien lo cambia no es un solicitante, se les avisa a
+todos los solicitantes.
+
+### [x] 24. Onboarding de "cuentas": a qué cliente perteneces + tu puesto
+_Aplicada 2026-10-17._
+
+Flujo de dos ventanas, bloqueante, antes de entrar al dashboard — le
+sale a usuarios nuevos y, una sola vez, a los que ya estaban
+registrados desde antes de que esto existiera.
+
+a. **Ventana 1 — elegir cuentas.** "¿En qué cuenta estás?" / "Elige
+   todas las cuentas a las que pertenezcas." Chips de selección
+   múltiple con las cuentas existentes (sembradas: Sevenly, WorkHub,
+   Ragasa, Mobil, 7-Eleven, Promanuez, Berel) más "Otras", que abre un
+   campo de texto — al darle "Ok" esa cuenta queda disponible para
+   todos de inmediato. Botón "Son todas" para continuar (pide al
+   menos una elegida).
+b. **Ventana 2 — puesto.** Campo de texto libre; al darle "Ok" se
+   guarda todo (`profiles.account_ids`, `profiles.job_title`) y entra
+   al dashboard.
+
+Las cuentas viven en una tabla nueva (`accounts`, visible y editable
+—solo agregar, no borrar ni renombrar— para cualquier usuario
+logueado). Por ahora esta información solo se captura; todavía no se
+usa en ningún otro lado de la app (ni en la tarjeta de perfil, ni
+como filtro de pendientes) — queda pendiente de construir eso por
+separado si hace falta.
 
 ### [x] 10. Poder agregarte subtareas a ti mismo en un pendiente individual que te asignaron
 _Aplicada 2026-09-15._
