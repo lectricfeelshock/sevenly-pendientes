@@ -113,9 +113,15 @@ b. **Ventana 2 — puesto.** Campo de texto libre; al darle "Ok" se
 Las cuentas viven en una tabla nueva (`accounts`, visible y editable
 —solo agregar, no borrar ni renombrar— para cualquier usuario
 logueado). Por ahora esta información solo se captura; todavía no se
-usa en ningún otro lado de la app (ni en la tarjeta de perfil, ni
-como filtro de pendientes) — queda pendiente de construir eso por
+usa como filtro de pendientes — queda pendiente de construir eso por
 separado si hace falta.
+
+_Ajustado 2026-10-17:_ en `/perfil` ahora hay dos filas nuevas,
+"Puesto" y "Cuentas", junto a las demás — se editan igual que el resto
+(con su lápiz/fila). "Cuentas" muestra las mismas opciones del
+onboarding (chips + "Otras" para agregar una nueva, disponible para
+todos de inmediato), así que cualquiera puede agregarse más cuentas
+(o quitarse alguna) cuando quiera, no solo la primera vez que entra.
 
 ### [x] 10. Poder agregarte subtareas a ti mismo en un pendiente individual que te asignaron
 _Aplicada 2026-09-15._

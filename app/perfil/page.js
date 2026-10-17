@@ -18,11 +18,12 @@ export default function PerfilPage() {
   const router = useRouter();
   const [profile, setProfile] = useState(null);
   const [ready, setReady] = useState(false);
-  const [editing, setEditing] = useState(null); // "name" | "username" | "phone" | "email" | "password" | null
+  const [editing, setEditing] = useState(null); // "name" | "jobTitle" | "accounts" | "username" | "phone" | "email" | "password" | null
   const [error, setError] = useState("");
   const [info, setInfo] = useState("");
   const [saving, setSaving] = useState(false);
   const [log, setLog] = useState([]);
+  const [accounts, setAccounts] = useState([]); // CHANGES.md #24: todas las cuentas que existen
 
   useEffect(() => {
     (async () => {
@@ -30,6 +31,8 @@ export default function PerfilPage() {
       if (!user) { router.replace("/login"); return; }
       const { data } = await supabase.from("profiles").select("*").eq("id", user.id).single();
       setProfile(data);
+      const { data: accs } = await supabase.from("accounts").select("*").order("name");
+      setAccounts(accs || []);
       setReady(true);
     })();
   }, [router]);
@@ -97,6 +100,16 @@ export default function PerfilPage() {
           <ProfileRow label="Nombre" value={profile.name} editing={editing === "name"}
             onEdit={() => startEdit("name")} onCancel={cancelEdit}>
             <NameField profile={profile} setProfile={setProfile} setInfo={setInfo} setError={setError} setEditing={setEditing} saving={saving} setSaving={setSaving} />
+          </ProfileRow>
+
+          <ProfileRow label="Puesto" value={profile.job_title || "Sin configurar"} editing={editing === "jobTitle"}
+            onEdit={() => startEdit("jobTitle")} onCancel={cancelEdit}>
+            <JobTitleField profile={profile} setProfile={setProfile} setInfo={setInfo} setError={setError} setEditing={setEditing} saving={saving} setSaving={setSaving} />
+          </ProfileRow>
+
+          <ProfileRow label="Cuentas" value={(profile.account_ids || []).map((id) => accounts.find((a) => a.id === id)?.name).filter(Boolean).join(", ") || "Sin configurar"} editing={editing === "accounts"}
+            onEdit={() => startEdit("accounts")} onCancel={cancelEdit}>
+            <AccountsField profile={profile} setProfile={setProfile} accounts={accounts} setAccounts={setAccounts} setInfo={setInfo} setError={setError} setEditing={setEditing} saving={saving} setSaving={setSaving} />
           </ProfileRow>
 
           <ProfileRow label="Usuario" value={profile.username || "Sin configurar"} editing={editing === "username"}
@@ -210,6 +223,102 @@ function NameField({ profile, setProfile, setInfo, setError, setEditing, saving,
   return (
     <div>
       <input value={val} onChange={(e) => setVal(e.target.value)} style={fieldInputStyle} className={fieldInputCls} />
+      <FieldActions onSave={save} onCancel={() => setEditing(null)} saving={saving} />
+    </div>
+  );
+}
+
+function JobTitleField({ profile, setProfile, setInfo, setError, setEditing, saving, setSaving }) {
+  const [val, setVal] = useState(profile.job_title || "");
+  const save = async () => {
+    if (!val.trim()) { setError("El puesto no puede quedar vacío."); return; }
+    setSaving(true); setError("");
+    const { error } = await supabase.from("profiles").update({ job_title: val.trim() }).eq("id", profile.id);
+    setSaving(false);
+    if (error) { setError("No se pudo guardar."); return; }
+    setProfile((p) => ({ ...p, job_title: val.trim() }));
+    setInfo("Puesto actualizado.");
+    setEditing(null);
+  };
+  return (
+    <div>
+      <input value={val} onChange={(e) => setVal(e.target.value)} placeholder="Ej. Editor de video" style={fieldInputStyle} className={fieldInputCls} />
+      <FieldActions onSave={save} onCancel={() => setEditing(null)} saving={saving} />
+    </div>
+  );
+}
+
+// CHANGES.md #24: igual que al entrar por primera vez, pero aquí se puede
+// volver a abrir cuando quieras para agregarte más cuentas (o quitarte
+// alguna) — "Otras" agrega una cuenta nueva disponible para todos.
+function AccountsField({ profile, setProfile, accounts, setAccounts, setInfo, setError, setEditing, saving, setSaving }) {
+  const [selected, setSelected] = useState(profile.account_ids || []);
+  const [showOther, setShowOther] = useState(false);
+  const [otherName, setOtherName] = useState("");
+  const toggle = (id) => setSelected((prev) => prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]);
+
+  const addOther = async () => {
+    const name = otherName.trim();
+    if (!name) return;
+    const existing = accounts.find((a) => a.name.toLowerCase() === name.toLowerCase());
+    if (existing) {
+      setSelected((prev) => prev.includes(existing.id) ? prev : [...prev, existing.id]);
+    } else {
+      const { data, error: insErr } = await supabase.from("accounts").insert({ name }).select().single();
+      if (!insErr && data) {
+        setAccounts((prev) => [...prev, data].sort((a, b) => a.name.localeCompare(b.name)));
+        setSelected((prev) => [...prev, data.id]);
+      } else {
+        const { data: refreshed } = await supabase.from("accounts").select("*").order("name");
+        setAccounts(refreshed || []);
+        const found = (refreshed || []).find((a) => a.name.toLowerCase() === name.toLowerCase());
+        if (found) setSelected((prev) => [...prev, found.id]);
+      }
+    }
+    setOtherName("");
+    setShowOther(false);
+  };
+
+  const save = async () => {
+    if (selected.length === 0) { setError("Elige al menos una cuenta."); return; }
+    setSaving(true); setError("");
+    const { error } = await supabase.from("profiles").update({ account_ids: selected }).eq("id", profile.id);
+    setSaving(false);
+    if (error) { setError("No se pudo guardar."); return; }
+    setProfile((p) => ({ ...p, account_ids: selected }));
+    setInfo("Cuentas actualizadas.");
+    setEditing(null);
+  };
+
+  return (
+    <div>
+      <div className="flex flex-wrap gap-1.5">
+        {accounts.map((a) => {
+          const active = selected.includes(a.id);
+          return (
+            <button key={a.id} type="button" onClick={() => toggle(a.id)}
+              style={{ background: active ? C.ink : C.subtle, color: active ? C.paper : C.inkMedium, fontWeight: active ? 700 : 500 }}
+              className="h-9 px-3.5 rounded-full text-[13px]">{a.name}</button>
+          );
+        })}
+        <button type="button" onClick={() => setShowOther((v) => !v)}
+          style={{ background: showOther ? C.ink : "transparent", color: showOther ? C.paper : C.inkSoft, boxShadow: showOther ? "none" : `inset 0 0 0 1.5px ${C.hairline}` }}
+          className="h-9 px-3.5 rounded-full text-[13px] font-medium">+ Otras</button>
+      </div>
+      {showOther && (
+        <div className="flex gap-2 mt-2">
+          <input
+            value={otherName}
+            onChange={(e) => setOtherName(e.target.value)}
+            onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); addOther(); } }}
+            placeholder="Nombre de la cuenta"
+            autoFocus
+            style={fieldInputStyle}
+            className={fieldInputCls + " flex-1"}
+          />
+          <button type="button" onClick={addOther} style={{ background: C.ink, color: C.paper, borderRadius: R.md }} className="px-4 text-sm font-semibold">Ok</button>
+        </div>
+      )}
       <FieldActions onSave={save} onCancel={() => setEditing(null)} saving={saving} />
     </div>
   );
