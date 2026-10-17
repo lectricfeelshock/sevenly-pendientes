@@ -937,6 +937,15 @@ export default function Dashboard() {
     await supabase.from("tasks").update({ status: "Entregado", delivered_at: new Date().toISOString(), delivery_reminder_sent: false }).eq("id", task.id);
     await addHistory(task.id, `${profile.name} marcó como entregado`);
     await notifyFollowers(task, `${profile.name} marcó como entregado "${task.title}"`);
+    // CHANGES.md #22: antes había que darle aparte a "Avisar al solicitante" —
+    // ahora se le avisa solo, en cuanto se entrega.
+    if (task.requested_by_id && task.requested_by_id !== profile.id) {
+      await notify(
+        task.requested_by_id, task.id,
+        `${profile.name} ya entregó su pendiente, revísalo y dale finalizado. Al finalizar pendientes podrá sumarle al registro personal de ${profile.name}`,
+        "Te entregaron un pendiente"
+      );
+    }
     await refreshSelected(task.id);
   };
 
@@ -1003,6 +1012,17 @@ export default function Dashboard() {
 
   const updateSubtaskDescription = async (subtask, description) => {
     await supabase.from("subtasks").update({ description }).eq("id", subtask.id);
+    loadAll();
+  };
+
+  // CHANGES.md #23: cualquiera con acceso puede cambiar el deadline de una
+  // subtarea — pero si quien lo cambia no es el solicitante, se le avisa.
+  const updateSubtaskDeadline = async (subtask, deadline) => {
+    await supabase.from("subtasks").update({ deadline }).eq("id", subtask.id);
+    const task = tasks.find((t) => t.id === subtask.task_id);
+    if (task && task.requested_by_id && task.requested_by_id !== profile.id) {
+      await notify(task.requested_by_id, task.id, `${profile.name} cambió el deadline de la subtarea "${subtask.title}" de "${task.title}" a ${fmtDate(deadline)}`);
+    }
     loadAll();
   };
 
@@ -1326,7 +1346,7 @@ export default function Dashboard() {
 
       {showNew && <NewTaskForm onClose={() => { setShowNew(false); setAssignChangesFor(null); }} onCreate={createTask} onCreatePopup={createPopup} profiles={assignableProfiles} profile={profile} isAdmin={isAdmin} tasks={tasks} subtasks={subtasks} initialData={assignChangesFor} />}
       {popupQueue[0] && <PopupModal popup={popupQueue[0]} onClose={dismissPopup} tasks={tasks} subtasks={subtasks} profiles={profiles} onFinalizeTask={finalizeTask} />}
-      {selected && <TaskDetail task={selected} onClose={() => setSelected(null)} onUpdate={updateTask} onDelete={deleteTask} onDeleteRecurring={deleteRecurringTask} recurringTemplates={recurringTemplates} onFinalize={finalizeTask} onDeliver={deliverTask} profiles={profiles} assignableProfiles={assignableProfiles} profile={profile} notify={notify} subtasks={subtasks.filter((s) => s.task_id === selected.id)} onAddSubtask={addSubtask} onUpdateSubtaskStatus={updateSubtaskStatus} onUpdateSubtaskDescription={updateSubtaskDescription} onAssignChanges={startAssignChanges} viewerIsGerente={!!viewingAs && !isAdmin} onCommentsRead={reloadMyCommentReads} />}
+      {selected && <TaskDetail task={selected} onClose={() => setSelected(null)} onUpdate={updateTask} onDelete={deleteTask} onDeleteRecurring={deleteRecurringTask} recurringTemplates={recurringTemplates} onFinalize={finalizeTask} onDeliver={deliverTask} profiles={profiles} assignableProfiles={assignableProfiles} profile={profile} notify={notify} subtasks={subtasks.filter((s) => s.task_id === selected.id)} onAddSubtask={addSubtask} onUpdateSubtaskStatus={updateSubtaskStatus} onUpdateSubtaskDescription={updateSubtaskDescription} onUpdateSubtaskDeadline={updateSubtaskDeadline} onAssignChanges={startAssignChanges} viewerIsGerente={!!viewingAs && !isAdmin} onCommentsRead={reloadMyCommentReads} />}
       {showTeam && <TeamPanel onClose={() => setShowTeam(false)} profiles={assignableProfiles} tasks={tasks} />}
       {showNotifs && <NotificationsPanel onClose={() => setShowNotifs(false)} notifications={notifications} onOpenTask={(taskId) => { const t = tasks.find((x) => x.id === taskId); if (t) setSelected(t); setShowNotifs(false); }} onOpenFilter={(target) => { if (target === "requests:Entregado") { setPrimaryTab("requests"); setActiveFilter({ type: "Estado", value: "Entregado" }); } setShowNotifs(false); }} pushSupported={pushSupported} pushEnabled={pushEnabled} onEnablePush={enablePush} />}
       {showSearch && <SearchModal onClose={() => setShowSearch(false)} tasks={myTasks} profiles={profiles} resources={resources} onOpenTask={(t) => { setSelected(t); setShowSearch(false); }} onOpenResource={(r) => { setShowSearch(false); router.push(`/biblioteca?open=${r.id}`); }} />}
@@ -2441,7 +2461,7 @@ function ConvertToColaborativoModal({ task, profiles, profile, onClose, onConver
   );
 }
 
-function TaskDetail({ task, onClose, onUpdate, onDelete, onDeleteRecurring, recurringTemplates, onFinalize, onDeliver, profiles, assignableProfiles, profile, notify, subtasks, onAddSubtask, onUpdateSubtaskStatus, onUpdateSubtaskDescription, onAssignChanges, viewerIsGerente, onCommentsRead }) {
+function TaskDetail({ task, onClose, onUpdate, onDelete, onDeleteRecurring, recurringTemplates, onFinalize, onDeliver, profiles, assignableProfiles, profile, notify, subtasks, onAddSubtask, onUpdateSubtaskStatus, onUpdateSubtaskDescription, onUpdateSubtaskDeadline, onAssignChanges, viewerIsGerente, onCommentsRead }) {
   const recurringTpl = task.recurring_template_id ? (recurringTemplates || []).find((r) => r.id === task.recurring_template_id) : null;
   const [comment, setComment] = useState(""), [comments, setComments] = useState([]);
   const [history, setHistory] = useState([]), [showHistory, setShowHistory] = useState(false);
@@ -2492,7 +2512,10 @@ function TaskDetail({ task, onClose, onUpdate, onDelete, onDeleteRecurring, recu
   const hasSubtasks = subtasks.length > 0;
   const allSubtasksDelivered = hasSubtasks && subtasks.every((s) => s.status === "Entregado");
   const canFinalize = !viewerIsGerente && !isFinalized && (isAdmin || (isColaborativo ? isAnyRequester && allSubtasksDelivered : isRequester && (hasSubtasks ? allSubtasksDelivered : isDelivered)));
-  const canEditDeadline = (isAnyRequester || isAdmin) && !isFinalized && !viewerIsGerente;
+  // CHANGES.md #23: ya no solo el solicitante/admin — cualquiera con acceso
+  // al pendiente puede cambiar el deadline (se le avisa al solicitante si
+  // quien lo cambia no es él mismo, ver changeDeadline).
+  const canEditDeadline = !isFinalized && !viewerIsGerente;
   const canRemind = isAnyRequester || viewerIsGerente; // el gerente sí puede mandar recordatorio de correo/whatsapp aunque esté en modo lectura
   const reminderRecipient = isColaborativo ? teamProfiles.find((p) => p.id === reminderTargetId) : assignee;
   const latestSubtaskDeadline = subtasks.reduce((max, s) => (s.deadline && (!max || s.deadline > max) ? s.deadline : max), null);
@@ -2550,9 +2573,7 @@ function TaskDetail({ task, onClose, onUpdate, onDelete, onDeleteRecurring, recu
   const setStatus = (s) => {
     if (isFinalized || viewerIsGerente) return;
     if (s === "Entregado") { onDeliver(task); return; }
-    // Si el pendiente deja de estar "Entregado", se libera el aviso al solicitante.
     const patch = { status: s };
-    if (task.notify_requester) patch.notify_requester = false;
     if (task.delivery_reminder_sent) patch.delivery_reminder_sent = false;
     onUpdate(task, patch, `${profile.name} cambió el estado a "${s}"`);
   };
@@ -2568,6 +2589,12 @@ function TaskDetail({ task, onClose, onUpdate, onDelete, onDeleteRecurring, recu
       if (latestSubtaskDeadline && d < latestSubtaskDeadline) return;
     }
     onUpdate(task, { deadline: d }, `${profile.name} cambió el deadline a ${fmtDate(d)}`);
+    // CHANGES.md #23: cualquiera puede cambiar el deadline, pero si quien lo
+    // cambia no es un solicitante, se les avisa a todos los solicitantes.
+    if (!isAnyRequester) {
+      const requesterIds = new Set([task.requested_by_id, task.responsible_id, ...(task.co_requester_ids || [])].filter(Boolean));
+      for (const rid of requesterIds) notify(rid, task.id, `${profile.name} cambió el deadline de "${task.title}" a ${fmtDate(d)}`);
+    }
   };
   // CHANGES.md #9: convertir individual a colaborativo abre una ventana
   // completa (ConvertToColaborativoModal) en vez de solo agregar gente al
@@ -2625,7 +2652,7 @@ function TaskDetail({ task, onClose, onUpdate, onDelete, onDeleteRecurring, recu
     if (isFinalized || viewerIsGerente) return;
     const p = profiles.find((x) => x.id === delegateId);
     if (!p) return;
-    await onUpdate(task, { assigned_to_id: p.id, assigned_to_name: p.name, notify_requester: false }, `${profile.name} ${isPersonalSolo ? "asignó a" : "delegó a"} ${p.name}`);
+    await onUpdate(task, { assigned_to_id: p.id, assigned_to_name: p.name }, `${profile.name} ${isPersonalSolo ? "asignó a" : "delegó a"} ${p.name}`);
     if (p.id !== profile.id) await notify(p.id, task.id, `Te ${isPersonalSolo ? "asignaron" : "delegaron"} "${task.title}"`);
     setDelegateId("");
   };
@@ -2655,15 +2682,6 @@ function TaskDetail({ task, onClose, onUpdate, onDelete, onDeleteRecurring, recu
   const toggleRemindMe = async () => {
     if (iAlreadyAskedToRemind) return; // cada quien lo activa una sola vez, no se puede desactivar
     await onUpdate(task, { remind_me_by_ids: [...(task.remind_me_by_ids || []), profile.id] }, `${profile.name} activó "avisarme" en este pendiente`);
-  };
-  const toggleNotifyRequester = async () => {
-    if (task.notify_requester || !task.requested_by_id || viewerIsGerente) return;
-    await onUpdate(task, { notify_requester: true }, `${profile.name} activó el aviso al solicitante`);
-    await notify(
-      task.requested_by_id, task.id,
-      `${profile.name} ya entregó su pendiente, revísalo y dale finalizado. Al finalizar pendientes podrá sumarle al registro personal de ${profile.name}`,
-      "Te entregaron un pendiente"
-    );
   };
   const bumpRemindAssignee = async () => {
     if (!isAnyRequester || viewerIsGerente) return;
@@ -2968,6 +2986,21 @@ function TaskDetail({ task, onClose, onUpdate, onDelete, onDeleteRecurring, recu
                           </div>
                         )
                       )}
+                      {expanded && (
+                        <div className="mt-2 pt-2.5 flex items-center gap-2" style={{ borderColor: C.hairline }} onClick={(e) => e.stopPropagation()}>
+                          <span className="text-[11px] font-semibold" style={{ color: C.inkSoft }}>Deadline de la subtarea</span>
+                          <input
+                            type="date"
+                            value={s.deadline || ""}
+                            min={todayISO()}
+                            max={task.deadline || undefined}
+                            disabled={isFinalized || viewerIsGerente}
+                            onChange={(e) => onUpdateSubtaskDeadline(s, e.target.value)}
+                            style={{ background: C.paper, color: C.ink, borderRadius: R.sm }}
+                            className="text-xs outline-none px-2 py-1 disabled:opacity-50"
+                          />
+                        </div>
+                      )}
                     </div>
                   );
                 })}
@@ -3070,17 +3103,6 @@ function TaskDetail({ task, onClose, onUpdate, onDelete, onDeleteRecurring, recu
                     style={{ background: C.subtle, color: C.inkMedium, borderRadius: R.md, height: 48 }}
                     className="px-4 text-sm font-semibold flex items-center gap-2 disabled:opacity-50"><ArrowRightLeft size={16} /> Asignar Responsables</button>
                 </div>
-              )}
-              {!isPersonalSolo && !viewerIsGerente && isDelivered && isAssignee && (
-                <button
-                  type="button"
-                  disabled={!!task.notify_requester || isFinalized}
-                  onClick={toggleNotifyRequester}
-                  style={task.notify_requester ? { color: C.inkSoft, background: C.subtle } : { color: C.signal, background: C.signalSoft }}
-                  className="px-3.5 py-2.5 text-xs font-semibold rounded-full flex items-center gap-1.5 self-start disabled:cursor-default"
-                >
-                  {task.notify_requester ? <><CheckCircle2 size={13} /> Avisado</> : <><Bell size={13} /> Avisar al solicitante</>}
-                </button>
               )}
               {viewerIsGerente && (
                 <label className="flex items-center gap-2 cursor-pointer">
