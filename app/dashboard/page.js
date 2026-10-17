@@ -778,7 +778,7 @@ export default function Dashboard() {
         month_occurrence: monthOccurrenceOfISO(form.scheduledDate),
         deadline_offset_days: daysBetweenISO(form.scheduledDate, form.deadline),
         urgency: form.urgency || "Media",
-        requested_by_id: profile.id, co_requester_ids: form.coRequesterIds || [],
+        requested_by_id: form.requestedById || profile.id, co_requester_ids: form.coRequesterIds || [],
         assigned_to_id: form.taskType === "colaborativo" ? null : (form.assignedToId || null),
         team_member_ids: form.taskType === "colaborativo" ? (form.teamMemberIds || []) : [],
         subtask_specs: subtaskSpecs,
@@ -786,11 +786,12 @@ export default function Dashboard() {
 
       if (!tplError && tpl) {
         const assignee = form.taskType === "colaborativo" ? null : profiles.find((p) => p.id === form.assignedToId);
+        const requester = profiles.find((p) => p.id === form.requestedById);
         const coRequesters = (form.coRequesterIds || []).map((id) => profiles.find((p) => p.id === id)).filter(Boolean);
         const { data: firstTask } = await supabase.from("tasks").insert({
           title: form.title, description: form.description, category: form.category,
           task_type: form.taskType,
-          requested_by: profile.name, requested_by_id: profile.id,
+          requested_by: requester ? requester.name : profile.name, requested_by_id: form.requestedById || profile.id,
           co_requester_ids: coRequesters.map((p) => p.id), co_requester_names: coRequesters.map((p) => p.name),
           assigned_to_id: form.taskType === "colaborativo" ? null : (form.assignedToId || null),
           assigned_to_name: assignee ? assignee.name : "",
@@ -847,6 +848,9 @@ export default function Dashboard() {
         await addHistory(data.id, `⚠️ Pendiente "de hoy para hoy" — se solicitó y se necesita entregar el mismo día`);
       }
       if (assignee && assignee.id !== profile.id) await notify(assignee.id, data.id, `Te asignaron "${data.title}"`);
+      // CHANGES.md #19: si quien crea el Individual elige a otra persona
+      // como solicitante principal, se le avisa igual que a un co-solicitante.
+      if (requester && requester.id !== profile.id) await notify(requester.id, data.id, `Te agregaron como solicitante del pendiente "${data.title}"`);
       for (const p of coRequesters) {
         if (p.id !== profile.id) await notify(p.id, data.id, `Te agregaron como solicitante del pendiente "${data.title}"`);
       }
@@ -1443,6 +1447,12 @@ function NewTaskForm({ onClose, onCreate, onCreatePopup, profiles, profile, isAd
   const [coRequesterIds, setCoRequesterIds] = useState([]);
   const [showRequesterPicker, setShowRequesterPicker] = useState(false);
   const toggleCoRequester = (id) => setCoRequesterIds((prev) => prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]);
+  // CHANGES.md #19: en Individual, el solicitante principal ya no tiene que
+  // ser siempre quien crea el pendiente — se puede elegir a cualquiera del
+  // equipo (por default, tú). Así, eligiéndote a ti mismo como solicitante
+  // Y como asignado, puedes cubrir el caso que antes cubría "Personal".
+  const [requesterId, setRequesterId] = useState(profile.id);
+  const [showRequesterSelect, setShowRequesterSelect] = useState(false);
 
   // Campos del Pop Up
   const [popupTitle, setPopupTitle] = useState(""), [popupDesc, setPopupDesc] = useState("");
@@ -1468,7 +1478,8 @@ function NewTaskForm({ onClose, onCreate, onCreatePopup, profiles, profile, isAd
     });
   });
 
-  const individualAssignable = profiles.filter((p) => p.id !== profile.id);
+  // CHANGES.md #19: "Asignar a" ahora también te incluye a ti mismo.
+  const individualAssignable = profiles;
   const assignedToProfile = individualAssignable.find((p) => p.id === assignedToId);
   const [showAssignPicker, setShowAssignPicker] = useState(false);
 
@@ -1512,7 +1523,7 @@ function NewTaskForm({ onClose, onCreate, onCreatePopup, profiles, profile, isAd
     const changesRound = initialData?.changesRound || null;
     if (taskType === "individual") {
       if (!assignedToId || deadlineError) return;
-      onCreate({ title, description, category: finalCategory, taskType, requestedById: profile.id, coRequesterIds, deadline, urgency, assignedToId, subtasks: subtaskRows, scheduling, scheduledDate, repeatMode, changesRound });
+      onCreate({ title, description, category: finalCategory, taskType, requestedById: requesterId, coRequesterIds, deadline, urgency, assignedToId, subtasks: subtaskRows, scheduling, scheduledDate, repeatMode, changesRound });
     } else if (taskType === "personal") {
       onCreate({ title, description, category: finalCategory, taskType, requestedById: profile.id, deadline, urgency, assignedToId: profile.id, changesRound });
     } else if (taskType === "colaborativo") {
@@ -1557,25 +1568,53 @@ function NewTaskForm({ onClose, onCreate, onCreatePopup, profiles, profile, isAd
   };
 
   // Campos reutilizados entre individual y colaborativo (columna derecha)
+  const primaryRequesterName = taskType === "individual"
+    ? (profiles.find((p) => p.id === requesterId)?.name || profile.name)
+    : profile.name;
+  const isPrimaryRequesterMe = taskType !== "individual" || requesterId === profile.id;
   const solicitaField = (
     <div>
       <label className="text-[11.5px] font-bold tracking-[0.09em] flex items-center gap-1.5" style={{ color: C.inkSoft }}>
         Solicita
         <button type="button" onClick={() => setShowRequesterPicker((v) => !v)} title="Agregar más solicitantes" style={{ background: C.signalSoft, color: C.signal }} className="rounded-full w-4 h-4 flex items-center justify-center leading-none"><Plus size={9} /></button>
       </label>
-      <div style={{ background: C.paper, borderRadius: R.md, color: C.inkSoft }} className="w-full px-3.5 py-2.5 text-sm mt-1.5">
-        {profile.name} (tú){coRequesterIds.length > 0 ? ` + ${coRequesterIds.map((id) => profiles.find((p) => p.id === id)?.name).filter(Boolean).join(", ")}` : ""}
-      </div>
+      {taskType === "individual" ? (
+        <div className="relative">
+          <button type="button" onClick={() => setShowRequesterSelect((v) => !v)}
+            style={{ background: C.paper, borderRadius: R.md }}
+            className="w-full px-3.5 py-2.5 text-sm mt-1.5 flex items-center gap-1.5 text-left">
+            <span style={{ color: C.ink }}>{primaryRequesterName}{isPrimaryRequesterMe ? " (tú)" : ""}</span>
+            {coRequesterIds.length > 0 && <span style={{ color: C.inkSoft }}>+ {coRequesterIds.map((id) => profiles.find((p) => p.id === id)?.name).filter(Boolean).join(", ")}</span>}
+            <ChevronDown size={14} style={{ color: C.gray, marginLeft: "auto", flexShrink: 0, transform: showRequesterSelect ? "rotate(180deg)" : "none" }} />
+          </button>
+          {showRequesterSelect && (
+            <div style={{ background: C.panel, borderRadius: R.lg, boxShadow: SH.card }} className="absolute left-0 right-0 top-full mt-1.5 z-20 p-1.5 max-h-56 overflow-y-auto">
+              {profiles.map((p) => (
+                <button key={p.id} type="button"
+                  onClick={() => { setRequesterId(p.id); setCoRequesterIds((prev) => prev.filter((x) => x !== p.id)); setShowRequesterSelect(false); }}
+                  style={{ background: requesterId === p.id ? C.subtle : "transparent" }}
+                  className="w-full flex items-center gap-2.5 px-3 py-2 rounded-md text-left">
+                  <span className="text-sm font-semibold" style={{ color: C.ink }}>{p.name}{p.id === profile.id ? " (tú)" : ""}</span>
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+      ) : (
+        <div style={{ background: C.paper, borderRadius: R.md, color: C.inkSoft }} className="w-full px-3.5 py-2.5 text-sm mt-1.5">
+          {profile.name} (tú){coRequesterIds.length > 0 ? ` + ${coRequesterIds.map((id) => profiles.find((p) => p.id === id)?.name).filter(Boolean).join(", ")}` : ""}
+        </div>
+      )}
       {showRequesterPicker && (
         <div style={{ background: C.panel, borderRadius: R.md, boxShadow: SH.soft }} className="p-3 mt-1.5 flex flex-col gap-1.5">
           <div className="flex flex-wrap gap-1.5">
-            {profiles.filter((p) => p.id !== profile.id).map((p) => (
+            {profiles.filter((p) => p.id !== (taskType === "individual" ? requesterId : profile.id)).map((p) => (
               <button key={p.id} type="button" onClick={() => toggleCoRequester(p.id)}
                 style={{ background: coRequesterIds.includes(p.id) ? C.ink : C.panel, boxShadow: coRequesterIds.includes(p.id) ? "none" : SH.soft, color: coRequesterIds.includes(p.id) ? C.paper : C.inkMedium, fontWeight: coRequesterIds.includes(p.id) ? 600 : 500 }}
                 className="h-[30px] px-3 rounded-full text-xs">{p.name}</button>
             ))}
           </div>
-          <p className="text-[11px]" style={{ color: C.inkSoft }}>Las personas que selecciones aparecerán contigo como solicitantes.</p>
+          <p className="text-[11px]" style={{ color: C.inkSoft }}>Las personas que selecciones aparecerán junto al solicitante principal.</p>
         </div>
       )}
     </div>
@@ -1689,7 +1728,11 @@ function NewTaskForm({ onClose, onCreate, onCreatePopup, profiles, profile, isAd
         ) : (
           <div className="p-5 flex flex-col gap-4">
             <div style={{ background: C.subtle, borderRadius: R.pill }} className="flex gap-1 p-1">
-              {TASK_TYPES.map((tt) => (
+              {/* CHANGES.md #19: se quita "Personal" de las opciones al crear
+                  — Individual ya cubre ese caso (solicitante = tú, asignado
+                  = tú). Los pendientes Personal que ya existen se quedan
+                  igual, solo ya no se pueden crear nuevos. */}
+              {TASK_TYPES.filter((tt) => tt.key !== "personal").map((tt) => (
                 <button key={tt.key} onClick={() => setTaskType(tt.key)}
                   style={taskType === tt.key ? { background: C.panel, boxShadow: "0 1px 3px rgba(27,30,36,0.10)", color: C.ink, fontWeight: 700 } : { color: C.inkSoft, fontWeight: 600 }}
                   className="flex-1 h-9 rounded-full text-[12.5px]">{tt.label}</button>
