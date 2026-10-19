@@ -8,13 +8,29 @@ se hizo).
 
 ## Pendientes
 
-### 8. Apartado de FAQ (dudas frecuentes)
-Un apartado nuevo con preguntas frecuentes y sus respuestas, para que el
-equipo pueda resolver dudas comunes sin tener que preguntar. Aún sin
-definir bien — ni las preguntas, ni dónde vive dentro de la app (¿pestaña
-propia? ¿dentro de Biblioteca? ¿accesible desde el menú de arriba?), ni
-quién la puede editar. Lo dejo como opción por ahora; cuando lo tenga más
-claro lo detallo.
+### 8. Apartado de FAQ (dudas de cómo usar la app)
+Un apartado nuevo con preguntas frecuentes y sus respuestas — no sobre
+clientes/trabajo (eso es Biblioteca), sino dudas de **cómo usar la app
+en sí** (cómo crear un pendiente, qué significa cada urgencia, etc.),
+para que el equipo las resuelva sin tener que preguntar.
+
+Cómo se llega a él — una burbuja/botón con dos formas, según si ya lo
+cerraste o no:
+
+a. **Por default, flota** como burbuja pequeña pegada al borde derecho
+   de la pantalla — círculo negro con un signo de interrogación. Se
+   puede arrastrar hacia una "x" para cerrarla (como borrar un ícono
+   en el celular).
+b. **Si la cierras**, deja de flotar y en su lugar aparece fija junto
+   a la campana de notificaciones (arriba), con el mismo estilo
+   blanco que ya tiene el botón de la campana — ya no es la burbuja
+   negra, es un ícono más chico y discreto ahí.
+c. **Cada lunes** (inicio de semana), vuelve a aparecer flotando como
+   burbuja — sin importar si la habías cerrado la semana pasada.
+
+Falta definir: las preguntas/respuestas en sí, si abre un panel o una
+página al dar clic, y quién puede editarlas (¿solo admin?). Lo dejo
+como opción por ahora; cuando lo tenga más claro lo detallo.
 
 ### 17. Widget de Pomodoro timer en el perfil
 En la página de perfil, agregar un widget de temporizador Pomodoro
@@ -23,24 +39,6 @@ en sus pendientes. Aún sin definir bien — duración de los ciclos,
 si suena alguna alerta al terminar cada uno, si se puede personalizar,
 etc. Lo dejo como opción por ahora; cuando lo tenga más claro lo
 detallo.
-
-### 19. Quitar el tipo "Personal": que Individual pueda cubrir ese caso
-La idea es dejar de necesitar el tipo "Personal" (donde tú te asignas
-un pendiente a ti mismo), haciendo que "Individual" pueda hacer lo
-mismo:
-
-a. Al crear un pendiente **Individual**, en "Solicita" podrás elegir a
-   otra persona del equipo como solicitante — ya no tienes que ser
-   siempre tú el que solicita.
-b. En "Asignar a", tu propio nombre también aparecerá como opción (hoy
-   se excluye).
-c. Con esas dos, puedes armar un Individual con solicitante = tú y
-   asignado = tú — igual que hacía "Personal" — y ya no haría falta
-   tener el tipo aparte.
-
-Falta decidir qué pasa con los pendientes "Personal" que ya existen
-(¿se migran a Individual, o se dejan convivir sin que se puedan crear
-nuevos?) — lo dejo pendiente de aterrizar antes de construirlo.
 
 ### 20. Cronograma diario: línea de tiempo con tus pendientes como bloques que arrastras
 Un apartado nuevo (tipo "mi día") donde eliges de tus pendientes ya
@@ -74,6 +72,72 @@ los días según qué tan cerca está la fecha (se puede reusar la lógica
 que ya existe en `dueLegend()`).
 
 ## Historial (aplicadas)
+
+### [x] 19. Quitar el tipo "Personal" al crear: Individual permite elegir solicitante y asignarte a ti
+_Aplicada 2026-10-17._
+
+Se quitó "Personal" del selector de tipo al crear un pendiente (los
+que ya existen se quedan igual — solo ya no se pueden crear nuevos).
+En Individual:
+
+a. "Solicita" ahora es un selector — por default eres tú, pero puedes
+   elegir a cualquiera del equipo como solicitante principal (se le
+   avisa igual que a un co-solicitante).
+b. "Asignar a" también te incluye a ti mismo como opción.
+c. Así puedes armar un Individual con solicitante = tú y asignado =
+   tú, igual que hacía "Personal".
+
+### [x] 22. Quitar "Avisar a solicitante": aviso automático al entregar
+_Aplicada 2026-10-17._
+
+Se quitó el botón "Avisar al solicitante" — en cuanto el asignado
+marca un pendiente como "Entregado", se le manda automático al
+solicitante la misma notificación de siempre (ver #4a): título `Te
+entregaron un pendiente`; descripción `(Nombre de quien entregó) ya
+entregó su pendiente, revísalo y dale finalizado. Al finalizar
+pendientes podrá sumarle al registro personal de (nombre de quien
+entregó)`.
+
+### [x] 23. Cualquiera puede editar el deadline, con aviso al solicitante
+_Aplicada 2026-10-17._
+
+Se quitó la restricción de que solo el solicitante/admin podía
+cambiar el deadline — cualquiera con acceso al pendiente puede
+editarlo, tanto el general como el de cualquier subtarea (se agregó
+edición del deadline de subtarea, que antes no existía después de
+crearla). Si quien lo cambia no es un solicitante, se les avisa a
+todos los solicitantes.
+
+### [x] 24. Onboarding de "cuentas": a qué cliente perteneces + tu puesto
+_Aplicada 2026-10-17._
+
+Flujo de dos ventanas, bloqueante, antes de entrar al dashboard — le
+sale a usuarios nuevos y, una sola vez, a los que ya estaban
+registrados desde antes de que esto existiera.
+
+a. **Ventana 1 — elegir cuentas.** "¿En qué cuenta estás?" / "Elige
+   todas las cuentas a las que pertenezcas." Chips de selección
+   múltiple con las cuentas existentes (sembradas: Sevenly, WorkHub,
+   Ragasa, Mobil, 7-Eleven, Promanuez, Berel) más "Otras", que abre un
+   campo de texto — al darle "Ok" esa cuenta queda disponible para
+   todos de inmediato. Botón "Son todas" para continuar (pide al
+   menos una elegida).
+b. **Ventana 2 — puesto.** Campo de texto libre; al darle "Ok" se
+   guarda todo (`profiles.account_ids`, `profiles.job_title`) y entra
+   al dashboard.
+
+Las cuentas viven en una tabla nueva (`accounts`, visible y editable
+—solo agregar, no borrar ni renombrar— para cualquier usuario
+logueado). Por ahora esta información solo se captura; todavía no se
+usa como filtro de pendientes — queda pendiente de construir eso por
+separado si hace falta.
+
+_Ajustado 2026-10-17:_ en `/perfil` ahora hay dos filas nuevas,
+"Puesto" y "Cuentas", junto a las demás — se editan igual que el resto
+(con su lápiz/fila). "Cuentas" muestra las mismas opciones del
+onboarding (chips + "Otras" para agregar una nueva, disponible para
+todos de inmediato), así que cualquiera puede agregarse más cuentas
+(o quitarse alguna) cuando quiera, no solo la primera vez que entra.
 
 ### [x] 10. Poder agregarte subtareas a ti mismo en un pendiente individual que te asignaron
 _Aplicada 2026-09-15._

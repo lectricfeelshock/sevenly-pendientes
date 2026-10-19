@@ -13,6 +13,7 @@ import { C, R, SH, FONT_SERIF } from "@/lib/theme";
 import BottomNav from "@/components/BottomNav";
 import TeamPanel from "@/components/TeamPanel";
 import LoadingScreen from "@/components/LoadingScreen";
+import AccountsOnboarding from "@/components/AccountsOnboarding";
 
 // Estados que puede elegir la persona ASIGNADA
 const ASSIGNEE_STATUSES = ["No iniciado", "En progreso", "Detenido", "Entregado"];
@@ -784,7 +785,7 @@ export default function Dashboard() {
         month_occurrence: monthOccurrenceOfISO(form.scheduledDate),
         deadline_offset_days: daysBetweenISO(form.scheduledDate, form.deadline),
         urgency: form.urgency || "Media",
-        requested_by_id: profile.id, co_requester_ids: form.coRequesterIds || [],
+        requested_by_id: form.requestedById || profile.id, co_requester_ids: form.coRequesterIds || [],
         assigned_to_id: form.taskType === "colaborativo" ? null : (form.assignedToId || null),
         team_member_ids: form.taskType === "colaborativo" ? (form.teamMemberIds || []) : [],
         subtask_specs: subtaskSpecs,
@@ -793,11 +794,12 @@ export default function Dashboard() {
 
       if (!tplError && tpl) {
         const assignee = form.taskType === "colaborativo" ? null : profiles.find((p) => p.id === form.assignedToId);
+        const requester = profiles.find((p) => p.id === form.requestedById);
         const coRequesters = (form.coRequesterIds || []).map((id) => profiles.find((p) => p.id === id)).filter(Boolean);
         const { data: firstTask } = await supabase.from("tasks").insert({
           title: form.title, description: form.description, category: form.category,
           task_type: form.taskType,
-          requested_by: profile.name, requested_by_id: profile.id,
+          requested_by: requester ? requester.name : profile.name, requested_by_id: form.requestedById || profile.id,
           co_requester_ids: coRequesters.map((p) => p.id), co_requester_names: coRequesters.map((p) => p.name),
           assigned_to_id: form.taskType === "colaborativo" ? null : (form.assignedToId || null),
           assigned_to_name: assignee ? assignee.name : "",
@@ -856,6 +858,9 @@ export default function Dashboard() {
         await addHistory(data.id, `⚠️ Pendiente "de hoy para hoy" — se solicitó y se necesita entregar el mismo día`);
       }
       if (assignee && assignee.id !== profile.id) await notify(assignee.id, data.id, `Te asignaron "${data.title}"`);
+      // CHANGES.md #19: si quien crea el Individual elige a otra persona
+      // como solicitante principal, se le avisa igual que a un co-solicitante.
+      if (requester && requester.id !== profile.id) await notify(requester.id, data.id, `Te agregaron como solicitante del pendiente "${data.title}"`);
       for (const p of coRequesters) {
         if (p.id !== profile.id) await notify(p.id, data.id, `Te agregaron como solicitante del pendiente "${data.title}"`);
       }
@@ -946,6 +951,15 @@ export default function Dashboard() {
     await supabase.from("tasks").update({ status: "Entregado", delivered_at: new Date().toISOString(), delivery_reminder_sent: false }).eq("id", task.id);
     await addHistory(task.id, `${profile.name} marcó como entregado`);
     await notifyFollowers(task, `${profile.name} marcó como entregado "${task.title}"`);
+    // CHANGES.md #22: antes había que darle aparte a "Avisar al solicitante" —
+    // ahora se le avisa solo, en cuanto se entrega.
+    if (task.requested_by_id && task.requested_by_id !== profile.id) {
+      await notify(
+        task.requested_by_id, task.id,
+        `${profile.name} ya entregó su pendiente, revísalo y dale finalizado. Al finalizar pendientes podrá sumarle al registro personal de ${profile.name}`,
+        "Te entregaron un pendiente"
+      );
+    }
     await refreshSelected(task.id);
   };
 
@@ -1015,6 +1029,17 @@ export default function Dashboard() {
     loadAll();
   };
 
+  // CHANGES.md #23: cualquiera con acceso puede cambiar el deadline de una
+  // subtarea — pero si quien lo cambia no es el solicitante, se le avisa.
+  const updateSubtaskDeadline = async (subtask, deadline) => {
+    await supabase.from("subtasks").update({ deadline }).eq("id", subtask.id);
+    const task = tasks.find((t) => t.id === subtask.task_id);
+    if (task && task.requested_by_id && task.requested_by_id !== profile.id) {
+      await notify(task.requested_by_id, task.id, `${profile.name} cambió el deadline de la subtarea "${subtask.title}" de "${task.title}" a ${fmtDate(deadline)}`);
+    }
+    loadAll();
+  };
+
   const markNotifsRead = async () => {
     const unread = notifications.filter((n) => !n.read).map((n) => n.id);
     if (unread.length === 0) return;
@@ -1023,6 +1048,13 @@ export default function Dashboard() {
   };
 
   if (!ready) return <LoadingScreen />;
+
+  // CHANGES.md #24: onboarding de "cuentas" + puesto — bloqueante, antes de
+  // dejar entrar al dashboard. Les sale a los usuarios nuevos y, una sola
+  // vez, a los que ya estaban registrados desde antes de que esto existiera.
+  if (!profile.account_ids?.length || !profile.job_title) {
+    return <AccountsOnboarding profile={profile} onDone={setProfile} />;
+  }
 
   const isAdmin = profile?.role === "admin";
   const isGerente = profile?.role === "gerente" || profile?.role === "admin";
@@ -1363,7 +1395,7 @@ export default function Dashboard() {
 
       {showNew && <NewTaskForm onClose={() => { setShowNew(false); setAssignChangesFor(null); }} onCreate={createTask} onCreatePopup={createPopup} profiles={assignableProfiles} profile={profile} isAdmin={isAdmin} tasks={tasks} subtasks={subtasks} initialData={assignChangesFor} accounts={myAccounts.length > 0 ? myAccounts : accounts} />}
       {popupQueue[0] && <PopupModal popup={popupQueue[0]} onClose={dismissPopup} tasks={tasks} subtasks={subtasks} profiles={profiles} onFinalizeTask={finalizeTask} />}
-      {selected && <TaskDetail task={selected} onClose={() => setSelected(null)} onUpdate={updateTask} onDelete={deleteTask} onDeleteRecurring={deleteRecurringTask} recurringTemplates={recurringTemplates} onFinalize={finalizeTask} onDeliver={deliverTask} profiles={profiles} assignableProfiles={assignableProfiles} profile={profile} notify={notify} subtasks={subtasks.filter((s) => s.task_id === selected.id)} onAddSubtask={addSubtask} onUpdateSubtaskStatus={updateSubtaskStatus} onUpdateSubtaskDescription={updateSubtaskDescription} onAssignChanges={startAssignChanges} viewerIsGerente={!!viewingAs && !isAdmin} onCommentsRead={reloadMyCommentReads} />}
+      {selected && <TaskDetail task={selected} onClose={() => setSelected(null)} onUpdate={updateTask} onDelete={deleteTask} onDeleteRecurring={deleteRecurringTask} recurringTemplates={recurringTemplates} onFinalize={finalizeTask} onDeliver={deliverTask} profiles={profiles} assignableProfiles={assignableProfiles} profile={profile} notify={notify} subtasks={subtasks.filter((s) => s.task_id === selected.id)} onAddSubtask={addSubtask} onUpdateSubtaskStatus={updateSubtaskStatus} onUpdateSubtaskDescription={updateSubtaskDescription} onUpdateSubtaskDeadline={updateSubtaskDeadline} onAssignChanges={startAssignChanges} viewerIsGerente={!!viewingAs && !isAdmin} onCommentsRead={reloadMyCommentReads} />}
       {showTeam && <TeamPanel onClose={() => setShowTeam(false)} profiles={assignableProfiles} tasks={tasks} />}
       {showNotifs && <NotificationsPanel onClose={() => setShowNotifs(false)} notifications={notifications} onOpenTask={(taskId) => { const t = tasks.find((x) => x.id === taskId); if (t) setSelected(t); setShowNotifs(false); }} onOpenFilter={(target) => { if (target === "requests:Entregado") { setPrimaryTab("requests"); setActiveFilter({ type: "Estado", value: "Entregado" }); } setShowNotifs(false); }} pushSupported={pushSupported} pushEnabled={pushEnabled} onEnablePush={enablePush} />}
       {showSearch && <SearchModal onClose={() => setShowSearch(false)} tasks={myTasks} profiles={profiles} resources={resources} onOpenTask={(t) => { setSelected(t); setShowSearch(false); }} onOpenResource={(r) => { setShowSearch(false); router.push(`/biblioteca?open=${r.id}`); }} />}
@@ -1461,6 +1493,12 @@ function NewTaskForm({ onClose, onCreate, onCreatePopup, profiles, profile, isAd
   const [coRequesterIds, setCoRequesterIds] = useState([]);
   const [showRequesterPicker, setShowRequesterPicker] = useState(false);
   const toggleCoRequester = (id) => setCoRequesterIds((prev) => prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]);
+  // CHANGES.md #19: en Individual, el solicitante principal ya no tiene que
+  // ser siempre quien crea el pendiente — se puede elegir a cualquiera del
+  // equipo (por default, tú). Así, eligiéndote a ti mismo como solicitante
+  // Y como asignado, puedes cubrir el caso que antes cubría "Personal".
+  const [requesterId, setRequesterId] = useState(profile.id);
+  const [showRequesterSelect, setShowRequesterSelect] = useState(false);
 
   // Campos del Pop Up
   const [popupTitle, setPopupTitle] = useState(""), [popupDesc, setPopupDesc] = useState("");
@@ -1486,7 +1524,8 @@ function NewTaskForm({ onClose, onCreate, onCreatePopup, profiles, profile, isAd
     });
   });
 
-  const individualAssignable = profiles.filter((p) => p.id !== profile.id);
+  // CHANGES.md #19: "Asignar a" ahora también te incluye a ti mismo.
+  const individualAssignable = profiles;
   const assignedToProfile = individualAssignable.find((p) => p.id === assignedToId);
   const [showAssignPicker, setShowAssignPicker] = useState(false);
 
@@ -1531,7 +1570,7 @@ function NewTaskForm({ onClose, onCreate, onCreatePopup, profiles, profile, isAd
     const changesRound = initialData?.changesRound || null;
     if (taskType === "individual") {
       if (!assignedToId || deadlineError) return;
-      onCreate({ title, description, category: finalCategory, taskType, requestedById: profile.id, coRequesterIds, deadline, urgency, assignedToId, subtasks: subtaskRows, scheduling, scheduledDate, repeatMode, changesRound, accountId });
+      onCreate({ title, description, category: finalCategory, taskType, requestedById: requesterId, coRequesterIds, deadline, urgency, assignedToId, subtasks: subtaskRows, scheduling, scheduledDate, repeatMode, changesRound, accountId });
     } else if (taskType === "personal") {
       onCreate({ title, description, category: finalCategory, taskType, requestedById: profile.id, deadline, urgency, assignedToId: profile.id, changesRound, accountId });
     } else if (taskType === "colaborativo") {
@@ -1576,25 +1615,53 @@ function NewTaskForm({ onClose, onCreate, onCreatePopup, profiles, profile, isAd
   };
 
   // Campos reutilizados entre individual y colaborativo (columna derecha)
+  const primaryRequesterName = taskType === "individual"
+    ? (profiles.find((p) => p.id === requesterId)?.name || profile.name)
+    : profile.name;
+  const isPrimaryRequesterMe = taskType !== "individual" || requesterId === profile.id;
   const solicitaField = (
     <div>
       <label className="text-[11.5px] font-bold tracking-[0.09em] flex items-center gap-1.5" style={{ color: C.inkSoft }}>
         Solicita
         <button type="button" onClick={() => setShowRequesterPicker((v) => !v)} title="Agregar más solicitantes" style={{ background: C.signalSoft, color: C.signal }} className="rounded-full w-4 h-4 flex items-center justify-center leading-none"><Plus size={9} /></button>
       </label>
-      <div style={{ background: C.paper, borderRadius: R.md, color: C.inkSoft }} className="w-full px-3.5 py-2.5 text-sm mt-1.5">
-        {profile.name} (tú){coRequesterIds.length > 0 ? ` + ${coRequesterIds.map((id) => profiles.find((p) => p.id === id)?.name).filter(Boolean).join(", ")}` : ""}
-      </div>
+      {taskType === "individual" ? (
+        <div className="relative">
+          <button type="button" onClick={() => setShowRequesterSelect((v) => !v)}
+            style={{ background: C.paper, borderRadius: R.md }}
+            className="w-full px-3.5 py-2.5 text-sm mt-1.5 flex items-center gap-1.5 text-left">
+            <span style={{ color: C.ink }}>{primaryRequesterName}{isPrimaryRequesterMe ? " (tú)" : ""}</span>
+            {coRequesterIds.length > 0 && <span style={{ color: C.inkSoft }}>+ {coRequesterIds.map((id) => profiles.find((p) => p.id === id)?.name).filter(Boolean).join(", ")}</span>}
+            <ChevronDown size={14} style={{ color: C.gray, marginLeft: "auto", flexShrink: 0, transform: showRequesterSelect ? "rotate(180deg)" : "none" }} />
+          </button>
+          {showRequesterSelect && (
+            <div style={{ background: C.panel, borderRadius: R.lg, boxShadow: SH.card }} className="absolute left-0 right-0 top-full mt-1.5 z-20 p-1.5 max-h-56 overflow-y-auto">
+              {profiles.map((p) => (
+                <button key={p.id} type="button"
+                  onClick={() => { setRequesterId(p.id); setCoRequesterIds((prev) => prev.filter((x) => x !== p.id)); setShowRequesterSelect(false); }}
+                  style={{ background: requesterId === p.id ? C.subtle : "transparent" }}
+                  className="w-full flex items-center gap-2.5 px-3 py-2 rounded-md text-left">
+                  <span className="text-sm font-semibold" style={{ color: C.ink }}>{p.name}{p.id === profile.id ? " (tú)" : ""}</span>
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+      ) : (
+        <div style={{ background: C.paper, borderRadius: R.md, color: C.inkSoft }} className="w-full px-3.5 py-2.5 text-sm mt-1.5">
+          {profile.name} (tú){coRequesterIds.length > 0 ? ` + ${coRequesterIds.map((id) => profiles.find((p) => p.id === id)?.name).filter(Boolean).join(", ")}` : ""}
+        </div>
+      )}
       {showRequesterPicker && (
         <div style={{ background: C.panel, borderRadius: R.md, boxShadow: SH.soft }} className="p-3 mt-1.5 flex flex-col gap-1.5">
           <div className="flex flex-wrap gap-1.5">
-            {profiles.filter((p) => p.id !== profile.id).map((p) => (
+            {profiles.filter((p) => p.id !== (taskType === "individual" ? requesterId : profile.id)).map((p) => (
               <button key={p.id} type="button" onClick={() => toggleCoRequester(p.id)}
                 style={{ background: coRequesterIds.includes(p.id) ? C.ink : C.panel, boxShadow: coRequesterIds.includes(p.id) ? "none" : SH.soft, color: coRequesterIds.includes(p.id) ? C.paper : C.inkMedium, fontWeight: coRequesterIds.includes(p.id) ? 600 : 500 }}
                 className="h-[30px] px-3 rounded-full text-xs">{p.name}</button>
             ))}
           </div>
-          <p className="text-[11px]" style={{ color: C.inkSoft }}>Las personas que selecciones aparecerán contigo como solicitantes.</p>
+          <p className="text-[11px]" style={{ color: C.inkSoft }}>Las personas que selecciones aparecerán junto al solicitante principal.</p>
         </div>
       )}
     </div>
@@ -1722,7 +1789,11 @@ function NewTaskForm({ onClose, onCreate, onCreatePopup, profiles, profile, isAd
             )}
 
             <div style={{ background: C.subtle, borderRadius: R.pill }} className="flex gap-1 p-1">
-              {TASK_TYPES.map((tt) => (
+              {/* CHANGES.md #19: se quita "Personal" de las opciones al crear
+                  — Individual ya cubre ese caso (solicitante = tú, asignado
+                  = tú). Los pendientes Personal que ya existen se quedan
+                  igual, solo ya no se pueden crear nuevos. */}
+              {TASK_TYPES.filter((tt) => tt.key !== "personal").map((tt) => (
                 <button key={tt.key} onClick={() => setTaskType(tt.key)}
                   style={taskType === tt.key ? { background: C.panel, boxShadow: "0 1px 3px rgba(27,30,36,0.10)", color: C.ink, fontWeight: 700 } : { color: C.inkSoft, fontWeight: 600 }}
                   className="flex-1 h-9 rounded-full text-[12.5px]">{tt.label}</button>
@@ -2494,7 +2565,7 @@ function ConvertToColaborativoModal({ task, profiles, profile, onClose, onConver
   );
 }
 
-function TaskDetail({ task, onClose, onUpdate, onDelete, onDeleteRecurring, recurringTemplates, onFinalize, onDeliver, profiles, assignableProfiles, profile, notify, subtasks, onAddSubtask, onUpdateSubtaskStatus, onUpdateSubtaskDescription, onAssignChanges, viewerIsGerente, onCommentsRead }) {
+function TaskDetail({ task, onClose, onUpdate, onDelete, onDeleteRecurring, recurringTemplates, onFinalize, onDeliver, profiles, assignableProfiles, profile, notify, subtasks, onAddSubtask, onUpdateSubtaskStatus, onUpdateSubtaskDescription, onUpdateSubtaskDeadline, onAssignChanges, viewerIsGerente, onCommentsRead }) {
   const recurringTpl = task.recurring_template_id ? (recurringTemplates || []).find((r) => r.id === task.recurring_template_id) : null;
   const [comment, setComment] = useState(""), [comments, setComments] = useState([]);
   const [history, setHistory] = useState([]), [showHistory, setShowHistory] = useState(false);
@@ -2545,7 +2616,10 @@ function TaskDetail({ task, onClose, onUpdate, onDelete, onDeleteRecurring, recu
   const hasSubtasks = subtasks.length > 0;
   const allSubtasksDelivered = hasSubtasks && subtasks.every((s) => s.status === "Entregado");
   const canFinalize = !viewerIsGerente && !isFinalized && (isAdmin || (isColaborativo ? isAnyRequester && allSubtasksDelivered : isRequester && (hasSubtasks ? allSubtasksDelivered : isDelivered)));
-  const canEditDeadline = (isAnyRequester || isAdmin) && !isFinalized && !viewerIsGerente;
+  // CHANGES.md #23: ya no solo el solicitante/admin — cualquiera con acceso
+  // al pendiente puede cambiar el deadline (se le avisa al solicitante si
+  // quien lo cambia no es él mismo, ver changeDeadline).
+  const canEditDeadline = !isFinalized && !viewerIsGerente;
   const canRemind = isAnyRequester || viewerIsGerente; // el gerente sí puede mandar recordatorio de correo/whatsapp aunque esté en modo lectura
   const reminderRecipient = isColaborativo ? teamProfiles.find((p) => p.id === reminderTargetId) : assignee;
   const latestSubtaskDeadline = subtasks.reduce((max, s) => (s.deadline && (!max || s.deadline > max) ? s.deadline : max), null);
@@ -2603,9 +2677,7 @@ function TaskDetail({ task, onClose, onUpdate, onDelete, onDeleteRecurring, recu
   const setStatus = (s) => {
     if (isFinalized || viewerIsGerente) return;
     if (s === "Entregado") { onDeliver(task); return; }
-    // Si el pendiente deja de estar "Entregado", se libera el aviso al solicitante.
     const patch = { status: s };
-    if (task.notify_requester) patch.notify_requester = false;
     if (task.delivery_reminder_sent) patch.delivery_reminder_sent = false;
     onUpdate(task, patch, `${profile.name} cambió el estado a "${s}"`);
   };
@@ -2621,6 +2693,12 @@ function TaskDetail({ task, onClose, onUpdate, onDelete, onDeleteRecurring, recu
       if (latestSubtaskDeadline && d < latestSubtaskDeadline) return;
     }
     onUpdate(task, { deadline: d }, `${profile.name} cambió el deadline a ${fmtDate(d)}`);
+    // CHANGES.md #23: cualquiera puede cambiar el deadline, pero si quien lo
+    // cambia no es un solicitante, se les avisa a todos los solicitantes.
+    if (!isAnyRequester) {
+      const requesterIds = new Set([task.requested_by_id, task.responsible_id, ...(task.co_requester_ids || [])].filter(Boolean));
+      for (const rid of requesterIds) notify(rid, task.id, `${profile.name} cambió el deadline de "${task.title}" a ${fmtDate(d)}`);
+    }
   };
   // CHANGES.md #9: convertir individual a colaborativo abre una ventana
   // completa (ConvertToColaborativoModal) en vez de solo agregar gente al
@@ -2678,7 +2756,7 @@ function TaskDetail({ task, onClose, onUpdate, onDelete, onDeleteRecurring, recu
     if (isFinalized || viewerIsGerente) return;
     const p = profiles.find((x) => x.id === delegateId);
     if (!p) return;
-    await onUpdate(task, { assigned_to_id: p.id, assigned_to_name: p.name, notify_requester: false }, `${profile.name} ${isPersonalSolo ? "asignó a" : "delegó a"} ${p.name}`);
+    await onUpdate(task, { assigned_to_id: p.id, assigned_to_name: p.name }, `${profile.name} ${isPersonalSolo ? "asignó a" : "delegó a"} ${p.name}`);
     if (p.id !== profile.id) await notify(p.id, task.id, `Te ${isPersonalSolo ? "asignaron" : "delegaron"} "${task.title}"`);
     setDelegateId("");
   };
@@ -2708,15 +2786,6 @@ function TaskDetail({ task, onClose, onUpdate, onDelete, onDeleteRecurring, recu
   const toggleRemindMe = async () => {
     if (iAlreadyAskedToRemind) return; // cada quien lo activa una sola vez, no se puede desactivar
     await onUpdate(task, { remind_me_by_ids: [...(task.remind_me_by_ids || []), profile.id] }, `${profile.name} activó "avisarme" en este pendiente`);
-  };
-  const toggleNotifyRequester = async () => {
-    if (task.notify_requester || !task.requested_by_id || viewerIsGerente) return;
-    await onUpdate(task, { notify_requester: true }, `${profile.name} activó el aviso al solicitante`);
-    await notify(
-      task.requested_by_id, task.id,
-      `${profile.name} ya entregó su pendiente, revísalo y dale finalizado. Al finalizar pendientes podrá sumarle al registro personal de ${profile.name}`,
-      "Te entregaron un pendiente"
-    );
   };
   const bumpRemindAssignee = async () => {
     if (!isAnyRequester || viewerIsGerente) return;
@@ -3021,6 +3090,21 @@ function TaskDetail({ task, onClose, onUpdate, onDelete, onDeleteRecurring, recu
                           </div>
                         )
                       )}
+                      {expanded && (
+                        <div className="mt-2 pt-2.5 flex items-center gap-2" style={{ borderColor: C.hairline }} onClick={(e) => e.stopPropagation()}>
+                          <span className="text-[11px] font-semibold" style={{ color: C.inkSoft }}>Deadline de la subtarea</span>
+                          <input
+                            type="date"
+                            value={s.deadline || ""}
+                            min={todayISO()}
+                            max={task.deadline || undefined}
+                            disabled={isFinalized || viewerIsGerente}
+                            onChange={(e) => onUpdateSubtaskDeadline(s, e.target.value)}
+                            style={{ background: C.paper, color: C.ink, borderRadius: R.sm }}
+                            className="text-xs outline-none px-2 py-1 disabled:opacity-50"
+                          />
+                        </div>
+                      )}
                     </div>
                   );
                 })}
@@ -3123,17 +3207,6 @@ function TaskDetail({ task, onClose, onUpdate, onDelete, onDeleteRecurring, recu
                     style={{ background: C.subtle, color: C.inkMedium, borderRadius: R.md, height: 48 }}
                     className="px-4 text-sm font-semibold flex items-center gap-2 disabled:opacity-50"><ArrowRightLeft size={16} /> Asignar Responsables</button>
                 </div>
-              )}
-              {!isPersonalSolo && !viewerIsGerente && isDelivered && isAssignee && (
-                <button
-                  type="button"
-                  disabled={!!task.notify_requester || isFinalized}
-                  onClick={toggleNotifyRequester}
-                  style={task.notify_requester ? { color: C.inkSoft, background: C.subtle } : { color: C.signal, background: C.signalSoft }}
-                  className="px-3.5 py-2.5 text-xs font-semibold rounded-full flex items-center gap-1.5 self-start disabled:cursor-default"
-                >
-                  {task.notify_requester ? <><CheckCircle2 size={13} /> Avisado</> : <><Bell size={13} /> Avisar al solicitante</>}
-                </button>
               )}
               {viewerIsGerente && (
                 <label className="flex items-center gap-2 cursor-pointer">
