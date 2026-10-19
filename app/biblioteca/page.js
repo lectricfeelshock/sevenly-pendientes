@@ -4,7 +4,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { supabase } from "@/lib/supabaseClient";
 import {
   Plus, ExternalLink, X, Trash2, Pencil, BookOpen, Play,
-  Search, Share2, Copy, Upload, Link2, FileText, FileSpreadsheet, Image as ImageIcon, Users,
+  Search, Share2, Copy, Upload, Link2, FileText, FileSpreadsheet, Image as ImageIcon, Users, ChevronDown,
 } from "lucide-react";
 import { C, R, SH, FONT_SERIF } from "@/lib/theme";
 import BottomNav from "@/components/BottomNav";
@@ -116,26 +116,30 @@ function BibliotecaPageInner() {
   const [profiles, setProfiles] = useState([]);
   const [resources, setResources] = useState([]);
   const [tasks, setTasks] = useState([]);
+  const [accounts, setAccounts] = useState([]);
   const [showTeam, setShowTeam] = useState(false);
   const [showForm, setShowForm] = useState(false);
-  const [formIsGeneral, setFormIsGeneral] = useState(false);
   const [editing, setEditing] = useState(null);
   const [selected, setSelected] = useState(null);
   const [sharing, setSharing] = useState(null);
   const [view, setView] = useState("general"); // "general" | "mine"
   const [activeTags, setActiveTags] = useState([]);
+  const [selectedAccountId, setSelectedAccountId] = useState(null);
+  const [openFilterKey, setOpenFilterKey] = useState(null); // "cuentas" | "etiquetas" | null
   const [query, setQuery] = useState("");
   const autoOpenedRef = useRef(false);
 
   const load = useCallback(async () => {
-    const [{ data: res }, { data: profs }, { data: tsk }] = await Promise.all([
+    const [{ data: res }, { data: profs }, { data: tsk }, { data: accs }] = await Promise.all([
       supabase.from("resources").select("*").order("created_at", { ascending: false }),
       supabase.from("profiles").select("*"),
       supabase.from("tasks").select("id, assigned_to_id, status, title, category, deadline"),
+      supabase.from("accounts").select("*").order("name"),
     ]);
     setResources(res || []);
     setProfiles(profs || []);
     setTasks(tsk || []);
+    setAccounts(accs || []);
   }, []);
 
   useEffect(() => {
@@ -173,26 +177,28 @@ function BibliotecaPageInner() {
   const currentList = view === "general" ? generalResources : myResources;
   const allTags = Array.from(new Set(currentList.flatMap((r) => r.tags || []))).sort();
   const byTags = (list) => activeTags.length === 0 ? list : list.filter((r) => (r.tags || []).some((t) => activeTags.includes(t)));
+  const byAccount = (list) => !selectedAccountId ? list : list.filter((r) => r.account_id === selectedAccountId);
+  const applyFilters = (list) => byAccount(byTags(list));
   const searching = query.trim().length > 0;
   const searchResults = searching ? resources.filter((r) => matchesQuery(r, query)) : [];
 
-  const changeView = (v) => { setView(v); setActiveTags([]); };
+  const changeView = (v) => { setView(v); setActiveTags([]); setSelectedAccountId(null); };
+  const toggleTagFilter = (tag) => setActiveTags((prev) => prev.includes(tag) ? prev.filter((t) => t !== tag) : [...prev, tag]);
 
-  const openNewGeneral = () => { setEditing(null); setFormIsGeneral(true); setShowForm(true); };
-  const openNewPersonal = () => { setEditing(null); setFormIsGeneral(false); setShowForm(true); };
-  const openEdit = (r) => { setEditing(r); setFormIsGeneral(!!r.is_general); setShowForm(true); setSelected(null); };
+  const openNewResource = () => { setEditing(null); setShowForm(true); };
+  const openEdit = (r) => { setEditing(r); setShowForm(true); setSelected(null); };
 
-  const saveResource = async (form) => {
+  const saveResource = async (form, visibility) => {
     const fields = {
       title: form.title, description: form.description, tags: form.tags,
       url: form.url, file_path: form.file_path, file_name: form.file_name,
-      file_type: form.file_type, file_size: form.file_size,
+      file_type: form.file_type, file_size: form.file_size, account_id: form.accountId || null,
     };
     if (editing) {
-      await supabase.from("resources").update(fields).eq("id", editing.id);
+      await supabase.from("resources").update({ ...fields, is_general: visibility === "public" }).eq("id", editing.id);
     } else {
       await supabase.from("resources").insert({
-        ...fields, created_by: profile.id, owner_id: profile.id, is_general: formIsGeneral,
+        ...fields, created_by: profile.id, owner_id: profile.id, is_general: visibility === "public",
       });
     }
     setShowForm(false); setEditing(null); load();
@@ -263,7 +269,7 @@ function BibliotecaPageInner() {
                   style={view === "general" ? { background: C.panel, boxShadow: "0 1px 3px rgba(27,30,36,0.10)", color: C.ink, fontWeight: 700 } : { color: C.inkSoft, fontWeight: 600 }}
                   className="h-9 px-3.5 rounded-full text-[13px] whitespace-nowrap"
                 >
-                  Recursos generales
+                  Recursos públicos
                 </button>
                 <button
                   onClick={() => changeView("mine")}
@@ -274,55 +280,76 @@ function BibliotecaPageInner() {
                 </button>
               </div>
 
-              {allTags.length > 0 && (
-                <>
-                  <span style={{ width: 1, height: 20, background: C.hairline, flexShrink: 0 }} />
-                  <button
-                    onClick={() => setActiveTags([])}
-                    style={activeTags.length === 0 ? { background: C.ink, color: C.paper, fontWeight: 600 } : { background: C.panel, color: C.inkMedium, boxShadow: SH.soft, fontWeight: 500 }}
-                    className="h-[34px] px-3.5 rounded-full text-[12.5px] whitespace-nowrap"
-                  >
-                    Todas
-                  </button>
-                  {allTags.map((tag) => {
-                    const active = activeTags.includes(tag);
-                    return (
-                      <button
-                        key={tag}
-                        onClick={() => setActiveTags((prev) => active ? prev.filter((t) => t !== tag) : [...prev, tag])}
-                        style={active ? { background: C.ink, color: C.paper, fontWeight: 600 } : { background: C.panel, color: C.inkMedium, boxShadow: SH.soft, fontWeight: 500 }}
-                        className="h-[34px] px-3.5 rounded-full text-[12.5px] whitespace-nowrap"
-                      >
+              <span style={{ width: 1, height: 20, background: C.hairline, flexShrink: 0 }} />
+
+              <div className="relative">
+                <button type="button" onClick={() => setOpenFilterKey((k) => k === "cuentas" ? null : "cuentas")}
+                  style={selectedAccountId ? { background: C.ink, color: C.paper, fontWeight: 600 } : { background: C.panel, boxShadow: SH.soft, color: C.inkMedium, fontWeight: 500 }}
+                  className="h-[34px] px-3.5 rounded-full text-[12.5px] whitespace-nowrap flex items-center gap-1">
+                  {selectedAccountId ? accounts.find((a) => a.id === selectedAccountId)?.name : "Cuentas"}
+                  <ChevronDown size={13} style={{ transform: openFilterKey === "cuentas" ? "rotate(180deg)" : "none" }} />
+                </button>
+                {openFilterKey === "cuentas" && (
+                  <div style={{ background: C.panel, borderRadius: R.lg, boxShadow: SH.card }} className="absolute left-0 top-full mt-1.5 z-30 min-w-[180px] py-1.5 max-h-72 overflow-y-auto">
+                    <button onClick={() => { setSelectedAccountId(null); setOpenFilterKey(null); }}
+                      style={{ color: !selectedAccountId ? C.signal : C.ink }}
+                      className="w-full text-left px-3.5 py-2 text-sm">Todas</button>
+                    {accounts.map((a) => (
+                      <button key={a.id} onClick={() => { setSelectedAccountId(a.id); setOpenFilterKey(null); }}
+                        style={{ color: selectedAccountId === a.id ? C.signal : C.ink }}
+                        className="w-full text-left px-3.5 py-2 text-sm">{a.name}</button>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              <div className="relative">
+                <button type="button" onClick={() => setOpenFilterKey((k) => k === "etiquetas" ? null : "etiquetas")}
+                  style={activeTags.length > 0 ? { background: C.ink, color: C.paper, fontWeight: 600 } : { background: C.panel, boxShadow: SH.soft, color: C.inkMedium, fontWeight: 500 }}
+                  className="h-[34px] px-3.5 rounded-full text-[12.5px] whitespace-nowrap flex items-center gap-1">
+                  Etiquetas{activeTags.length > 0 ? ` (${activeTags.length})` : ""}
+                  <ChevronDown size={13} style={{ transform: openFilterKey === "etiquetas" ? "rotate(180deg)" : "none" }} />
+                </button>
+                {openFilterKey === "etiquetas" && (
+                  <div style={{ background: C.panel, borderRadius: R.lg, boxShadow: SH.card }} className="absolute left-0 top-full mt-1.5 z-30 min-w-[200px] py-1.5 max-h-72 overflow-y-auto">
+                    {allTags.length === 0 && <p className="px-3.5 py-2 text-xs" style={{ color: C.inkSoft }}>No hay etiquetas todavía.</p>}
+                    {allTags.map((tag) => (
+                      <label key={tag} className="w-full flex items-center gap-2 px-3.5 py-2 text-sm cursor-pointer" style={{ color: C.ink }}>
+                        <input type="checkbox" checked={activeTags.includes(tag)} onChange={() => toggleTagFilter(tag)} />
                         {tag}
-                      </button>
-                    );
-                  })}
-                </>
-              )}
+                      </label>
+                    ))}
+                    {activeTags.length > 0 && (
+                      <>
+                        <div style={{ background: C.hairlineSoft }} className="h-px my-1 mx-1" />
+                        <button onClick={() => { setActiveTags([]); setOpenFilterKey(null); }} style={{ color: C.inkSoft }} className="w-full text-left px-3.5 py-2 text-sm">Quitar selección</button>
+                      </>
+                    )}
+                  </div>
+                )}
+              </div>
             </div>
 
             {view === "general" ? (
               <section>
-                {generalResources.length === 0 && <p className="text-sm mb-3" style={{ color: C.inkSoft }}>Todavía no hay recursos generales{isAdmin ? " — dale a \"Agregar recurso\" para el primero." : "."}</p>}
-                {generalResources.length > 0 && byTags(generalResources).length === 0 && <p className="text-sm mb-3" style={{ color: C.inkSoft }}>Nada con esas etiquetas todavía.</p>}
+                {generalResources.length === 0 && <p className="text-sm mb-3" style={{ color: C.inkSoft }}>Todavía no hay recursos públicos — dale a "Agregar recurso" para el primero.</p>}
+                {generalResources.length > 0 && applyFilters(generalResources).length === 0 && <p className="text-sm mb-3" style={{ color: C.inkSoft }}>Nada con esos filtros todavía.</p>}
                 <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
-                  {byTags(generalResources).map((r) => <ResourceCard key={r.id} r={r} profiles={profiles} profile={profile} onOpen={() => setSelected(r)} />)}
-                  {isAdmin && (
-                    <button onClick={openNewGeneral} style={{ background: C.subtle, color: C.inkSoft, borderRadius: R.xxl, borderColor: C.hairline }} className="aspect-[4/3] flex flex-col items-center justify-center gap-2 border-2 border-dashed">
-                      <Plus size={20} />
-                      <span className="text-xs font-medium">Agregar recurso</span>
-                    </button>
-                  )}
+                  {applyFilters(generalResources).map((r) => <ResourceCard key={r.id} r={r} profiles={profiles} profile={profile} onOpen={() => setSelected(r)} />)}
+                  <button onClick={openNewResource} style={{ background: C.subtle, color: C.inkSoft, borderRadius: R.xxl, borderColor: C.hairline }} className="aspect-[4/3] flex flex-col items-center justify-center gap-2 border-2 border-dashed">
+                    <Plus size={20} />
+                    <span className="text-xs font-medium">Agregar recurso</span>
+                  </button>
                 </div>
               </section>
             ) : (
               <section>
                 <p className="text-[11px] mb-3" style={{ color: C.inkSoft }}>Los que tú agregaste, más los que te compartieron.</p>
                 {myResources.length === 0 && <p className="text-sm mb-3" style={{ color: C.inkSoft }}>Todavía no tienes recursos personales — dale a "Agregar recurso".</p>}
-                {myResources.length > 0 && byTags(myResources).length === 0 && <p className="text-sm mb-3" style={{ color: C.inkSoft }}>Nada con esas etiquetas todavía.</p>}
+                {myResources.length > 0 && applyFilters(myResources).length === 0 && <p className="text-sm mb-3" style={{ color: C.inkSoft }}>Nada con esos filtros todavía.</p>}
                 <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
-                  {byTags(myResources).map((r) => <ResourceCard key={r.id} r={r} profiles={profiles} profile={profile} onOpen={() => setSelected(r)} />)}
-                  <button onClick={openNewPersonal} style={{ background: C.subtle, color: C.inkSoft, borderRadius: R.xxl, borderColor: C.hairline }} className="aspect-[4/3] flex flex-col items-center justify-center gap-2 border-2 border-dashed">
+                  {applyFilters(myResources).map((r) => <ResourceCard key={r.id} r={r} profiles={profiles} profile={profile} onOpen={() => setSelected(r)} />)}
+                  <button onClick={openNewResource} style={{ background: C.subtle, color: C.inkSoft, borderRadius: R.xxl, borderColor: C.hairline }} className="aspect-[4/3] flex flex-col items-center justify-center gap-2 border-2 border-dashed">
                     <Plus size={20} />
                     <span className="text-xs font-medium">Agregar recurso</span>
                   </button>
@@ -342,6 +369,7 @@ function BibliotecaPageInner() {
           resource={selected}
           profile={profile}
           profiles={profiles}
+          accounts={accounts}
           isAdmin={isAdmin}
           alreadyCopied={alreadyCopied(selected)}
           onClose={() => setSelected(null)}
@@ -355,7 +383,7 @@ function BibliotecaPageInner() {
       {showForm && (
         <ResourceForm
           initial={editing}
-          isGeneral={formIsGeneral}
+          accounts={accounts}
           ownerId={profile.id}
           onClose={() => { setShowForm(false); setEditing(null); }}
           onSave={saveResource}
@@ -423,7 +451,7 @@ function ResourceCard({ r, profiles, profile, onOpen }) {
   );
 }
 
-function ResourceDetail({ resource, profile, profiles, isAdmin, alreadyCopied, onClose, onEdit, onDelete, onShare, onAddToMine }) {
+function ResourceDetail({ resource, profile, profiles, accounts, isAdmin, alreadyCopied, onClose, onEdit, onDelete, onShare, onAddToMine }) {
   const embed = resource.url ? getVideoEmbed(resource.url) : null;
   const FileIcon = fileIconFor(resource.file_type);
   const isImageFile = resource.file_path && fileKind(resource.file_type) === "image";
@@ -431,6 +459,7 @@ function ResourceDetail({ resource, profile, profiles, isAdmin, alreadyCopied, o
   const isMine = resource.owner_id === profile.id;
   const owner = profiles.find((p) => p.id === resource.owner_id);
   const canManage = resource.is_general ? isAdmin : isMine;
+  const accountName = accounts.find((a) => a.id === resource.account_id)?.name;
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: "rgba(27,30,36,0.55)" }} onClick={onClose}>
@@ -444,6 +473,9 @@ function ResourceDetail({ resource, profile, profiles, isAdmin, alreadyCopied, o
             <p className="text-[11px] flex items-center gap-1" style={{ color: C.inkSoft }}><Users size={11} /> Compartido por {owner.name}</p>
           )}
           {resource.description && <p className="text-sm whitespace-pre-wrap" style={{ color: C.ink }}>{resource.description}</p>}
+          {accountName && (
+            <span style={{ background: C.signalSoft, color: C.signal, borderRadius: R.pill, fontWeight: 600 }} className="self-start text-[11px] px-2.5 py-1">{accountName}</span>
+          )}
           {resource.tags && resource.tags.length > 0 && (
             <div className="flex flex-wrap gap-1">
               {resource.tags.map((tag) => (
@@ -528,16 +560,18 @@ function ShareResourceModal({ resource, profiles, onClose, onSave }) {
   );
 }
 
-function ResourceForm({ initial, isGeneral, ownerId, onClose, onSave }) {
+function ResourceForm({ initial, accounts, ownerId, onClose, onSave }) {
   const [title, setTitle] = useState(initial?.title || "");
   const [description, setDescription] = useState(initial?.description || "");
   const [url, setUrl] = useState(initial?.url || "");
+  const [accountId, setAccountId] = useState(initial?.account_id || "");
   const [tags, setTags] = useState(initial?.tags || []);
   const [tagInput, setTagInput] = useState("");
   const [inputMode, setInputMode] = useState(initial?.file_path ? "file" : "link");
   const [file, setFile] = useState(null);
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
+  const [pendingVisibility, setPendingVisibility] = useState(null); // "private" | "public" | null
 
   const addTag = () => {
     const clean = tagInput.trim();
@@ -556,25 +590,29 @@ function ResourceForm({ initial, isGeneral, ownerId, onClose, onSave }) {
     setFile(f);
   };
 
-  const submit = async () => {
+  const requestSave = (visibility) => {
     if (!title.trim()) { setError("Falta el nombre."); return; }
-    if (inputMode === "link" && !url.trim()) { setError("Falta el link."); return; }
-    if (inputMode === "file" && !file && !initial?.file_path) { setError("Elige un archivo."); return; }
+    setError("");
+    setPendingVisibility(visibility);
+  };
+
+  const confirmSave = async () => {
     setSaving(true);
     setError("");
     let fileFields;
     if (inputMode === "link") {
-      fileFields = { url: url.trim(), file_path: null, file_name: null, file_type: null, file_size: null };
+      fileFields = { url: url.trim() || null, file_path: null, file_name: null, file_type: null, file_size: null };
     } else if (file) {
       const path = `${ownerId}/${Date.now()}-${file.name.replace(/[^a-zA-Z0-9._-]/g, "_")}`;
       const { error: upErr } = await supabase.storage.from("resource-files").upload(path, file, { cacheControl: "3600", upsert: false });
-      if (upErr) { setError(`No se pudo subir el archivo (${upErr.message}).`); setSaving(false); return; }
+      if (upErr) { setError(`No se pudo subir el archivo (${upErr.message}).`); setSaving(false); setPendingVisibility(null); return; }
       fileFields = { url: null, file_path: path, file_name: file.name, file_type: file.type, file_size: file.size };
     } else {
-      fileFields = { url: null, file_path: initial.file_path, file_name: initial.file_name, file_type: initial.file_type, file_size: initial.file_size };
+      fileFields = { url: null, file_path: initial?.file_path || null, file_name: initial?.file_name || null, file_type: initial?.file_type || null, file_size: initial?.file_size || null };
     }
-    await onSave({ title: title.trim(), description: description.trim(), tags, ...fileFields });
+    await onSave({ title: title.trim(), description: description.trim(), tags, accountId: accountId || null, ...fileFields }, pendingVisibility);
     setSaving(false);
+    setPendingVisibility(null);
   };
 
   return (
@@ -582,7 +620,7 @@ function ResourceForm({ initial, isGeneral, ownerId, onClose, onSave }) {
       <div style={{ background: C.panel, borderRadius: R.xxl, boxShadow: SH.card }} className="w-full max-w-md max-h-[90vh] overflow-y-auto">
         <div style={{ boxShadow: `inset 0 -1px 0 ${C.hairline}` }} className="px-5 py-4 flex items-center justify-between gap-3">
           <h2 style={{ color: C.ink, fontFamily: FONT_SERIF, fontSize: 20, fontWeight: 500 }}>
-            {initial ? "Editar recurso" : isGeneral ? "Nuevo recurso general" : "Nuevo recurso personal"}
+            {initial ? "Editar recurso" : "Nuevo recurso"}
           </h2>
           <button onClick={onClose} style={{ width: 30, height: 30, borderRadius: R.pill, background: C.subtle, color: C.inkMedium }} className="flex items-center justify-center flex-shrink-0"><X size={15} /></button>
         </div>
@@ -593,11 +631,11 @@ function ResourceForm({ initial, isGeneral, ownerId, onClose, onSave }) {
           </div>
           <div>
             <label className="text-[11.5px] font-bold tracking-[0.09em]" style={{ color: C.inkSoft }}>Descripción</label>
-            <textarea value={description} onChange={(e) => setDescription(e.target.value)} rows={2} placeholder='Ej. "Aquí podrás encontrar fotos y videos de stock"' style={{ background: C.paper, borderRadius: R.md }} className="w-full px-3.5 py-2.5 text-sm mt-1.5 outline-none" />
+            <textarea value={description} onChange={(e) => setDescription(e.target.value)} rows={3} placeholder='Ej. "Aquí podrás encontrar fotos y videos de stock"' style={{ background: C.paper, borderRadius: R.md }} className="w-full px-3.5 py-2.5 text-sm mt-1.5 outline-none resize-y" />
           </div>
 
           <div>
-            <label className="text-[11.5px] font-bold tracking-[0.09em]" style={{ color: C.inkSoft }}>Link o archivo</label>
+            <label className="text-[11.5px] font-bold tracking-[0.09em]" style={{ color: C.inkSoft }}>Link o archivo (opcional)</label>
             <div style={{ background: C.subtle, borderRadius: R.pill }} className="flex gap-1 p-1 mt-1.5 mb-2">
               <button type="button" onClick={() => setInputMode("link")}
                 style={inputMode === "link" ? { background: C.panel, boxShadow: "0 1px 3px rgba(27,30,36,0.10)", color: C.ink, fontWeight: 700 } : { color: C.inkSoft, fontWeight: 600 }}
@@ -622,6 +660,14 @@ function ResourceForm({ initial, isGeneral, ownerId, onClose, onSave }) {
                 <p className="text-[11px] mt-1" style={{ color: C.inkSoft }}>Imágenes, PDF, Word o Excel. Máximo 20 MB.</p>
               </>
             )}
+          </div>
+
+          <div>
+            <label className="text-[11.5px] font-bold tracking-[0.09em]" style={{ color: C.inkSoft }}>Cuenta</label>
+            <select value={accountId} onChange={(e) => setAccountId(e.target.value)} style={{ background: C.paper, borderRadius: R.md }} className="w-full px-3.5 py-2.5 text-sm mt-1.5 outline-none">
+              <option value="">Sin cuenta</option>
+              {accounts.map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}
+            </select>
           </div>
 
           <div>
@@ -650,11 +696,31 @@ function ResourceForm({ initial, isGeneral, ownerId, onClose, onSave }) {
           </div>
           {error && <p className="text-xs" style={{ color: C.urgent }}>{error}</p>}
         </div>
-        <div style={{ boxShadow: `inset 0 1px 0 ${C.hairline}` }} className="px-5 py-4 flex justify-end gap-2">
+        <div style={{ boxShadow: `inset 0 1px 0 ${C.hairline}` }} className="px-5 py-4 flex justify-end gap-2 flex-wrap">
           <button onClick={onClose} style={{ color: C.inkMedium, background: C.subtle, borderRadius: R.pill }} className="px-5 py-2.5 text-sm font-semibold">Cancelar</button>
-          <button onClick={submit} disabled={saving} style={{ background: C.ink, color: C.paper, opacity: saving ? 0.6 : 1, borderRadius: R.pill }} className="px-5 py-2.5 text-sm font-semibold">{saving ? "Guardando..." : "Guardar"}</button>
+          <button onClick={() => requestSave("private")} style={{ color: C.inkMedium, background: C.subtle, borderRadius: R.pill }} className="px-5 py-2.5 text-sm font-semibold">Guardar para mí</button>
+          <button onClick={() => requestSave("public")} style={{ background: C.ink, color: C.paper, borderRadius: R.pill }} className="px-5 py-2.5 text-sm font-semibold">Publicar</button>
         </div>
       </div>
+
+      {pendingVisibility && (
+        <div className="fixed inset-0 z-[70] flex items-center justify-center p-4" style={{ background: "rgba(27,30,36,0.6)" }} onClick={() => !saving && setPendingVisibility(null)}>
+          <div style={{ background: C.panel, borderRadius: R.xxl, boxShadow: SH.card }} className="w-full max-w-xs p-5" onClick={(e) => e.stopPropagation()}>
+            <h3 style={{ color: C.ink, fontFamily: FONT_SERIF, fontSize: 18, fontWeight: 500 }} className="mb-2">
+              {pendingVisibility === "private" ? "¿Guardar solo para ti?" : "¿Publicar este recurso?"}
+            </h3>
+            <p className="text-sm mb-4" style={{ color: C.inkMedium }}>
+              {pendingVisibility === "private"
+                ? "Este recurso solo lo podrás ver tú, posteriormente podrás compartirlo con tus compañeros."
+                : "Este recurso pasará a estar público y cualquiera podrá verlo."}
+            </p>
+            <div className="flex justify-end gap-2">
+              <button onClick={() => setPendingVisibility(null)} disabled={saving} style={{ color: C.inkMedium, background: C.subtle, borderRadius: R.pill }} className="px-4 py-2 text-sm font-semibold disabled:opacity-60">Cancelar</button>
+              <button onClick={confirmSave} disabled={saving} style={{ background: C.ink, color: C.paper, opacity: saving ? 0.6 : 1, borderRadius: R.pill }} className="px-4 py-2 text-sm font-semibold">{saving ? "Guardando..." : "Seguir"}</button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
