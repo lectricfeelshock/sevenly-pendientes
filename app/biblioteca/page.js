@@ -9,6 +9,7 @@ import {
 import { C, R, SH, FONT_SERIF } from "@/lib/theme";
 import BottomNav from "@/components/BottomNav";
 import LoadingScreen from "@/components/LoadingScreen";
+import TeamPanel from "@/components/TeamPanel";
 
 // CHANGES.md #2d: bucket "resource-files" — 20 MB por archivo, solo estos
 // tipos (confirmado viable: plan Free de Supabase, 1 GB de storage total,
@@ -114,6 +115,8 @@ function BibliotecaPageInner() {
   const [profile, setProfile] = useState(null);
   const [profiles, setProfiles] = useState([]);
   const [resources, setResources] = useState([]);
+  const [tasks, setTasks] = useState([]);
+  const [showTeam, setShowTeam] = useState(false);
   const [showForm, setShowForm] = useState(false);
   const [formIsGeneral, setFormIsGeneral] = useState(false);
   const [editing, setEditing] = useState(null);
@@ -125,12 +128,14 @@ function BibliotecaPageInner() {
   const autoOpenedRef = useRef(false);
 
   const load = useCallback(async () => {
-    const [{ data: res }, { data: profs }] = await Promise.all([
+    const [{ data: res }, { data: profs }, { data: tsk }] = await Promise.all([
       supabase.from("resources").select("*").order("created_at", { ascending: false }),
       supabase.from("profiles").select("*"),
+      supabase.from("tasks").select("id, assigned_to_id, status, title, category, deadline"),
     ]);
     setResources(res || []);
     setProfiles(profs || []);
+    setTasks(tsk || []);
   }, []);
 
   useEffect(() => {
@@ -328,7 +333,9 @@ function BibliotecaPageInner() {
         )}
       </div>
 
-      <BottomNav active="biblioteca" profile={profile} />
+      <BottomNav active="biblioteca" profile={profile} onEquipo={() => setShowTeam(true)} />
+
+      {showTeam && <TeamPanel onClose={() => setShowTeam(false)} profiles={profiles.filter((p) => p.role !== "admin")} tasks={tasks} />}
 
       {selected && (
         <ResourceDetail
@@ -436,7 +443,7 @@ function ResourceDetail({ resource, profile, profiles, isAdmin, alreadyCopied, o
           {!resource.is_general && !isMine && owner && (
             <p className="text-[11px] flex items-center gap-1" style={{ color: C.inkSoft }}><Users size={11} /> Compartido por {owner.name}</p>
           )}
-          {resource.description && <p className="text-sm" style={{ color: C.ink }}>{resource.description}</p>}
+          {resource.description && <p className="text-sm whitespace-pre-wrap" style={{ color: C.ink }}>{resource.description}</p>}
           {resource.tags && resource.tags.length > 0 && (
             <div className="flex flex-wrap gap-1">
               {resource.tags.map((tag) => (

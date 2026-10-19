@@ -153,7 +153,7 @@ export default function LoginPage() {
         </button>
 
         <div style={{ color: "#B6B2A8", fontSize: 11.5, fontWeight: 600, letterSpacing: "0.14em" }} className="mt-10">
-          TERREGAL · CONTROL DE TAREAS
+          TERREGAL · CONTROL
         </div>
       </div>
     </div>

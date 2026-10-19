@@ -6,6 +6,7 @@ import { ChevronRight, Eye, EyeOff, LogOut, Download } from "lucide-react";
 import { C, R, SH, FONT_SERIF } from "@/lib/theme";
 import BottomNav from "@/components/BottomNav";
 import LoadingScreen from "@/components/LoadingScreen";
+import TeamPanel from "@/components/TeamPanel";
 
 function activityMsg(n) {
   if (!n) return "Aún no finalizas pendientes hoy.";
@@ -23,6 +24,10 @@ export default function PerfilPage() {
   const [info, setInfo] = useState("");
   const [saving, setSaving] = useState(false);
   const [log, setLog] = useState([]);
+  const [accounts, setAccounts] = useState([]);
+  const [teamProfiles, setTeamProfiles] = useState([]);
+  const [teamTasks, setTeamTasks] = useState([]);
+  const [showTeam, setShowTeam] = useState(false);
 
   useEffect(() => {
     (async () => {
@@ -39,6 +44,20 @@ export default function PerfilPage() {
     (async () => {
       const { data } = await supabase.from("finalized_log").select("*").eq("user_id", profile.id).order("finalized_at", { ascending: false }).limit(100);
       setLog(data || []);
+    })();
+  }, [profile?.id]);
+
+  useEffect(() => {
+    if (!profile?.id) return;
+    (async () => {
+      const [{ data: accs }, { data: profs }, { data: tsks }] = await Promise.all([
+        supabase.from("accounts").select("*").order("name"),
+        supabase.from("profiles").select("*"),
+        supabase.from("tasks").select("id, assigned_to_id, status, title, category, deadline"),
+      ]);
+      setAccounts(accs || []);
+      setTeamProfiles(profs || []);
+      setTeamTasks(tsks || []);
     })();
   }, [profile?.id]);
 
@@ -119,18 +138,15 @@ export default function PerfilPage() {
             <PasswordField setInfo={setInfo} setError={setError} setEditing={setEditing} saving={saving} setSaving={setSaving} />
           </ProfileRow>
 
+          <ProfileRow label="Cuentas" value={accounts.filter((a) => (profile.account_ids || []).includes(a.id)).map((a) => a.name).join(", ") || "Sin configurar"} editing={editing === "accounts"}
+            onEdit={() => startEdit("accounts")} onCancel={cancelEdit}>
+            <AccountsField profile={profile} accounts={accounts} setProfile={setProfile} setInfo={setInfo} setError={setError} setEditing={setEditing} saving={saving} setSaving={setSaving} />
+          </ProfileRow>
+
           {error && <div className="text-xs" style={{ color: C.urgent }}>{error}</div>}
           {info && <div className="text-xs" style={{ color: C.signal }}>{info}</div>}
 
-          <button
-            onClick={logout}
-            style={{ background: C.panel, color: C.urgentInk, borderRadius: R.xl, boxShadow: SH.soft }}
-            className="h-[52px] flex items-center justify-center gap-2 text-[14.5px] font-semibold mt-1"
-          >
-            <LogOut size={18} /> Cerrar sesión
-          </button>
-
-          <div style={{ background: C.panel, borderRadius: R.xl, boxShadow: SH.card }} className="p-[18px] flex flex-col gap-4 mt-3">
+          <div style={{ background: C.panel, borderRadius: R.xl, boxShadow: SH.card }} className="p-[18px] flex flex-col gap-4 mt-1">
             <div className="flex items-center justify-between">
               <span className="text-[11.5px] font-bold tracking-[0.11em]" style={{ color: C.inkSoft }}>MI ACTIVIDAD</span>
               <span className="text-[12.5px] font-semibold" style={{ color: C.inkSoft }}>Últimos 7 días</span>
@@ -152,10 +168,20 @@ export default function PerfilPage() {
               <Download size={14} /> Descargar mi lista de finalizados
             </button>
           </div>
+
+          <button
+            onClick={logout}
+            style={{ background: C.panel, color: C.urgentInk, borderRadius: R.xl, boxShadow: SH.soft }}
+            className="h-[52px] flex items-center justify-center gap-2 text-[14.5px] font-semibold mt-3"
+          >
+            <LogOut size={18} /> Cerrar sesión
+          </button>
         </div>
       </div>
 
-      <BottomNav active="perfil" profile={profile} />
+      <BottomNav active="perfil" profile={profile} onEquipo={() => setShowTeam(true)} />
+
+      {showTeam && <TeamPanel onClose={() => setShowTeam(false)} profiles={teamProfiles.filter((p) => p.role !== "admin")} tasks={teamTasks} />}
     </div>
   );
 }
@@ -253,6 +279,34 @@ function PhoneField({ profile, setProfile, setInfo, setError, setEditing, saving
   return (
     <div>
       <input value={val} onChange={(e) => setVal(e.target.value)} placeholder="con lada, ej. 8711234567" style={fieldInputStyle} className={fieldInputCls} />
+      <FieldActions onSave={save} onCancel={() => setEditing(null)} saving={saving} />
+    </div>
+  );
+}
+
+function AccountsField({ profile, accounts, setProfile, setInfo, setError, setEditing, saving, setSaving }) {
+  const [picked, setPicked] = useState(profile.account_ids || []);
+  const toggle = (id) => setPicked((prev) => prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]);
+  const save = async () => {
+    setSaving(true); setError("");
+    const { error } = await supabase.from("profiles").update({ account_ids: picked }).eq("id", profile.id);
+    setSaving(false);
+    if (error) { setError("No se pudo guardar."); return; }
+    setProfile((p) => ({ ...p, account_ids: picked }));
+    setInfo("Cuentas actualizadas.");
+    setEditing(null);
+  };
+  return (
+    <div>
+      <div className="flex flex-wrap gap-1.5">
+        {accounts.map((a) => (
+          <button key={a.id} type="button" onClick={() => toggle(a.id)}
+            style={{ background: picked.includes(a.id) ? C.ink : C.paper, color: picked.includes(a.id) ? C.paper : C.inkMedium, fontWeight: picked.includes(a.id) ? 600 : 500 }}
+            className="h-[30px] px-3 rounded-full text-xs">{a.name}</button>
+        ))}
+        {accounts.length === 0 && <p className="text-xs" style={{ color: C.inkSoft }}>No hay cuentas creadas todavía.</p>}
+      </div>
+      <p className="text-[11px] mt-1.5" style={{ color: C.inkSoft }}>Las cuentas en las que trabajas — controla qué puedes filtrar en Pendientes y, si eres gerente, a quién puedes ver.</p>
       <FieldActions onSave={save} onCancel={() => setEditing(null)} saving={saving} />
     </div>
   );
