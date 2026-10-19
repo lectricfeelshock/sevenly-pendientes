@@ -29,6 +29,8 @@ export default function PerfilPage() {
   const [teamProfiles, setTeamProfiles] = useState([]);
   const [teamTasks, setTeamTasks] = useState([]);
   const [showTeam, setShowTeam] = useState(false);
+  const [view, setView] = useState("finalizados"); // "finalizados" | "entregados" — el rectángulo de arriba alterna entre ambos
+  const [delivered, setDelivered] = useState([]); // entregados en los últimos 7 días: { title, at }
 
   useEffect(() => {
     (async () => {
@@ -45,6 +47,24 @@ export default function PerfilPage() {
     (async () => {
       const { data } = await supabase.from("finalized_log").select("*").eq("user_id", profile.id).order("finalized_at", { ascending: false }).limit(100);
       setLog(data || []);
+    })();
+  }, [profile?.id]);
+
+  // Entregados de la semana: los pendientes del usuario con delivered_at en los
+  // últimos 7 días (siguen en tasks aunque ya estén finalizados) + los del
+  // finalized_log cuyo pendiente ya se borró (auto-finalizado a los 7 días).
+  useEffect(() => {
+    if (!profile?.id) return;
+    (async () => {
+      const since = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
+      const { data: tsk } = await supabase.from("tasks").select("title, delivered_at").eq("assigned_to_id", profile.id).gte("delivered_at", since);
+      const { data: lg } = await supabase.from("finalized_log").select("task_title, delivered_at").eq("user_id", profile.id).gte("delivered_at", since);
+      const seen = new Set();
+      const rows = [];
+      for (const t of tsk || []) { seen.add(`${t.title}|${t.delivered_at}`); rows.push({ title: t.title, at: t.delivered_at }); }
+      for (const l of lg || []) { if (!seen.has(`${l.task_title}|${l.delivered_at}`)) rows.push({ title: l.task_title, at: l.delivered_at }); }
+      rows.sort((a, b) => new Date(b.at) - new Date(a.at));
+      setDelivered(rows);
     })();
   }, [profile?.id]);
 
@@ -81,17 +101,27 @@ export default function PerfilPage() {
     return { iso, label: dt.toLocaleDateString("es-MX", { weekday: "short" }), count, isToday: i === 6 };
   });
   const todayCount = days[days.length - 1].count;
-  const maxDayCount = Math.max(1, ...days.map((d) => d.count));
+
+  const showDelivered = view === "entregados";
+  const chartDays = showDelivered
+    ? days.map((d) => ({ ...d, count: delivered.filter((r) => r.at.slice(0, 10) === d.iso).length }))
+    : days;
+  const maxDayCount = Math.max(1, ...chartDays.map((d) => d.count));
 
   const downloadLog = () => {
-    const lines = [
-      `Pendientes finalizados por ${profile.name}`, `Total histórico: ${log.length}`, "",
-      ...log.map((l) => `[${new Date(l.delivered_at || l.finalized_at).toLocaleString("es-MX")}] ${l.task_title}`),
-    ];
+    const lines = showDelivered
+      ? [
+          `Pendientes entregados por ${profile.name}`, `Últimos 7 días: ${delivered.length}`, "",
+          ...delivered.map((r) => `[${new Date(r.at).toLocaleString("es-MX")}] ${r.title}`),
+        ]
+      : [
+          `Pendientes finalizados por ${profile.name}`, `Total histórico: ${log.length}`, "",
+          ...log.map((l) => `[${new Date(l.delivered_at || l.finalized_at).toLocaleString("es-MX")}] ${l.task_title}`),
+        ];
     const blob = new Blob([lines.join("\n")], { type: "text/plain" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
-    a.href = url; a.download = `finalizados_${profile.name.replace(/[^a-z0-9]/gi, "_")}.txt`;
+    a.href = url; a.download = `${showDelivered ? "entregados" : "finalizados"}_${profile.name.replace(/[^a-z0-9]/gi, "_")}.txt`;
     a.click(); URL.revokeObjectURL(url);
   };
 
@@ -157,21 +187,24 @@ export default function PerfilPage() {
               <span className="text-[11.5px] font-bold tracking-[0.11em]" style={{ color: C.inkSoft }}>MI ACTIVIDAD</span>
               <span className="text-[12.5px] font-semibold" style={{ color: C.inkSoft }}>Últimos 7 días</span>
             </div>
-            <div style={{ background: C.signalSoft, color: C.signal, borderRadius: R.md }} className="px-3.5 py-3 text-[13.5px] leading-snug">
-              Hoy: <strong>{todayCount}</strong> finalizado(s). {activityMsg(todayCount)}
-            </div>
+            <button type="button" onClick={() => setView(showDelivered ? "finalizados" : "entregados")}
+              style={{ background: C.signalSoft, color: C.signal, borderRadius: R.md }} className="px-3.5 py-3 text-[13.5px] leading-snug text-left w-full">
+              {showDelivered
+                ? <>Esta semana: <strong>{delivered.length}</strong> entregado(s).</>
+                : <>Hoy: <strong>{todayCount}</strong> finalizado(s). {activityMsg(todayCount)}</>}
+            </button>
             <div className="flex items-end gap-2.5 h-16">
-              {days.map((d) => (
+              {chartDays.map((d) => (
                 <div key={d.iso} className="flex-1 flex flex-col items-center gap-1.5">
                   <div style={{ width: "100%", height: Math.max(8, (d.count / maxDayCount) * 42), borderRadius: 7, background: d.count > 0 ? "#CFE3DA" : "#EDEAE3" }} />
                   <span className="text-[10.5px] capitalize" style={{ color: C.gray, fontWeight: d.isToday ? 700 : 400 }}>{d.isToday ? "hoy" : d.label}</span>
                 </div>
               ))}
             </div>
-            <button onClick={downloadLog} disabled={log.length === 0}
+            <button onClick={downloadLog} disabled={(showDelivered ? delivered : log).length === 0}
               style={{ background: C.subtle, color: C.inkMedium, borderRadius: R.pill }}
               className="h-10 text-xs font-semibold flex items-center justify-center gap-2 disabled:opacity-40">
-              <Download size={14} /> Descargar mi lista de finalizados
+              <Download size={14} /> Descargar mi lista de {showDelivered ? "entregados" : "finalizados"}
             </button>
           </div>
 
