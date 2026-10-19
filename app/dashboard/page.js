@@ -1028,6 +1028,11 @@ export default function Dashboard() {
   const isGerente = profile?.role === "gerente" || profile?.role === "admin";
   const assignableProfiles = profiles.filter((p) => p.role !== "admin");
   const myAccounts = accounts.filter((a) => (profile.account_ids || []).includes(a.id));
+  // Un gerente solo puede "ver como" compañeros que compartan al menos una
+  // cuenta con él. Si el gerente todavía no configuró sus cuentas en Mi
+  // perfil, no se restringe nada (se sigue viendo a todo el equipo).
+  const viewAsCandidates = profiles.filter((p) => p.id !== profile.id && p.role !== "admin")
+    .filter((p) => (profile.account_ids || []).length === 0 || (p.account_ids || []).some((id) => (profile.account_ids || []).includes(id)));
   const effectiveId = viewingAs || profile.id;
   const viewingProfile = viewingAs ? profiles.find((p) => p.id === viewingAs) : null;
 
@@ -1294,11 +1299,14 @@ export default function Dashboard() {
             {showTeamPicker && (
               <div style={{ background: C.panel, borderRadius: R.lg, boxShadow: SH.card }} className="absolute left-0 top-full mt-1.5 z-30 min-w-[180px] py-1.5">
                 <button onClick={() => { stopViewingAs(); setShowTeamPicker(false); }} style={{ color: C.inkSoft, boxShadow: `inset 0 -1px 0 ${C.hairlineSoft}` }} className="w-full text-left px-3.5 py-2 text-sm">Ver el mío (salir)</button>
-                {profiles.filter((p) => p.id !== profile.id && p.role !== "admin").map((p) => (
+                {viewAsCandidates.map((p) => (
                   <button key={p.id} onClick={() => { startViewingAs(p.id); setShowTeamPicker(false); }}
                     style={{ color: viewingAs === p.id ? C.signal : C.ink, background: viewingAs === p.id ? C.signalSoft : "transparent" }}
                     className="w-full text-left px-3.5 py-2 text-sm">{p.name}</button>
                 ))}
+                {viewAsCandidates.length === 0 && (profile.account_ids || []).length > 0 && (
+                  <p className="px-3.5 py-2 text-xs" style={{ color: C.inkSoft }}>Nadie más comparte tus cuentas todavía.</p>
+                )}
               </div>
             )}
           </div>
