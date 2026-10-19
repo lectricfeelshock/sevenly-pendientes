@@ -414,7 +414,6 @@ function ResourceCard({ r, profiles, profile, accounts, onOpen }) {
   const FileIcon = fileIconFor(r.file_type);
   const sharedByOther = !r.is_general && r.owner_id !== profile.id;
   const ownerName = sharedByOther ? profiles.find((p) => p.id === r.owner_id)?.name : null;
-  const publishedByMe = r.is_general && r.owner_id === profile.id;
   const account = accounts.find((a) => a.id === r.account_id);
   return (
     <button
@@ -449,9 +448,6 @@ function ResourceCard({ r, profiles, profile, accounts, onOpen }) {
         <span style={{ color: thumbnail ? C.paper : C.ink, fontFamily: FONT_SERIF, fontSize: 17 }} className="leading-tight block mb-1.5">{r.title}</span>
         {ownerName && (
           <span style={{ color: thumbnail ? "rgba(255,255,255,0.85)" : C.inkSoft, fontSize: 10.5, fontWeight: 600 }} className="block mb-1">de {ownerName}</span>
-        )}
-        {publishedByMe && (
-          <span style={{ color: thumbnail ? "rgba(255,255,255,0.85)" : C.signal, fontSize: 10.5, fontWeight: 600 }} className="block mb-1">Público</span>
         )}
         {r.tags && r.tags.length > 0 && (
           <div className="flex flex-wrap gap-1">
