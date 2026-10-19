@@ -8,30 +8,6 @@ se hizo).
 
 ## Pendientes
 
-### 8. Apartado de FAQ (dudas de cómo usar la app)
-Un apartado nuevo con preguntas frecuentes y sus respuestas — no sobre
-clientes/trabajo (eso es Biblioteca), sino dudas de **cómo usar la app
-en sí** (cómo crear un pendiente, qué significa cada urgencia, etc.),
-para que el equipo las resuelva sin tener que preguntar.
-
-Cómo se llega a él — una burbuja/botón con dos formas, según si ya lo
-cerraste o no:
-
-a. **Por default, flota** como burbuja pequeña pegada al borde derecho
-   de la pantalla — círculo negro con un signo de interrogación. Se
-   puede arrastrar hacia una "x" para cerrarla (como borrar un ícono
-   en el celular).
-b. **Si la cierras**, deja de flotar y en su lugar aparece fija junto
-   a la campana de notificaciones (arriba), con el mismo estilo
-   blanco que ya tiene el botón de la campana — ya no es la burbuja
-   negra, es un ícono más chico y discreto ahí.
-c. **Cada lunes** (inicio de semana), vuelve a aparecer flotando como
-   burbuja — sin importar si la habías cerrado la semana pasada.
-
-Falta definir: las preguntas/respuestas en sí, si abre un panel o una
-página al dar clic, y quién puede editarlas (¿solo admin?). Lo dejo
-como opción por ahora; cuando lo tenga más claro lo detallo.
-
 ### 17. Widget de Pomodoro timer en el perfil
 En la página de perfil, agregar un widget de temporizador Pomodoro
 (ciclos de trabajo/descanso) para quien quiera usarlo mientras trabaja
@@ -72,6 +48,28 @@ los días según qué tan cerca está la fecha (se puede reusar la lógica
 que ya existe en `dueLegend()`).
 
 ## Historial (aplicadas)
+
+### [x] 8. Apartado de FAQ (dudas de cómo usar la app)
+_Aplicada 2026-10-19._
+
+Un botón de ayuda con preguntas frecuentes sobre cómo usar la app (no
+sobre clientes/trabajo — eso es Biblioteca), con 12 preguntas y
+respuestas fijas por ahora (sin editor en la app todavía).
+
+a. **Por default flota** como burbuja pequeña pegada al borde derecho
+   de la pantalla — círculo negro con un signo de interrogación. Se
+   puede arrastrar hacia una "x" para cerrarla.
+b. **Si la cierras**, deja de flotar y en su lugar aparece fija junto
+   a la campana de notificaciones (arriba, en el dashboard), con el
+   mismo estilo blanco que ya tiene el botón de la campana.
+c. **Cada lunes** vuelve a aparecer flotando, sin importar si la
+   habías cerrado la semana pasada — se guarda en
+   `profiles.faq_bubble_dismissed_at`.
+d. Al darle clic (sin arrastrar), abre una ventana con las 12
+   preguntas en acordeón — cada una se expande por separado.
+e. La burbuja flotante vive en Pendientes, Biblioteca y Perfil; el
+   ícono fijo junto a la campana solo en Pendientes, porque es el
+   único lugar donde existe esa campana.
 
 ### [x] 19. Quitar el tipo "Personal" al crear: Individual permite elegir solicitante y asignarte a ti
 _Aplicada 2026-10-17._
