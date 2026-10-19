@@ -1156,6 +1156,7 @@ export default function Dashboard() {
               className="h-9 px-3.5 rounded-full text-[12.5px] whitespace-nowrap">{label}</button>
           ))}
         </div>
+        <div className="basis-full h-0 md:hidden" />
         <span style={{ width: 1, height: 20, background: C.hairline, flexShrink: 0 }} />
         <button onClick={() => { setActiveFilter({ type: "Todos" }); setOpenFilterKey(null); }}
           style={activeFilter.type === "Todos" ? { background: C.ink, color: C.paper, fontWeight: 600 } : { background: C.panel, boxShadow: SH.soft, color: C.inkMedium, fontWeight: 500 }}
