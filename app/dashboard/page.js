@@ -259,19 +259,19 @@ function PopupTaskPicker({ profiles, tasks, subtasks, selected, onToggleTask, on
         <label className="text-[11.5px] font-bold tracking-[0.09em] flex items-center gap-1.5" style={{ color: C.inkSoft }}><Link2 size={12} /> Referenciar pendientes (opcional)</label>
         <span className="text-[11px] font-semibold" style={{ color: atLimit ? C.urgent : C.inkSoft }}>{selected.length}/{POPUP_TASK_LIMIT}</span>
       </div>
-      <div style={{ borderColor: C.hairline }} className="border mt-1.5 max-h-72 overflow-y-auto">
+      <div style={{ background: C.paper, borderRadius: R.lg }} className="mt-1.5 max-h-72 overflow-y-auto p-1.5 flex flex-col gap-1">
         {profiles.map((p) => {
           const memberTasks = tasks.filter((t) => taskBelongsToMember(t, p.id, subtasks));
           const open = openMember === p.id;
           const pickedHere = memberTasks.filter((t) => selected.some((s) => s.id === t.id)).length;
           return (
-            <div key={p.id} style={{ borderColor: C.hairline }} className="border-b last:border-b-0">
-              <button type="button" onClick={() => setOpenMember(open ? null : p.id)} className="w-full text-left px-2.5 py-2 flex items-center justify-between">
-                <span className="text-xs" style={{ color: C.ink }}>{p.name}{pickedHere > 0 && <span className="ml-1.5" style={{ color: C.signal }}>({pickedHere})</span>}</span>
+            <div key={p.id} style={{ background: open ? C.panel : "transparent", borderRadius: R.md }} className="overflow-hidden">
+              <button type="button" onClick={() => setOpenMember(open ? null : p.id)} className="w-full text-left px-3 py-2.5 flex items-center justify-between">
+                <span className="text-xs font-medium" style={{ color: C.ink }}>{p.name}{pickedHere > 0 && <span className="ml-1.5 font-semibold" style={{ color: C.signal }}>({pickedHere})</span>}</span>
                 <span className="flex items-center gap-1.5"><span className="text-[11px] font-semibold" style={{ color: C.inkSoft }}>{memberTasks.length}</span><ChevronDown size={12} style={{ color: C.inkSoft, transform: open ? "rotate(180deg)" : "none" }} /></span>
               </button>
               {open && (
-                <div className="px-2.5 pb-2 flex flex-col gap-1">
+                <div className="px-3 pb-2.5 flex flex-col gap-1.5">
                   {memberTasks.length === 0 && <div className="text-[11px]" style={{ color: C.inkSoft }}>Sin pendientes.</div>}
                   {memberTasks.map((t) => {
                     const entry = selected.find((s) => s.id === t.id);
@@ -292,7 +292,7 @@ function PopupTaskPicker({ profiles, tasks, subtasks, selected, onToggleTask, on
                           )}
                         </div>
                         {checked && fieldsOpen && (
-                          <div style={{ borderColor: C.hairline, background: C.panel }} className="border ml-5 mt-1 mb-1 p-2 flex flex-col gap-1">
+                          <div style={{ background: C.subtle, borderRadius: R.md }} className="ml-5 mt-1 mb-1 p-2 flex flex-col gap-1">
                             {fieldsAvailable.map((f) => (
                               <label key={f.key} className="flex items-center gap-1.5 text-[11px]" style={{ color: C.ink }}>
                                 <input type="checkbox" checked={entry.fields.includes(f.key)} onChange={() => onToggleField(t.id, f.key)} />
@@ -311,7 +311,7 @@ function PopupTaskPicker({ profiles, tasks, subtasks, selected, onToggleTask, on
         })}
       </div>
       {selected.length > 1 && (
-        <button type="button" onClick={onApplyToAll} style={{ borderColor: C.hairline, color: C.ink }} className="border px-2.5 py-1.5 text-xs mt-1.5">Aplicar lo del primero a todos</button>
+        <button type="button" onClick={onApplyToAll} style={{ background: C.subtle, color: C.inkMedium, borderRadius: R.pill }} className="px-3.5 py-1.5 text-xs font-semibold mt-1.5">Aplicar lo del primero a todos</button>
       )}
       <p className="text-[11px] mt-1" style={{ color: C.inkSoft }}>Salen como pendientes desplegables dentro del pop up — máximo {POPUP_TASK_LIMIT}. El ojo elige qué mostrar de cada uno.</p>
     </div>
@@ -2019,25 +2019,25 @@ function PopupsAdminPanel({ profile, profiles, tasks, subtasks }) {
 
   return (
     <div className="max-w-2xl mx-auto px-5 py-6">
-      <div className="flex gap-2 mb-4">
+      <div style={{ background: C.subtle, borderRadius: R.pill }} className="flex gap-1 p-1 mb-4">
         {POPUP_TABS.map(([key, label]) => (
           <button key={key} onClick={() => setTab(key)}
-            style={{ borderColor: tab === key ? C.signal : C.hairline, background: tab === key ? C.signal : "transparent", color: tab === key ? "#fff" : C.ink }}
-            className="border-2 px-3 py-1.5 text-sm font-medium">
+            style={tab === key ? { background: C.panel, boxShadow: "0 1px 3px rgba(27,30,36,0.10)", color: C.ink, fontWeight: 700 } : { color: C.inkSoft, fontWeight: 600 }}
+            className="flex-1 h-9 rounded-full text-[12.5px]">
             {label} <span className="text-[11px] font-semibold">({grouped[key].length})</span>
           </button>
         ))}
       </div>
       {loading && <p className="text-sm" style={{ color: C.inkSoft }}>Cargando...</p>}
       {!loading && shown.length === 0 && <p className="text-sm" style={{ color: C.inkSoft }}>{emptyMessage}</p>}
-      <div className="flex flex-col gap-2">
+      <div className="flex flex-col gap-2.5">
         {shown.map((p) => {
           const targetLabel = !p.target_user_ids || p.target_user_ids.length === 0 ? "Todo el equipo" : `${p.target_user_ids.length} persona(s)`;
           const dateLabel = p.scheduled_date ? `${fmtDate(p.scheduled_date)}${p.scheduled_time ? " · " + p.scheduled_time.slice(0, 5) : ""}` : "Sin programar todavía";
           return (
-            <button key={p.id} onClick={() => setEditing(p)} style={{ borderColor: C.hairline, background: C.panel }} className="border p-3.5 text-left flex items-center justify-between gap-3">
+            <button key={p.id} onClick={() => setEditing(p)} style={{ background: C.panel, borderRadius: R.xl, boxShadow: SH.card }} className="p-3.5 text-left flex items-center justify-between gap-3">
               <div className="min-w-0">
-                <div className="text-sm font-medium truncate" style={{ color: C.ink }}>{p.title}{p.only_notification && <span className="ml-1.5 text-[11px] font-semibold" style={{ color: C.inkSoft }}>· solo notificación</span>}</div>
+                <div className="text-sm font-semibold truncate" style={{ color: C.ink }}>{p.title}{p.only_notification && <span className="ml-1.5 text-[11px] font-semibold" style={{ color: C.inkSoft }}>· solo notificación</span>}</div>
                 <div className="text-[12px] mt-0.5" style={{ color: C.inkSoft }}>
                   {dateLabel} · {targetLabel}
                 </div>
@@ -2142,24 +2142,24 @@ function PopupEditForm({ popup, profiles, tasks, subtasks, onClose, onSaved }) {
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: "rgba(20,24,31,0.55)" }}>
-      <div style={{ background: C.paper, borderColor: C.hairline }} className="w-full max-w-lg border max-h-[90vh] overflow-y-auto">
-        <div style={{ borderColor: C.hairline }} className="border-b px-5 py-4 flex items-center justify-between">
-          <h2 style={{ color: C.ink, fontFamily: FONT_SERIF }} className="text-lg">Editar Pop Up</h2>
-          <button onClick={onClose}><X size={18} style={{ color: C.inkSoft }} /></button>
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: "rgba(27,30,36,0.55)" }}>
+      <div style={{ background: C.panel, borderRadius: R.xxl, boxShadow: SH.card }} className="w-full max-w-lg max-h-[90vh] overflow-y-auto">
+        <div style={{ boxShadow: `inset 0 -1px 0 ${C.hairline}` }} className="px-5 py-4 flex items-center justify-between gap-3">
+          <h2 style={{ color: C.ink, fontFamily: FONT_SERIF, fontSize: 20, fontWeight: 500 }}>Editar Pop Up</h2>
+          <button onClick={onClose} style={{ width: 30, height: 30, borderRadius: R.pill, background: C.subtle, color: C.inkMedium }} className="flex items-center justify-center flex-shrink-0"><X size={15} /></button>
         </div>
         <div className="p-5 flex flex-col gap-4">
           <div><label className="text-[11.5px] font-bold tracking-[0.09em]" style={{ color: C.inkSoft }}>Título</label>
-            <input value={title} onChange={(e) => setTitle(e.target.value)} style={{ borderColor: C.hairline, background: C.panel }} className="w-full border px-3 py-2 text-sm mt-1 outline-none" /></div>
+            <input value={title} onChange={(e) => setTitle(e.target.value)} style={{ background: C.paper, borderRadius: R.md }} className="w-full px-3.5 py-2.5 text-sm mt-1.5 outline-none" /></div>
           <div><label className="text-[11.5px] font-bold tracking-[0.09em]" style={{ color: C.inkSoft }}>Descripción</label>
-            <textarea value={description} onChange={(e) => setDescription(e.target.value)} rows={4} style={{ borderColor: C.hairline, background: C.panel }} className="w-full border px-3 py-2 text-sm mt-1 outline-none" /></div>
+            <textarea value={description} onChange={(e) => setDescription(e.target.value)} rows={4} style={{ background: C.paper, borderRadius: R.md }} className="w-full px-3.5 py-2.5 text-sm mt-1.5 outline-none" /></div>
           <div>
             <label className="text-[11.5px] font-bold tracking-[0.09em]" style={{ color: C.inkSoft }}>¿A quién le sale?</label>
             <div className="flex flex-wrap gap-1.5 mt-1.5">
               {profiles.map((p) => (
                 <button key={p.id} type="button" onClick={() => toggleTarget(p.id)}
-                  style={{ borderColor: targetUserIds.includes(p.id) ? C.signal : C.hairline, background: targetUserIds.includes(p.id) ? C.signal : "transparent", color: targetUserIds.includes(p.id) ? "#fff" : C.ink }}
-                  className="border px-2.5 py-1 text-xs">{p.name}</button>
+                  style={{ background: targetUserIds.includes(p.id) ? C.ink : C.panel, boxShadow: targetUserIds.includes(p.id) ? "none" : SH.soft, color: targetUserIds.includes(p.id) ? C.paper : C.inkMedium, fontWeight: targetUserIds.includes(p.id) ? 600 : 500 }}
+                  className="h-[30px] px-3 rounded-full text-xs">{p.name}</button>
               ))}
             </div>
             <p className="text-[11px] mt-1" style={{ color: C.inkSoft }}>Sin nadie seleccionado = le sale a todo el equipo.</p>
@@ -2188,17 +2188,17 @@ function PopupEditForm({ popup, profiles, tasks, subtasks, onClose, onSaved }) {
           </div>
           <div className="grid grid-cols-2 gap-3">
             <div><label className="text-[11.5px] font-bold tracking-[0.09em]" style={{ color: C.inkSoft }}>Día programado (opcional)</label>
-              <input type="date" value={scheduledDate} onChange={(e) => setScheduledDate(e.target.value)} style={{ borderColor: C.hairline, background: C.panel }} className="w-full border px-3 py-2 text-sm mt-1 outline-none" />
+              <input type="date" value={scheduledDate} onChange={(e) => setScheduledDate(e.target.value)} style={{ background: C.paper, borderRadius: R.md }} className="w-full px-3.5 py-2.5 text-sm mt-1.5 outline-none" />
               <p className="text-[11px] mt-1" style={{ color: C.inkSoft }}>Vacío = se queda en "Nuevos".</p></div>
             <div><label className="text-[11.5px] font-bold tracking-[0.09em]" style={{ color: C.inkSoft }}>Hora (opcional)</label>
-              <input type="time" value={scheduledTime} onChange={(e) => setScheduledTime(e.target.value)} style={{ borderColor: C.hairline, background: C.panel }} className="w-full border px-3 py-2 text-sm mt-1 outline-none" /></div>
+              <input type="time" value={scheduledTime} onChange={(e) => setScheduledTime(e.target.value)} style={{ background: C.paper, borderRadius: R.md }} className="w-full px-3.5 py-2.5 text-sm mt-1.5 outline-none" /></div>
           </div>
         </div>
-        <div style={{ borderColor: C.hairline }} className="border-t px-5 py-4 flex justify-between gap-2">
-          <button onClick={remove} disabled={deleting} style={{ color: C.urgent }} className="px-3 py-2 text-sm flex items-center gap-1.5 disabled:opacity-60"><Trash2 size={14} /> {deleting ? "Borrando..." : "Borrar"}</button>
+        <div style={{ boxShadow: `inset 0 1px 0 ${C.hairline}` }} className="px-5 py-4 flex items-center justify-between gap-2">
+          <button onClick={remove} disabled={deleting} style={{ color: C.urgentInk, background: C.panel, boxShadow: SH.soft, borderRadius: R.pill }} className="h-10 px-4 text-sm font-semibold flex items-center gap-1.5 disabled:opacity-60"><Trash2 size={14} /> {deleting ? "Borrando..." : "Borrar"}</button>
           <div className="flex gap-2">
-            <button onClick={onClose} style={{ color: C.inkSoft }} className="px-4 py-2 text-sm">Cancelar</button>
-            <button onClick={() => setShowConfirm(true)} disabled={!title.trim() || saving || !!imageError} style={{ background: C.spine, color: C.paper, opacity: saving ? 0.6 : 1 }} className="px-4 py-2 text-sm disabled:cursor-not-allowed">¿Listo?</button>
+            <button onClick={onClose} style={{ color: C.inkMedium, background: C.subtle, borderRadius: R.pill }} className="px-5 py-2.5 text-sm font-semibold">Cancelar</button>
+            <button onClick={() => setShowConfirm(true)} disabled={!title.trim() || saving || !!imageError} style={{ background: C.ink, color: C.paper, opacity: saving ? 0.6 : 1, borderRadius: R.pill }} className="px-5 py-2.5 text-sm font-semibold disabled:cursor-not-allowed">¿Listo?</button>
           </div>
         </div>
       </div>
