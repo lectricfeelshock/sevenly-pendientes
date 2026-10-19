@@ -39,6 +39,46 @@ lo detallo. Preguntas abiertas antes de construirlo:
 - ¿Es solo para hoy (se reinicia cada día) o también se puede armar el
   de días futuros, tipo semana?
 
+### 25. Pop-up de "Novedades" con los últimos cambios (solo para el admin)
+Un pop-up tipo tarjeta (mismo estilo que el modal de FAQ) que le aparece
+**solo al admin**, explicando en lenguaje sencillo los últimos cambios
+aplicados a la app. Copy ya aprobado:
+
+```
+✨ Novedades                                          ✕
+
+• Al crear un pendiente Individual, ya puedes elegir quién lo
+  solicita y asignártelo a ti mismo.
+
+• Ya no hay que avisar al solicitante a mano — en cuanto entregas,
+  se le notifica solo.
+
+• Cualquiera con acceso a un pendiente puede cambiar su fecha
+  límite, no solo el solicitante.
+
+• Nuevo: las "cuentas" (Sevenly, WorkHub, Ragasa, Mobil, 7-Eleven,
+  Promanuez, Berel...). Tu perfil ya sabe a cuáles perteneces y tu
+  puesto.
+
+• Nuevo botón de ayuda — la burbuja flotante con preguntas
+  frecuentes, que puedes arrastrar a cualquier borde de la pantalla.
+
+           [       Entendido       ]
+```
+
+Notas de implementación:
+- Mismo look que `FaqModal` (tarjeta blanca, `R.xxl`, `SH.card`, header
+  con ícono).
+- Le sale al admin **una sola vez** (guardar algo como
+  `profiles.changes_popup_seen_at`, o una versión tipo
+  `profiles.last_seen_changelog = "2026-10-19"` para poder reusarlo con
+  futuras novedades).
+- Solo se cierra con el botón "Entendido" o la X — no se vuelve a
+  abrir sola después de cerrarla.
+
+_Pendiente de programar — lo hace Fernando directamente, no requiere
+PR de Claude._
+
 ### 21. Vista de calendario para deadlines
 _Movida desde PROPUESTAS.md #3._
 
