@@ -471,6 +471,9 @@ export default function Dashboard() {
   const [taskComments, setTaskComments] = useState([]); // { id, task_id, created_at } de todos los pendientes
   const [commentReads, setCommentReads] = useState([]); // { task_id, last_read_at } del usuario actual
   const [resources, setResources] = useState([]); // recursos de Biblioteca visibles para mí (CHANGES.md #2h)
+  const [accounts, setAccounts] = useState([]);
+  const [accountFilterId, setAccountFilterId] = useState(null); // null = todas las cuentas del usuario
+  const [showAccountFilter, setShowAccountFilter] = useState(false);
 
   const loadAll = useCallback(async () => {
     const { data: t } = await supabase.from("tasks").select("*").order("created_at", { ascending: false });
@@ -480,11 +483,13 @@ export default function Dashboard() {
     // CHANGES.md #2h: la lupa del dashboard también busca en la Biblioteca —
     // RLS ya limita esto a generales + propios + compartidos conmigo.
     const { data: res } = await supabase.from("resources").select("*");
+    const { data: accs } = await supabase.from("accounts").select("*").order("name");
     setTasks(t || []);
     setProfiles(p || []);
     setSubtasks(st || []);
     setRecurringTemplates(rt || []);
     setResources(res || []);
+    setAccounts(accs || []);
   }, []);
 
   const loadNotifications = useCallback(async (userId) => {
@@ -783,6 +788,7 @@ export default function Dashboard() {
         assigned_to_id: form.taskType === "colaborativo" ? null : (form.assignedToId || null),
         team_member_ids: form.taskType === "colaborativo" ? (form.teamMemberIds || []) : [],
         subtask_specs: subtaskSpecs,
+        account_id: form.accountId || null,
       }).select().single();
 
       if (!tplError && tpl) {
@@ -800,6 +806,7 @@ export default function Dashboard() {
           request_date: form.scheduledDate,
           recurring_template_id: tpl.id,
           created_by: profile.id,
+          account_id: form.accountId || null,
         }).select().single();
 
         if (firstTask) {
@@ -840,6 +847,7 @@ export default function Dashboard() {
       ...(form.scheduling && form.scheduledDate ? { request_date: form.scheduledDate } : {}),
       ...(form.changesRound ? { changes_round: form.changesRound } : {}),
       created_by: profile.id,
+      account_id: form.accountId || null,
     }).select().single();
 
     if (!error && data) {
@@ -1019,6 +1027,7 @@ export default function Dashboard() {
   const isAdmin = profile?.role === "admin";
   const isGerente = profile?.role === "gerente" || profile?.role === "admin";
   const assignableProfiles = profiles.filter((p) => p.role !== "admin");
+  const myAccounts = accounts.filter((a) => (profile.account_ids || []).includes(a.id));
   const effectiveId = viewingAs || profile.id;
   const viewingProfile = viewingAs ? profiles.find((p) => p.id === viewingAs) : null;
 
@@ -1053,6 +1062,7 @@ export default function Dashboard() {
   let base = tasks;
   if (primaryTab === "requests") base = tasks.filter((t) => isRequesterOf(t, effectiveId));
   else if (primaryTab === "mine") base = tasks.filter((t) => isAssignedTo(t, effectiveId) && !isProgramado(t));
+  if (accountFilterId) base = base.filter((t) => t.account_id === accountFilterId);
   // Universo de la búsqueda avanzada (CHANGES.md #1): siempre "todos mis
   // pendientes" — los que solicité o me asignaron — sin importar qué pestaña
   // esté activa.
@@ -1136,8 +1146,26 @@ export default function Dashboard() {
         </button>
       </div>
       <div className="px-5 pt-4">
-        <h1 style={{ color: C.ink, fontFamily: FONT_SERIF, fontSize: 32, fontWeight: 500, letterSpacing: "-0.01em" }} className="leading-[1.08]">Pendientes</h1>
+        <div className="relative inline-block">
+          <button onClick={() => myAccounts.length > 0 && setShowAccountFilter((v) => !v)} className="flex items-center gap-1.5">
+            <h1 style={{ color: C.ink, fontFamily: FONT_SERIF, fontSize: 32, fontWeight: 500, letterSpacing: "-0.01em" }} className="leading-[1.08]">Pendientes</h1>
+            {myAccounts.length > 0 && <ChevronDown size={18} style={{ color: C.inkSoft, transform: showAccountFilter ? "rotate(180deg)" : "none", marginTop: 4 }} />}
+          </button>
+          {showAccountFilter && (
+            <div style={{ background: C.panel, borderRadius: R.lg, boxShadow: SH.card }} className="absolute left-0 top-full mt-1.5 z-30 min-w-[180px] py-1.5">
+              <button onClick={() => { setAccountFilterId(null); setShowAccountFilter(false); }}
+                style={{ color: !accountFilterId ? C.signal : C.ink }}
+                className="w-full text-left px-3.5 py-2 text-sm">Todas las cuentas</button>
+              {myAccounts.map((a) => (
+                <button key={a.id} onClick={() => { setAccountFilterId(a.id); setShowAccountFilter(false); }}
+                  style={{ color: accountFilterId === a.id ? C.signal : C.ink }}
+                  className="w-full text-left px-3.5 py-2 text-sm">{a.name}</button>
+              ))}
+            </div>
+          )}
+        </div>
         <div className="flex items-center gap-2 mt-1.5 text-[13.5px]" style={{ color: C.inkSoft }}>
+          {accountFilterId && <span style={{ color: C.inkMedium, fontWeight: 600 }}>{accounts.find((a) => a.id === accountFilterId)?.name} ·</span>}
           <span>{activeInTab.length} activo{activeInTab.length === 1 ? "" : "s"}</span>
           {dueTodayCount > 0 && (
             <>
@@ -1325,7 +1353,7 @@ export default function Dashboard() {
 
       <BottomNav active="pendientes" profile={profile} onEquipo={() => setShowTeam(true)} />
 
-      {showNew && <NewTaskForm onClose={() => { setShowNew(false); setAssignChangesFor(null); }} onCreate={createTask} onCreatePopup={createPopup} profiles={assignableProfiles} profile={profile} isAdmin={isAdmin} tasks={tasks} subtasks={subtasks} initialData={assignChangesFor} />}
+      {showNew && <NewTaskForm onClose={() => { setShowNew(false); setAssignChangesFor(null); }} onCreate={createTask} onCreatePopup={createPopup} profiles={assignableProfiles} profile={profile} isAdmin={isAdmin} tasks={tasks} subtasks={subtasks} initialData={assignChangesFor} accounts={myAccounts.length > 0 ? myAccounts : accounts} />}
       {popupQueue[0] && <PopupModal popup={popupQueue[0]} onClose={dismissPopup} tasks={tasks} subtasks={subtasks} profiles={profiles} onFinalizeTask={finalizeTask} />}
       {selected && <TaskDetail task={selected} onClose={() => setSelected(null)} onUpdate={updateTask} onDelete={deleteTask} onDeleteRecurring={deleteRecurringTask} recurringTemplates={recurringTemplates} onFinalize={finalizeTask} onDeliver={deliverTask} profiles={profiles} assignableProfiles={assignableProfiles} profile={profile} notify={notify} subtasks={subtasks.filter((s) => s.task_id === selected.id)} onAddSubtask={addSubtask} onUpdateSubtaskStatus={updateSubtaskStatus} onUpdateSubtaskDescription={updateSubtaskDescription} onAssignChanges={startAssignChanges} viewerIsGerente={!!viewingAs && !isAdmin} onCommentsRead={reloadMyCommentReads} />}
       {showTeam && <TeamPanel onClose={() => setShowTeam(false)} profiles={assignableProfiles} tasks={tasks} />}
@@ -1398,8 +1426,9 @@ function TaskRow({ task, onOpen, unreadComments = 0 }) {
   );
 }
 
-function NewTaskForm({ onClose, onCreate, onCreatePopup, profiles, profile, isAdmin, tasks, subtasks, initialData }) {
+function NewTaskForm({ onClose, onCreate, onCreatePopup, profiles, profile, isAdmin, tasks, subtasks, initialData, accounts }) {
   const [mode, setMode] = useState("pendiente"); // "pendiente" | "popup" (solo admins ven el selector)
+  const [accountId, setAccountId] = useState("");
   const [taskType, setTaskType] = useState("individual"); // individual | personal | colaborativo
   const [title, setTitle] = useState(initialData?.title || ""), [description, setDescription] = useState("");
   const [category, setCategory] = useState(DEFAULT_CATEGORIES[0]), [newCategory, setNewCategory] = useState("");
@@ -1489,16 +1518,17 @@ function NewTaskForm({ onClose, onCreate, onCreatePopup, profiles, profile, isAd
 
   const submit = () => {
     if (!title.trim()) return;
+    if (accounts.length > 0 && !accountId) return;
     const finalCategory = newCategory.trim() || category;
     const changesRound = initialData?.changesRound || null;
     if (taskType === "individual") {
       if (!assignedToId || deadlineError) return;
-      onCreate({ title, description, category: finalCategory, taskType, requestedById: profile.id, coRequesterIds, deadline, urgency, assignedToId, subtasks: subtaskRows, scheduling, scheduledDate, repeatMode, changesRound });
+      onCreate({ title, description, category: finalCategory, taskType, requestedById: profile.id, coRequesterIds, deadline, urgency, assignedToId, subtasks: subtaskRows, scheduling, scheduledDate, repeatMode, changesRound, accountId });
     } else if (taskType === "personal") {
-      onCreate({ title, description, category: finalCategory, taskType, requestedById: profile.id, deadline, urgency, assignedToId: profile.id, changesRound });
+      onCreate({ title, description, category: finalCategory, taskType, requestedById: profile.id, deadline, urgency, assignedToId: profile.id, changesRound, accountId });
     } else if (taskType === "colaborativo") {
       if (teamMemberIds.length < 2 || deadlineError || missingSubtaskCoverage) return;
-      onCreate({ title, description, category: finalCategory, taskType, requestedById: profile.id, coRequesterIds, deadline, urgency, teamMemberIds, subtasks: subtaskRows, scheduling, scheduledDate, repeatMode, changesRound });
+      onCreate({ title, description, category: finalCategory, taskType, requestedById: profile.id, coRequesterIds, deadline, urgency, teamMemberIds, subtasks: subtaskRows, scheduling, scheduledDate, repeatMode, changesRound, accountId });
     }
   };
 
@@ -1669,6 +1699,20 @@ function NewTaskForm({ onClose, onCreate, onCreatePopup, profiles, profile, isAd
           </div>
         ) : (
           <div className="p-5 flex flex-col gap-4">
+            {accounts.length > 0 && (
+              <div>
+                <label className="text-[11.5px] font-bold tracking-[0.09em]" style={{ color: C.inkSoft }}>¿Para qué cuenta es?</label>
+                <div className="flex flex-wrap gap-1.5 mt-1.5">
+                  {accounts.map((a) => (
+                    <button key={a.id} type="button" onClick={() => setAccountId(a.id)}
+                      style={accountId === a.id ? { background: C.ink, color: C.paper, fontWeight: 600 } : { background: C.panel, color: C.inkMedium, boxShadow: SH.soft, fontWeight: 500 }}
+                      className="h-9 px-3.5 rounded-full text-[13px]">{a.name}</button>
+                  ))}
+                </div>
+                {!accountId && <p className="text-[11px] mt-1.5" style={{ color: C.inkSoft }}>Elige una cuenta para poder crear el pendiente.</p>}
+              </div>
+            )}
+
             <div style={{ background: C.subtle, borderRadius: R.pill }} className="flex gap-1 p-1">
               {TASK_TYPES.map((tt) => (
                 <button key={tt.key} onClick={() => setTaskType(tt.key)}
@@ -1829,7 +1873,7 @@ function NewTaskForm({ onClose, onCreate, onCreatePopup, profiles, profile, isAd
           {mode === "popup" && isAdmin ? (
             <button onClick={() => setShowPopupConfirm(true)} disabled={!popupTitle.trim() || popupSaving || !!popupImageError} style={{ background: C.ink, color: C.paper, opacity: popupSaving ? 0.6 : 1, borderRadius: R.pill }} className="px-5 py-2.5 text-sm font-semibold disabled:cursor-not-allowed">¿Listo?</button>
           ) : (
-            <button onClick={handleCreateClick} disabled={usesDeadlineRules && !!deadlineError} style={{ background: C.ink, color: C.paper, opacity: usesDeadlineRules && deadlineError ? 0.5 : 1, borderRadius: R.pill }} className="px-5 py-2.5 text-sm font-semibold disabled:cursor-not-allowed">Crear pendiente</button>
+            <button onClick={handleCreateClick} disabled={(usesDeadlineRules && !!deadlineError) || (accounts.length > 0 && !accountId)} style={{ background: C.ink, color: C.paper, opacity: (usesDeadlineRules && deadlineError) || (accounts.length > 0 && !accountId) ? 0.5 : 1, borderRadius: R.pill }} className="px-5 py-2.5 text-sm font-semibold disabled:cursor-not-allowed">Crear pendiente</button>
           )}
         </div>
       </div>
