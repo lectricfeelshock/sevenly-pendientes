@@ -383,7 +383,7 @@ function BibliotecaPageInner() {
       {showForm && (
         <ResourceForm
           initial={editing}
-          accounts={accounts}
+          accounts={accounts.filter((a) => (profile.account_ids || []).includes(a.id))}
           ownerId={profile.id}
           onClose={() => { setShowForm(false); setEditing(null); }}
           onSave={saveResource}
