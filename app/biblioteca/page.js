@@ -10,6 +10,7 @@ import { C, R, SH, FONT_SERIF } from "@/lib/theme";
 import BottomNav from "@/components/BottomNav";
 import LoadingScreen from "@/components/LoadingScreen";
 import TeamPanel from "@/components/TeamPanel";
+import FaqBubble from "@/components/FaqBubble";
 
 // CHANGES.md #2d: bucket "resource-files" — 20 MB por archivo, solo estos
 // tipos (confirmado viable: plan Free de Supabase, 1 GB de storage total,
@@ -361,6 +362,7 @@ function BibliotecaPageInner() {
       </div>
 
       <BottomNav active="biblioteca" profile={profile} onEquipo={() => setShowTeam(true)} />
+      <FaqBubble profile={profile} onDismiss={(iso) => setProfile((p) => ({ ...p, faq_bubble_dismissed_at: iso }))} />
 
       {showTeam && <TeamPanel onClose={() => setShowTeam(false)} profiles={profiles.filter((p) => p.role !== "admin")} tasks={tasks} />}
 

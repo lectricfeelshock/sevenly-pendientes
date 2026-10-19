@@ -7,6 +7,7 @@ import { C, R, SH, FONT_SERIF } from "@/lib/theme";
 import BottomNav from "@/components/BottomNav";
 import LoadingScreen from "@/components/LoadingScreen";
 import TeamPanel from "@/components/TeamPanel";
+import FaqBubble from "@/components/FaqBubble";
 
 function activityMsg(n) {
   if (!n) return "Aún no finalizas pendientes hoy.";
@@ -185,6 +186,7 @@ export default function PerfilPage() {
       </div>
 
       <BottomNav active="perfil" profile={profile} onEquipo={() => setShowTeam(true)} />
+      <FaqBubble profile={profile} onDismiss={(iso) => setProfile((p) => ({ ...p, faq_bubble_dismissed_at: iso }))} />
 
       {showTeam && <TeamPanel onClose={() => setShowTeam(false)} profiles={teamProfiles.filter((p) => p.role !== "admin")} tasks={teamTasks} />}
     </div>

@@ -6,7 +6,7 @@ import {
   Plus, Bell, MessageSquare, ArrowRightLeft, X, Search, Flag,
   ChevronRight, ChevronDown, Trash2, CheckCircle2, Circle,
   PauseCircle, PlayCircle, Send, LogOut, History, Mail, Users,
-  BookOpen, Download, Lock, CheckCheck, BellRing,
+  BookOpen, Download, Lock, CheckCheck, BellRing, HelpCircle,
   Image as ImageIcon, Megaphone, Eye, Pencil, Paperclip, Link2, Clock,
 } from "lucide-react";
 import { C, R, SH, FONT_SERIF } from "@/lib/theme";
@@ -14,6 +14,9 @@ import BottomNav from "@/components/BottomNav";
 import TeamPanel from "@/components/TeamPanel";
 import LoadingScreen from "@/components/LoadingScreen";
 import AccountsOnboarding from "@/components/AccountsOnboarding";
+import FaqBubble from "@/components/FaqBubble";
+import FaqModal from "@/components/FaqModal";
+import { shouldFloatFaqBubble } from "@/lib/faq";
 
 // Estados que puede elegir la persona ASIGNADA
 const ASSIGNEE_STATUSES = ["No iniciado", "En progreso", "Detenido", "Entregado"];
@@ -123,9 +126,13 @@ function PopupMediaPreview({ url, maxHeight }) {
 // o guardarlo — reemplaza el "Programar"/"Guardar" directo por un paso de
 // confirmación. `file` (si viene) manda sobre `existingUrl` para la
 // previsualización de la imagen/GIF/video.
-function PopupConfirmModal({ title, description, existingUrl, file, onlyNotification, replicateNotification, onCancel, onConfirm, confirmLabel, busy }) {
+function PopupConfirmModal({ title, description, existingUrl, file, onlyNotification, replicateNotification, relatedTasks, tasks, subtasks, profiles, onCancel, onConfirm, confirmLabel, busy }) {
   const [objectUrl, setObjectUrl] = useState(null);
   const [showFullMedia, setShowFullMedia] = useState(false);
+  const [openTaskId, setOpenTaskId] = useState(null);
+  const relatedEntries = (relatedTasks || [])
+    .map((entry) => ({ entry, task: (tasks || []).find((t) => t.id === entry.id) }))
+    .filter((x) => x.task);
   useEffect(() => {
     if (!file) { setObjectUrl(null); return; }
     const url = URL.createObjectURL(file);
@@ -163,6 +170,26 @@ function PopupConfirmModal({ title, description, existingUrl, file, onlyNotifica
                   </div>
                   <h3 style={{ color: C.ink, fontFamily: FONT_SERIF }} className="text-base mb-1">{title || "(sin título)"}</h3>
                   {description && <p className="text-sm whitespace-pre-wrap" style={{ color: C.ink }}>{renderWithLinks(description, C.signal)}</p>}
+                  {relatedEntries.length > 0 && (
+                    <div className="mt-3 flex flex-col gap-1.5">
+                      <div className="text-[11.5px] font-bold tracking-[0.09em]" style={{ color: C.inkSoft }}>Pendientes relacionados</div>
+                      {relatedEntries.map(({ entry, task }) => {
+                        const open = openTaskId === task.id;
+                        const previewFields = (entry.fields || []).filter((f) => f !== "finalize");
+                        return (
+                          <div key={task.id} style={{ background: C.panel, borderRadius: R.md, overflow: "hidden" }}>
+                            <button type="button" onClick={() => setOpenTaskId(open ? null : task.id)} className="w-full px-3 py-2.5 text-left flex items-center justify-between gap-2">
+                              <span className="text-xs font-semibold truncate" style={{ color: C.ink }}>{task.title}</span>
+                              <ChevronDown size={12} style={{ color: C.inkSoft, flexShrink: 0, transform: open ? "rotate(180deg)" : "none" }} />
+                            </button>
+                            {open && previewFields.length > 0 && (
+                              <PopupTaskBreakdown task={task} fields={previewFields} profiles={profiles || []} subtasks={subtasks || []} onFinalizeTask={async () => {}} />
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
                 </div>
               </div>
             </div>
@@ -450,6 +477,7 @@ export default function Dashboard() {
   };
   const [showTeam, setShowTeam] = useState(false);
   const [showNotifs, setShowNotifs] = useState(false);
+  const [showFaq, setShowFaq] = useState(false); // CHANGES.md #8
   const [showSearch, setShowSearch] = useState(false);
   // CHANGES.md #12: filtro activo del dashboard — reemplaza los tabs de
   // estado de antes por 5 filtros (Todos/Estado/Urgencia/Categoría/Deadline,
@@ -1176,6 +1204,15 @@ export default function Dashboard() {
           <span className="flex items-center justify-center w-full h-full"><Bell size={18} /></span>
           {bellLabel && <span style={{ background: C.urgent, color: "#fff" }} className="absolute top-0 right-0 text-[9px] font-bold w-4 h-4 flex items-center justify-center leading-none rounded-full">{bellLabel}</span>}
         </button>
+        {/* CHANGES.md #8b: si ya cerraste la burbuja flotante de ayuda, se
+            queda aquí fija junto a la campana (mismo estilo blanco) hasta
+            que vuelva a flotar el próximo lunes. */}
+        {!shouldFloatFaqBubble(profile.faq_bubble_dismissed_at) && (
+          <button onClick={() => setShowFaq(true)} title="Ayuda" className="flex-shrink-0"
+            style={{ width: 44, height: 44, borderRadius: R.pill, background: C.panel, boxShadow: SH.soft, color: C.inkMedium }}>
+            <span className="flex items-center justify-center w-full h-full"><HelpCircle size={18} /></span>
+          </button>
+        )}
         <button onClick={() => setShowNew(true)}
           style={{ background: C.ink, color: C.paper, borderRadius: R.pill, height: 44 }}
           className="px-4 flex items-center gap-1.5 text-[13.5px] font-semibold flex-shrink-0 whitespace-nowrap">
@@ -1397,6 +1434,8 @@ export default function Dashboard() {
       {popupQueue[0] && <PopupModal popup={popupQueue[0]} onClose={dismissPopup} tasks={tasks} subtasks={subtasks} profiles={profiles} onFinalizeTask={finalizeTask} />}
       {selected && <TaskDetail task={selected} onClose={() => setSelected(null)} onUpdate={updateTask} onDelete={deleteTask} onDeleteRecurring={deleteRecurringTask} recurringTemplates={recurringTemplates} onFinalize={finalizeTask} onDeliver={deliverTask} profiles={profiles} assignableProfiles={assignableProfiles} profile={profile} notify={notify} subtasks={subtasks.filter((s) => s.task_id === selected.id)} onAddSubtask={addSubtask} onUpdateSubtaskStatus={updateSubtaskStatus} onUpdateSubtaskDescription={updateSubtaskDescription} onUpdateSubtaskDeadline={updateSubtaskDeadline} onAssignChanges={startAssignChanges} viewerIsGerente={!!viewingAs && !isAdmin} onCommentsRead={reloadMyCommentReads} />}
       {showTeam && <TeamPanel onClose={() => setShowTeam(false)} profiles={assignableProfiles} tasks={tasks} />}
+      {showFaq && <FaqModal onClose={() => setShowFaq(false)} />}
+      <FaqBubble profile={profile} onDismiss={(iso) => setProfile((p) => ({ ...p, faq_bubble_dismissed_at: iso }))} />
       {showNotifs && <NotificationsPanel onClose={() => setShowNotifs(false)} notifications={notifications} onOpenTask={(taskId) => { const t = tasks.find((x) => x.id === taskId); if (t) setSelected(t); setShowNotifs(false); }} onOpenFilter={(target) => { if (target === "requests:Entregado") { setPrimaryTab("requests"); setActiveFilter({ type: "Estado", value: "Entregado" }); } setShowNotifs(false); }} pushSupported={pushSupported} pushEnabled={pushEnabled} onEnablePush={enablePush} />}
       {showSearch && <SearchModal onClose={() => setShowSearch(false)} tasks={myTasks} profiles={profiles} resources={resources} onOpenTask={(t) => { setSelected(t); setShowSearch(false); }} onOpenResource={(r) => { setShowSearch(false); router.push(`/biblioteca?open=${r.id}`); }} />}
     </div>
@@ -1970,6 +2009,7 @@ function NewTaskForm({ onClose, onCreate, onCreatePopup, profiles, profile, isAd
           title={popupTitle} description={popupDesc}
           existingUrl={null} file={onlyNotification ? null : popupImage}
           onlyNotification={onlyNotification} replicateNotification={replicateNotification}
+          relatedTasks={popupTasks} tasks={tasks} subtasks={subtasks} profiles={profiles}
           onCancel={() => setShowPopupConfirm(false)} onConfirm={submitPopup}
           confirmLabel="Crear" busy={popupSaving}
         />
@@ -2207,6 +2247,7 @@ function PopupEditForm({ popup, profiles, tasks, subtasks, onClose, onSaved }) {
           title={title} description={description}
           existingUrl={popup.image_url} file={onlyNotification ? null : imageFile}
           onlyNotification={onlyNotification} replicateNotification={replicateNotification}
+          relatedTasks={popupTasks} tasks={tasks} subtasks={subtasks} profiles={profiles}
           onCancel={() => setShowConfirm(false)} onConfirm={save}
           confirmLabel="Guardar" busy={saving}
         />
