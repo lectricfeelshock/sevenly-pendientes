@@ -8,13 +8,29 @@ se hizo).
 
 ## Pendientes
 
-### 8. Apartado de FAQ (dudas frecuentes)
-Un apartado nuevo con preguntas frecuentes y sus respuestas, para que el
-equipo pueda resolver dudas comunes sin tener que preguntar. Aún sin
-definir bien — ni las preguntas, ni dónde vive dentro de la app (¿pestaña
-propia? ¿dentro de Biblioteca? ¿accesible desde el menú de arriba?), ni
-quién la puede editar. Lo dejo como opción por ahora; cuando lo tenga más
-claro lo detallo.
+### 8. Apartado de FAQ (dudas de cómo usar la app)
+Un apartado nuevo con preguntas frecuentes y sus respuestas — no sobre
+clientes/trabajo (eso es Biblioteca), sino dudas de **cómo usar la app
+en sí** (cómo crear un pendiente, qué significa cada urgencia, etc.),
+para que el equipo las resuelva sin tener que preguntar.
+
+Cómo se llega a él — una burbuja/botón con dos formas, según si ya lo
+cerraste o no:
+
+a. **Por default, flota** como burbuja pequeña pegada al borde derecho
+   de la pantalla — círculo negro con un signo de interrogación. Se
+   puede arrastrar hacia una "x" para cerrarla (como borrar un ícono
+   en el celular).
+b. **Si la cierras**, deja de flotar y en su lugar aparece fija junto
+   a la campana de notificaciones (arriba), con el mismo estilo
+   blanco que ya tiene el botón de la campana — ya no es la burbuja
+   negra, es un ícono más chico y discreto ahí.
+c. **Cada lunes** (inicio de semana), vuelve a aparecer flotando como
+   burbuja — sin importar si la habías cerrado la semana pasada.
+
+Falta definir: las preguntas/respuestas en sí, si abre un panel o una
+página al dar clic, y quién puede editarlas (¿solo admin?). Lo dejo
+como opción por ahora; cuando lo tenga más claro lo detallo.
 
 ### 17. Widget de Pomodoro timer en el perfil
 En la página de perfil, agregar un widget de temporizador Pomodoro
