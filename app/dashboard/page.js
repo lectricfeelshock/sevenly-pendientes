@@ -126,9 +126,13 @@ function PopupMediaPreview({ url, maxHeight }) {
 // o guardarlo — reemplaza el "Programar"/"Guardar" directo por un paso de
 // confirmación. `file` (si viene) manda sobre `existingUrl` para la
 // previsualización de la imagen/GIF/video.
-function PopupConfirmModal({ title, description, existingUrl, file, onlyNotification, replicateNotification, onCancel, onConfirm, confirmLabel, busy }) {
+function PopupConfirmModal({ title, description, existingUrl, file, onlyNotification, replicateNotification, relatedTasks, tasks, subtasks, profiles, onCancel, onConfirm, confirmLabel, busy }) {
   const [objectUrl, setObjectUrl] = useState(null);
   const [showFullMedia, setShowFullMedia] = useState(false);
+  const [openTaskId, setOpenTaskId] = useState(null);
+  const relatedEntries = (relatedTasks || [])
+    .map((entry) => ({ entry, task: (tasks || []).find((t) => t.id === entry.id) }))
+    .filter((x) => x.task);
   useEffect(() => {
     if (!file) { setObjectUrl(null); return; }
     const url = URL.createObjectURL(file);
@@ -166,6 +170,26 @@ function PopupConfirmModal({ title, description, existingUrl, file, onlyNotifica
                   </div>
                   <h3 style={{ color: C.ink, fontFamily: FONT_SERIF }} className="text-base mb-1">{title || "(sin título)"}</h3>
                   {description && <p className="text-sm whitespace-pre-wrap" style={{ color: C.ink }}>{renderWithLinks(description, C.signal)}</p>}
+                  {relatedEntries.length > 0 && (
+                    <div className="mt-3 flex flex-col gap-1.5">
+                      <div className="text-[11.5px] font-bold tracking-[0.09em]" style={{ color: C.inkSoft }}>Pendientes relacionados</div>
+                      {relatedEntries.map(({ entry, task }) => {
+                        const open = openTaskId === task.id;
+                        const previewFields = (entry.fields || []).filter((f) => f !== "finalize");
+                        return (
+                          <div key={task.id} style={{ background: C.panel, borderRadius: R.md, overflow: "hidden" }}>
+                            <button type="button" onClick={() => setOpenTaskId(open ? null : task.id)} className="w-full px-3 py-2.5 text-left flex items-center justify-between gap-2">
+                              <span className="text-xs font-semibold truncate" style={{ color: C.ink }}>{task.title}</span>
+                              <ChevronDown size={12} style={{ color: C.inkSoft, flexShrink: 0, transform: open ? "rotate(180deg)" : "none" }} />
+                            </button>
+                            {open && previewFields.length > 0 && (
+                              <PopupTaskBreakdown task={task} fields={previewFields} profiles={profiles || []} subtasks={subtasks || []} onFinalizeTask={async () => {}} />
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
                 </div>
               </div>
             </div>
@@ -1985,6 +2009,7 @@ function NewTaskForm({ onClose, onCreate, onCreatePopup, profiles, profile, isAd
           title={popupTitle} description={popupDesc}
           existingUrl={null} file={onlyNotification ? null : popupImage}
           onlyNotification={onlyNotification} replicateNotification={replicateNotification}
+          relatedTasks={popupTasks} tasks={tasks} subtasks={subtasks} profiles={profiles}
           onCancel={() => setShowPopupConfirm(false)} onConfirm={submitPopup}
           confirmLabel="Crear" busy={popupSaving}
         />
@@ -2222,6 +2247,7 @@ function PopupEditForm({ popup, profiles, tasks, subtasks, onClose, onSaved }) {
           title={title} description={description}
           existingUrl={popup.image_url} file={onlyNotification ? null : imageFile}
           onlyNotification={onlyNotification} replicateNotification={replicateNotification}
+          relatedTasks={popupTasks} tasks={tasks} subtasks={subtasks} profiles={profiles}
           onCancel={() => setShowConfirm(false)} onConfirm={save}
           confirmLabel="Guardar" busy={saving}
         />
