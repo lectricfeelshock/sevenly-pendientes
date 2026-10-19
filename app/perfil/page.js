@@ -8,6 +8,7 @@ import BottomNav from "@/components/BottomNav";
 import LoadingScreen from "@/components/LoadingScreen";
 import TeamPanel from "@/components/TeamPanel";
 import FaqBubble from "@/components/FaqBubble";
+import { downloadActivityPdf } from "@/lib/logPdf";
 
 function activityMsg(n) {
   if (!n) return "Aún no finalizas pendientes hoy.";
@@ -59,9 +60,11 @@ export default function PerfilPage() {
       const since = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
       const { data: tsk } = await supabase.from("tasks").select("title, delivered_at").eq("assigned_to_id", profile.id).gte("delivered_at", since);
       const { data: lg } = await supabase.from("finalized_log").select("task_title, delivered_at").eq("user_id", profile.id).gte("delivered_at", since);
+      const { data: sub } = await supabase.from("subtasks").select("title, delivered_at").eq("assigned_to_id", profile.id).gte("delivered_at", since);
       const seen = new Set();
       const rows = [];
       for (const t of tsk || []) { seen.add(`${t.title}|${t.delivered_at}`); rows.push({ title: t.title, at: t.delivered_at }); }
+      for (const s of sub || []) { rows.push({ title: s.title, at: s.delivered_at }); }
       for (const l of lg || []) { if (!seen.has(`${l.task_title}|${l.delivered_at}`)) rows.push({ title: l.task_title, at: l.delivered_at }); }
       rows.sort((a, b) => new Date(b.at) - new Date(a.at));
       setDelivered(rows);
@@ -109,20 +112,18 @@ export default function PerfilPage() {
   const maxDayCount = Math.max(1, ...chartDays.map((d) => d.count));
 
   const downloadLog = () => {
-    const lines = showDelivered
-      ? [
-          `Pendientes entregados por ${profile.name}`, `Últimos 7 días: ${delivered.length}`, "",
-          ...delivered.map((r) => `[${new Date(r.at).toLocaleString("es-MX")}] ${r.title}`),
-        ]
-      : [
-          `Pendientes finalizados por ${profile.name}`, `Total histórico: ${log.length}`, "",
-          ...log.map((l) => `[${new Date(l.delivered_at || l.finalized_at).toLocaleString("es-MX")}] ${l.task_title}`),
-        ];
-    const blob = new Blob([lines.join("\n")], { type: "text/plain" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url; a.download = `${showDelivered ? "entregados" : "finalizados"}_${profile.name.replace(/[^a-z0-9]/gi, "_")}.txt`;
-    a.click(); URL.revokeObjectURL(url);
+    const safe = profile.name.replace(/[^a-z0-9]/gi, "_");
+    if (showDelivered) {
+      downloadActivityPdf({
+        name: profile.name, kind: "entregados", subtitle: "Últimos 7 días",
+        rows: delivered, filename: `entregados_${safe}.pdf`,
+      });
+    } else {
+      downloadActivityPdf({
+        name: profile.name, kind: "finalizados", subtitle: `Total histórico: ${log.length}`,
+        rows: log.map((l) => ({ title: l.task_title, at: l.delivered_at || l.finalized_at })), filename: `finalizados_${safe}.pdf`,
+      });
+    }
   };
 
   return (
