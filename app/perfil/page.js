@@ -6,6 +6,7 @@ import { ChevronRight, Eye, EyeOff, LogOut, Download } from "lucide-react";
 import { C, R, SH, FONT_SERIF } from "@/lib/theme";
 import BottomNav from "@/components/BottomNav";
 import LoadingScreen from "@/components/LoadingScreen";
+import TeamPanel from "@/components/TeamPanel";
 
 function activityMsg(n) {
   if (!n) return "Aún no finalizas pendientes hoy.";
@@ -24,6 +25,9 @@ export default function PerfilPage() {
   const [saving, setSaving] = useState(false);
   const [log, setLog] = useState([]);
   const [accounts, setAccounts] = useState([]); // CHANGES.md #24: todas las cuentas que existen
+  const [teamProfiles, setTeamProfiles] = useState([]);
+  const [teamTasks, setTeamTasks] = useState([]);
+  const [showTeam, setShowTeam] = useState(false);
 
   useEffect(() => {
     (async () => {
@@ -31,8 +35,6 @@ export default function PerfilPage() {
       if (!user) { router.replace("/login"); return; }
       const { data } = await supabase.from("profiles").select("*").eq("id", user.id).single();
       setProfile(data);
-      const { data: accs } = await supabase.from("accounts").select("*").order("name");
-      setAccounts(accs || []);
       setReady(true);
     })();
   }, [router]);
@@ -42,6 +44,20 @@ export default function PerfilPage() {
     (async () => {
       const { data } = await supabase.from("finalized_log").select("*").eq("user_id", profile.id).order("finalized_at", { ascending: false }).limit(100);
       setLog(data || []);
+    })();
+  }, [profile?.id]);
+
+  useEffect(() => {
+    if (!profile?.id) return;
+    (async () => {
+      const [{ data: accs }, { data: profs }, { data: tsks }] = await Promise.all([
+        supabase.from("accounts").select("*").order("name"),
+        supabase.from("profiles").select("*"),
+        supabase.from("tasks").select("id, assigned_to_id, status, title, category, deadline"),
+      ]);
+      setAccounts(accs || []);
+      setTeamProfiles(profs || []);
+      setTeamTasks(tsks || []);
     })();
   }, [profile?.id]);
 
@@ -135,15 +151,7 @@ export default function PerfilPage() {
           {error && <div className="text-xs" style={{ color: C.urgent }}>{error}</div>}
           {info && <div className="text-xs" style={{ color: C.signal }}>{info}</div>}
 
-          <button
-            onClick={logout}
-            style={{ background: C.panel, color: C.urgentInk, borderRadius: R.xl, boxShadow: SH.soft }}
-            className="h-[52px] flex items-center justify-center gap-2 text-[14.5px] font-semibold mt-1"
-          >
-            <LogOut size={18} /> Cerrar sesión
-          </button>
-
-          <div style={{ background: C.panel, borderRadius: R.xl, boxShadow: SH.card }} className="p-[18px] flex flex-col gap-4 mt-3">
+          <div style={{ background: C.panel, borderRadius: R.xl, boxShadow: SH.card }} className="p-[18px] flex flex-col gap-4 mt-1">
             <div className="flex items-center justify-between">
               <span className="text-[11.5px] font-bold tracking-[0.11em]" style={{ color: C.inkSoft }}>MI ACTIVIDAD</span>
               <span className="text-[12.5px] font-semibold" style={{ color: C.inkSoft }}>Últimos 7 días</span>
@@ -165,10 +173,20 @@ export default function PerfilPage() {
               <Download size={14} /> Descargar mi lista de finalizados
             </button>
           </div>
+
+          <button
+            onClick={logout}
+            style={{ background: C.panel, color: C.urgentInk, borderRadius: R.xl, boxShadow: SH.soft }}
+            className="h-[52px] flex items-center justify-center gap-2 text-[14.5px] font-semibold mt-3"
+          >
+            <LogOut size={18} /> Cerrar sesión
+          </button>
         </div>
       </div>
 
-      <BottomNav active="perfil" profile={profile} />
+      <BottomNav active="perfil" profile={profile} onEquipo={() => setShowTeam(true)} />
+
+      {showTeam && <TeamPanel onClose={() => setShowTeam(false)} profiles={teamProfiles.filter((p) => p.role !== "admin")} tasks={teamTasks} />}
     </div>
   );
 }

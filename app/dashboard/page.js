@@ -11,6 +11,7 @@ import {
 } from "lucide-react";
 import { C, R, SH, FONT_SERIF } from "@/lib/theme";
 import BottomNav from "@/components/BottomNav";
+import TeamPanel from "@/components/TeamPanel";
 import LoadingScreen from "@/components/LoadingScreen";
 import AccountsOnboarding from "@/components/AccountsOnboarding";
 
@@ -471,6 +472,9 @@ export default function Dashboard() {
   const [taskComments, setTaskComments] = useState([]); // { id, task_id, created_at } de todos los pendientes
   const [commentReads, setCommentReads] = useState([]); // { task_id, last_read_at } del usuario actual
   const [resources, setResources] = useState([]); // recursos de Biblioteca visibles para mí (CHANGES.md #2h)
+  const [accounts, setAccounts] = useState([]);
+  const [accountFilterId, setAccountFilterId] = useState(null); // null = todas las cuentas del usuario
+  const [showAccountFilter, setShowAccountFilter] = useState(false);
 
   const loadAll = useCallback(async () => {
     const { data: t } = await supabase.from("tasks").select("*").order("created_at", { ascending: false });
@@ -480,11 +484,13 @@ export default function Dashboard() {
     // CHANGES.md #2h: la lupa del dashboard también busca en la Biblioteca —
     // RLS ya limita esto a generales + propios + compartidos conmigo.
     const { data: res } = await supabase.from("resources").select("*");
+    const { data: accs } = await supabase.from("accounts").select("*").order("name");
     setTasks(t || []);
     setProfiles(p || []);
     setSubtasks(st || []);
     setRecurringTemplates(rt || []);
     setResources(res || []);
+    setAccounts(accs || []);
   }, []);
 
   const loadNotifications = useCallback(async (userId) => {
@@ -783,6 +789,7 @@ export default function Dashboard() {
         assigned_to_id: form.taskType === "colaborativo" ? null : (form.assignedToId || null),
         team_member_ids: form.taskType === "colaborativo" ? (form.teamMemberIds || []) : [],
         subtask_specs: subtaskSpecs,
+        account_id: form.accountId || null,
       }).select().single();
 
       if (!tplError && tpl) {
@@ -801,6 +808,7 @@ export default function Dashboard() {
           request_date: form.scheduledDate,
           recurring_template_id: tpl.id,
           created_by: profile.id,
+          account_id: form.accountId || null,
         }).select().single();
 
         if (firstTask) {
@@ -841,6 +849,7 @@ export default function Dashboard() {
       ...(form.scheduling && form.scheduledDate ? { request_date: form.scheduledDate } : {}),
       ...(form.changesRound ? { changes_round: form.changesRound } : {}),
       created_by: profile.id,
+      account_id: form.accountId || null,
     }).select().single();
 
     if (!error && data) {
@@ -1050,6 +1059,12 @@ export default function Dashboard() {
   const isAdmin = profile?.role === "admin";
   const isGerente = profile?.role === "gerente" || profile?.role === "admin";
   const assignableProfiles = profiles.filter((p) => p.role !== "admin");
+  const myAccounts = accounts.filter((a) => (profile.account_ids || []).includes(a.id));
+  // Un gerente solo puede "ver como" compañeros que compartan al menos una
+  // cuenta con él. Si el gerente todavía no configuró sus cuentas en Mi
+  // perfil, no se restringe nada (se sigue viendo a todo el equipo).
+  const viewAsCandidates = profiles.filter((p) => p.id !== profile.id && p.role !== "admin")
+    .filter((p) => (profile.account_ids || []).length === 0 || (p.account_ids || []).some((id) => (profile.account_ids || []).includes(id)));
   const effectiveId = viewingAs || profile.id;
   const viewingProfile = viewingAs ? profiles.find((p) => p.id === viewingAs) : null;
 
@@ -1084,7 +1099,7 @@ export default function Dashboard() {
   let base = tasks;
   if (primaryTab === "requests") base = tasks.filter((t) => isRequesterOf(t, effectiveId));
   else if (primaryTab === "mine") base = tasks.filter((t) => isAssignedTo(t, effectiveId) && !isProgramado(t));
-  else if (primaryTab === "all") base = tasks.filter((t) => isRequesterOf(t, effectiveId) || (isAssignedTo(t, effectiveId) && !isProgramado(t)));
+  if (accountFilterId) base = base.filter((t) => t.account_id === accountFilterId);
   // Universo de la búsqueda avanzada (CHANGES.md #1): siempre "todos mis
   // pendientes" — los que solicité o me asignaron — sin importar qué pestaña
   // esté activa.
@@ -1168,8 +1183,26 @@ export default function Dashboard() {
         </button>
       </div>
       <div className="px-5 pt-4">
-        <h1 style={{ color: C.ink, fontFamily: FONT_SERIF, fontSize: 32, fontWeight: 500, letterSpacing: "-0.01em" }} className="leading-[1.08]">Pendientes</h1>
+        <div className="relative inline-block">
+          <button onClick={() => myAccounts.length > 0 && setShowAccountFilter((v) => !v)} className="flex items-center gap-1.5">
+            <h1 style={{ color: C.ink, fontFamily: FONT_SERIF, fontSize: 32, fontWeight: 500, letterSpacing: "-0.01em" }} className="leading-[1.08]">Pendientes</h1>
+            {myAccounts.length > 0 && <ChevronDown size={18} style={{ color: C.inkSoft, transform: showAccountFilter ? "rotate(180deg)" : "none", marginTop: 4 }} />}
+          </button>
+          {showAccountFilter && (
+            <div style={{ background: C.panel, borderRadius: R.lg, boxShadow: SH.card }} className="absolute left-0 top-full mt-1.5 z-30 min-w-[180px] py-1.5">
+              <button onClick={() => { setAccountFilterId(null); setShowAccountFilter(false); }}
+                style={{ color: !accountFilterId ? C.signal : C.ink }}
+                className="w-full text-left px-3.5 py-2 text-sm">Todas las cuentas</button>
+              {myAccounts.map((a) => (
+                <button key={a.id} onClick={() => { setAccountFilterId(a.id); setShowAccountFilter(false); }}
+                  style={{ color: accountFilterId === a.id ? C.signal : C.ink }}
+                  className="w-full text-left px-3.5 py-2 text-sm">{a.name}</button>
+              ))}
+            </div>
+          )}
+        </div>
         <div className="flex items-center gap-2 mt-1.5 text-[13.5px]" style={{ color: C.inkSoft }}>
+          {accountFilterId && <span style={{ color: C.inkMedium, fontWeight: 600 }}>{accounts.find((a) => a.id === accountFilterId)?.name} ·</span>}
           <span>{activeInTab.length} activo{activeInTab.length === 1 ? "" : "s"}</span>
           {dueTodayCount > 0 && (
             <>
@@ -1182,12 +1215,13 @@ export default function Dashboard() {
 
       <div className="px-5 pt-4 flex flex-wrap items-center gap-2.5 relative">
         <div style={{ background: C.subtle, borderRadius: R.pill }} className="flex gap-1 p-1 flex-shrink-0">
-          {[["requests", "Solicitudes"], ["mine", "Míos"], ["all", "Todos"], ...(isAdmin ? [["popups", "Pop Ups"]] : [])].map(([key, label]) => (
+          {[["requests", "Solicitudes"], ["mine", "Asignados"], ...(isAdmin ? [["popups", "Pop Ups"]] : [])].map(([key, label]) => (
             <button key={key} onClick={() => setPrimaryTab(key)}
               style={primaryTab === key ? { background: C.panel, boxShadow: "0 1px 3px rgba(27,30,36,0.10)", color: C.ink, fontWeight: 700 } : { color: C.inkSoft, fontWeight: 600 }}
               className="h-9 px-3.5 rounded-full text-[12.5px] whitespace-nowrap">{label}</button>
           ))}
         </div>
+        <div className="basis-full h-0 md:hidden" />
         <span style={{ width: 1, height: 20, background: C.hairline, flexShrink: 0 }} />
         <button onClick={() => { setActiveFilter({ type: "Todos" }); setOpenFilterKey(null); }}
           style={activeFilter.type === "Todos" ? { background: C.ink, color: C.paper, fontWeight: 600 } : { background: C.panel, boxShadow: SH.soft, color: C.inkMedium, fontWeight: 500 }}
@@ -1297,11 +1331,14 @@ export default function Dashboard() {
             {showTeamPicker && (
               <div style={{ background: C.panel, borderRadius: R.lg, boxShadow: SH.card }} className="absolute left-0 top-full mt-1.5 z-30 min-w-[180px] py-1.5">
                 <button onClick={() => { stopViewingAs(); setShowTeamPicker(false); }} style={{ color: C.inkSoft, boxShadow: `inset 0 -1px 0 ${C.hairlineSoft}` }} className="w-full text-left px-3.5 py-2 text-sm">Ver el mío (salir)</button>
-                {profiles.filter((p) => p.id !== profile.id && p.role !== "admin").map((p) => (
+                {viewAsCandidates.map((p) => (
                   <button key={p.id} onClick={() => { startViewingAs(p.id); setShowTeamPicker(false); }}
                     style={{ color: viewingAs === p.id ? C.signal : C.ink, background: viewingAs === p.id ? C.signalSoft : "transparent" }}
                     className="w-full text-left px-3.5 py-2 text-sm">{p.name}</button>
                 ))}
+                {viewAsCandidates.length === 0 && (profile.account_ids || []).length > 0 && (
+                  <p className="px-3.5 py-2 text-xs" style={{ color: C.inkSoft }}>Nadie más comparte tus cuentas todavía.</p>
+                )}
               </div>
             )}
           </div>
@@ -1356,7 +1393,7 @@ export default function Dashboard() {
 
       <BottomNav active="pendientes" profile={profile} onEquipo={() => setShowTeam(true)} />
 
-      {showNew && <NewTaskForm onClose={() => { setShowNew(false); setAssignChangesFor(null); }} onCreate={createTask} onCreatePopup={createPopup} profiles={assignableProfiles} profile={profile} isAdmin={isAdmin} tasks={tasks} subtasks={subtasks} initialData={assignChangesFor} />}
+      {showNew && <NewTaskForm onClose={() => { setShowNew(false); setAssignChangesFor(null); }} onCreate={createTask} onCreatePopup={createPopup} profiles={assignableProfiles} profile={profile} isAdmin={isAdmin} tasks={tasks} subtasks={subtasks} initialData={assignChangesFor} accounts={myAccounts.length > 0 ? myAccounts : accounts} />}
       {popupQueue[0] && <PopupModal popup={popupQueue[0]} onClose={dismissPopup} tasks={tasks} subtasks={subtasks} profiles={profiles} onFinalizeTask={finalizeTask} />}
       {selected && <TaskDetail task={selected} onClose={() => setSelected(null)} onUpdate={updateTask} onDelete={deleteTask} onDeleteRecurring={deleteRecurringTask} recurringTemplates={recurringTemplates} onFinalize={finalizeTask} onDeliver={deliverTask} profiles={profiles} assignableProfiles={assignableProfiles} profile={profile} notify={notify} subtasks={subtasks.filter((s) => s.task_id === selected.id)} onAddSubtask={addSubtask} onUpdateSubtaskStatus={updateSubtaskStatus} onUpdateSubtaskDescription={updateSubtaskDescription} onUpdateSubtaskDeadline={updateSubtaskDeadline} onAssignChanges={startAssignChanges} viewerIsGerente={!!viewingAs && !isAdmin} onCommentsRead={reloadMyCommentReads} />}
       {showTeam && <TeamPanel onClose={() => setShowTeam(false)} profiles={assignableProfiles} tasks={tasks} />}
@@ -1429,8 +1466,9 @@ function TaskRow({ task, onOpen, unreadComments = 0 }) {
   );
 }
 
-function NewTaskForm({ onClose, onCreate, onCreatePopup, profiles, profile, isAdmin, tasks, subtasks, initialData }) {
+function NewTaskForm({ onClose, onCreate, onCreatePopup, profiles, profile, isAdmin, tasks, subtasks, initialData, accounts }) {
   const [mode, setMode] = useState("pendiente"); // "pendiente" | "popup" (solo admins ven el selector)
+  const [accountId, setAccountId] = useState("");
   const [taskType, setTaskType] = useState("individual"); // individual | personal | colaborativo
   const [title, setTitle] = useState(initialData?.title || ""), [description, setDescription] = useState("");
   const [category, setCategory] = useState(DEFAULT_CATEGORIES[0]), [newCategory, setNewCategory] = useState("");
@@ -1527,16 +1565,17 @@ function NewTaskForm({ onClose, onCreate, onCreatePopup, profiles, profile, isAd
 
   const submit = () => {
     if (!title.trim()) return;
+    if (accounts.length > 0 && !accountId) return;
     const finalCategory = newCategory.trim() || category;
     const changesRound = initialData?.changesRound || null;
     if (taskType === "individual") {
       if (!assignedToId || deadlineError) return;
-      onCreate({ title, description, category: finalCategory, taskType, requestedById: requesterId, coRequesterIds, deadline, urgency, assignedToId, subtasks: subtaskRows, scheduling, scheduledDate, repeatMode, changesRound });
+      onCreate({ title, description, category: finalCategory, taskType, requestedById: requesterId, coRequesterIds, deadline, urgency, assignedToId, subtasks: subtaskRows, scheduling, scheduledDate, repeatMode, changesRound, accountId });
     } else if (taskType === "personal") {
-      onCreate({ title, description, category: finalCategory, taskType, requestedById: profile.id, deadline, urgency, assignedToId: profile.id, changesRound });
+      onCreate({ title, description, category: finalCategory, taskType, requestedById: profile.id, deadline, urgency, assignedToId: profile.id, changesRound, accountId });
     } else if (taskType === "colaborativo") {
       if (teamMemberIds.length < 2 || deadlineError || missingSubtaskCoverage) return;
-      onCreate({ title, description, category: finalCategory, taskType, requestedById: profile.id, coRequesterIds, deadline, urgency, teamMemberIds, subtasks: subtaskRows, scheduling, scheduledDate, repeatMode, changesRound });
+      onCreate({ title, description, category: finalCategory, taskType, requestedById: profile.id, coRequesterIds, deadline, urgency, teamMemberIds, subtasks: subtaskRows, scheduling, scheduledDate, repeatMode, changesRound, accountId });
     }
   };
 
@@ -1735,6 +1774,20 @@ function NewTaskForm({ onClose, onCreate, onCreatePopup, profiles, profile, isAd
           </div>
         ) : (
           <div className="p-5 flex flex-col gap-4">
+            {accounts.length > 0 && (
+              <div>
+                <label className="text-[11.5px] font-bold tracking-[0.09em]" style={{ color: C.inkSoft }}>¿Para qué cuenta es?</label>
+                <div className="flex flex-wrap gap-1.5 mt-1.5">
+                  {accounts.map((a) => (
+                    <button key={a.id} type="button" onClick={() => setAccountId(a.id)}
+                      style={accountId === a.id ? { background: C.ink, color: C.paper, fontWeight: 600 } : { background: C.panel, color: C.inkMedium, boxShadow: SH.soft, fontWeight: 500 }}
+                      className="h-9 px-3.5 rounded-full text-[13px]">{a.name}</button>
+                  ))}
+                </div>
+                {!accountId && <p className="text-[11px] mt-1.5" style={{ color: C.inkSoft }}>Elige una cuenta para poder crear el pendiente.</p>}
+              </div>
+            )}
+
             <div style={{ background: C.subtle, borderRadius: R.pill }} className="flex gap-1 p-1">
               {/* CHANGES.md #19: se quita "Personal" de las opciones al crear
                   — Individual ya cubre ese caso (solicitante = tú, asignado
@@ -1899,7 +1952,7 @@ function NewTaskForm({ onClose, onCreate, onCreatePopup, profiles, profile, isAd
           {mode === "popup" && isAdmin ? (
             <button onClick={() => setShowPopupConfirm(true)} disabled={!popupTitle.trim() || popupSaving || !!popupImageError} style={{ background: C.ink, color: C.paper, opacity: popupSaving ? 0.6 : 1, borderRadius: R.pill }} className="px-5 py-2.5 text-sm font-semibold disabled:cursor-not-allowed">¿Listo?</button>
           ) : (
-            <button onClick={handleCreateClick} disabled={usesDeadlineRules && !!deadlineError} style={{ background: C.ink, color: C.paper, opacity: usesDeadlineRules && deadlineError ? 0.5 : 1, borderRadius: R.pill }} className="px-5 py-2.5 text-sm font-semibold disabled:cursor-not-allowed">Crear pendiente</button>
+            <button onClick={handleCreateClick} disabled={(usesDeadlineRules && !!deadlineError) || (accounts.length > 0 && !accountId)} style={{ background: C.ink, color: C.paper, opacity: (usesDeadlineRules && deadlineError) || (accounts.length > 0 && !accountId) ? 0.5 : 1, borderRadius: R.pill }} className="px-5 py-2.5 text-sm font-semibold disabled:cursor-not-allowed">Crear pendiente</button>
           )}
         </div>
       </div>
@@ -3402,52 +3455,6 @@ function NotificationsPanel({ onClose, notifications, onOpenTask, onOpenFilter, 
           )}
         </div>
       )}
-    </div>
-  );
-}
-
-function TeamPanel({ onClose, profiles, tasks }) {
-  const [picked, setPicked] = useState(null);
-  return (
-    <div className="fixed inset-0 z-50 flex items-stretch justify-end" style={{ background: "rgba(27,30,36,0.5)" }} onClick={onClose}>
-      <div style={{ background: C.paper, borderTopLeftRadius: 28, borderBottomLeftRadius: 28 }} className="w-full max-w-sm h-full overflow-y-auto shadow-2xl" onClick={(e) => e.stopPropagation()}>
-        <div style={{ background: C.paper, boxShadow: `inset 0 -1px 0 ${C.hairline}` }} className="px-5 py-4 sticky top-0 z-10 flex items-center justify-between">
-          <div className="flex items-center gap-2" style={{ color: C.ink, fontFamily: FONT_SERIF, fontSize: 23, fontWeight: 500 }}><Users size={19} /> Equipo</div>
-          <button onClick={onClose} style={{ width: 34, height: 34, borderRadius: R.pill, background: C.subtle, color: C.inkMedium }} className="flex items-center justify-center"><X size={17} /></button>
-        </div>
-        <div className="p-4 flex flex-col gap-2.5">
-          {profiles.map((p) => {
-            const inProgress = tasks.filter((t) => t.assigned_to_id === p.id && t.status === "En progreso");
-            const open = picked === p.id;
-            const initial = (p.name || "?").trim().charAt(0).toUpperCase();
-            return (
-              <div key={p.id} style={{ background: C.panel, borderRadius: R.xl, boxShadow: SH.card }} className="overflow-hidden">
-                <button onClick={() => setPicked(open ? null : p.id)} className="w-full text-left flex items-center gap-3 px-4 py-3.5">
-                  <div style={{ width: 40, height: 40, borderRadius: R.pill, background: inProgress.length > 0 ? C.ink : C.subtle, color: inProgress.length > 0 ? C.paper : "#6F747E" }} className="flex items-center justify-center flex-shrink-0 text-[14px] font-bold">{initial}</div>
-                  <div className="flex-1 min-w-0 flex flex-col gap-0.5">
-                    <span className="text-[15.5px] font-semibold">{p.name}</span>
-                    <span className="text-[12.5px]" style={{ color: inProgress.length > 0 ? C.inkSoft : C.inkFaint }}>{inProgress.length > 0 ? `${inProgress.length} en progreso` : "Nada en progreso"}</span>
-                  </div>
-                  <ChevronDown size={18} style={{ color: C.gray, transform: open ? "rotate(180deg)" : "none", flexShrink: 0 }} />
-                </button>
-                {open && inProgress.length > 0 && (
-                  <div className="px-4 pb-4 flex flex-col gap-2">
-                    {inProgress.map((t) => (
-                      <div key={t.id} style={{ background: C.paper, borderRadius: R.md }} className="px-3.5 py-2.5 flex items-center gap-2.5">
-                        <span style={{ width: 8, height: 8, borderRadius: R.pill, background: C.signal, flexShrink: 0 }} />
-                        <div className="min-w-0 flex flex-col gap-0.5">
-                          <span className="text-[14px] font-semibold truncate block">{t.title}</span>
-                          <span className="text-[12px]" style={{ color: C.inkSoft }}>{t.category} · vence {fmtDate(t.deadline)}</span>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-            );
-          })}
-        </div>
-      </div>
     </div>
   );
 }
