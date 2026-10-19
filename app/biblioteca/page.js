@@ -257,7 +257,7 @@ function BibliotecaPageInner() {
             <div className="text-[11.5px] font-bold tracking-[0.09em] mb-3" style={{ color: C.inkSoft }}>RESULTADOS ({searchResults.length})</div>
             {searchResults.length === 0 && <p className="text-sm" style={{ color: C.inkSoft }}>Nada para "{query}".</p>}
             <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
-              {searchResults.map((r) => <ResourceCard key={r.id} r={r} profiles={profiles} profile={profile} onOpen={() => setSelected(r)} />)}
+              {searchResults.map((r) => <ResourceCard key={r.id} r={r} profiles={profiles} profile={profile} accounts={accounts} onOpen={() => setSelected(r)} />)}
             </div>
           </>
         ) : (
@@ -335,7 +335,7 @@ function BibliotecaPageInner() {
                 {generalResources.length === 0 && <p className="text-sm mb-3" style={{ color: C.inkSoft }}>Todavía no hay recursos públicos — dale a "Agregar recurso" para el primero.</p>}
                 {generalResources.length > 0 && applyFilters(generalResources).length === 0 && <p className="text-sm mb-3" style={{ color: C.inkSoft }}>Nada con esos filtros todavía.</p>}
                 <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
-                  {applyFilters(generalResources).map((r) => <ResourceCard key={r.id} r={r} profiles={profiles} profile={profile} onOpen={() => setSelected(r)} />)}
+                  {applyFilters(generalResources).map((r) => <ResourceCard key={r.id} r={r} profiles={profiles} profile={profile} accounts={accounts} onOpen={() => setSelected(r)} />)}
                   <button onClick={openNewResource} style={{ background: C.subtle, color: C.inkSoft, borderRadius: R.xxl, borderColor: C.hairline }} className="aspect-[4/3] flex flex-col items-center justify-center gap-2 border-2 border-dashed">
                     <Plus size={20} />
                     <span className="text-xs font-medium">Agregar recurso</span>
@@ -348,7 +348,7 @@ function BibliotecaPageInner() {
                 {myResources.length === 0 && <p className="text-sm mb-3" style={{ color: C.inkSoft }}>Todavía no tienes recursos personales — dale a "Agregar recurso".</p>}
                 {myResources.length > 0 && applyFilters(myResources).length === 0 && <p className="text-sm mb-3" style={{ color: C.inkSoft }}>Nada con esos filtros todavía.</p>}
                 <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
-                  {applyFilters(myResources).map((r) => <ResourceCard key={r.id} r={r} profiles={profiles} profile={profile} onOpen={() => setSelected(r)} />)}
+                  {applyFilters(myResources).map((r) => <ResourceCard key={r.id} r={r} profiles={profiles} profile={profile} accounts={accounts} onOpen={() => setSelected(r)} />)}
                   <button onClick={openNewResource} style={{ background: C.subtle, color: C.inkSoft, borderRadius: R.xxl, borderColor: C.hairline }} className="aspect-[4/3] flex flex-col items-center justify-center gap-2 border-2 border-dashed">
                     <Plus size={20} />
                     <span className="text-xs font-medium">Agregar recurso</span>
@@ -402,13 +402,14 @@ function BibliotecaPageInner() {
   );
 }
 
-function ResourceCard({ r, profiles, profile, onOpen }) {
+function ResourceCard({ r, profiles, profile, accounts, onOpen }) {
   const embed = r.url ? getVideoEmbed(r.url) : null;
   const isImageFile = r.file_path && fileKind(r.file_type) === "image";
   const thumbnail = embed?.thumbnail || (isImageFile ? publicFileUrl(r.file_path) : null);
   const FileIcon = fileIconFor(r.file_type);
   const sharedByOther = !r.is_general && r.owner_id !== profile.id;
   const ownerName = sharedByOther ? profiles.find((p) => p.id === r.owner_id)?.name : null;
+  const account = accounts.find((a) => a.id === r.account_id);
   return (
     <button
       onClick={onOpen}
@@ -424,6 +425,10 @@ function ResourceCard({ r, profiles, profile, onOpen }) {
         ) : r.file_path ? (
           <span style={{ width: 36, height: 36, borderRadius: 13, background: thumbnail ? "rgba(255,255,255,0.18)" : C.signalSoft, color: thumbnail ? C.paper : C.signal }} className="flex items-center justify-center">
             <FileIcon size={18} />
+          </span>
+        ) : account ? (
+          <span style={{ width: 36, height: 36, borderRadius: 13, background: thumbnail ? "rgba(255,255,255,0.18)" : C.signalSoft, color: thumbnail ? C.paper : C.signal }} className="flex items-center justify-center text-sm font-bold">
+            {account.name.trim().charAt(0).toUpperCase()}
           </span>
         ) : (
           <span style={{ width: 36, height: 36, borderRadius: 13, background: thumbnail ? "rgba(255,255,255,0.18)" : C.signalSoft, color: thumbnail ? C.paper : C.signal }} className="flex items-center justify-center">
