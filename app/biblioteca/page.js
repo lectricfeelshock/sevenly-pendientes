@@ -174,7 +174,10 @@ function BibliotecaPageInner() {
 
   const isAdmin = profile?.role === "admin";
   const generalResources = resources.filter((r) => r.is_general);
-  const myResources = resources.filter((r) => !r.is_general);
+  // Un recurso publicado sigue apareciendo en "Mis recursos" de quien lo
+  // publicó, además de en "Recursos públicos" — solo deja de estar ahí si
+  // no es tuyo.
+  const myResources = resources.filter((r) => !r.is_general || r.owner_id === profile.id);
   const currentList = view === "general" ? generalResources : myResources;
   const allTags = Array.from(new Set(currentList.flatMap((r) => r.tags || []))).sort();
   const byTags = (list) => activeTags.length === 0 ? list : list.filter((r) => (r.tags || []).some((t) => activeTags.includes(t)));
@@ -411,6 +414,7 @@ function ResourceCard({ r, profiles, profile, accounts, onOpen }) {
   const FileIcon = fileIconFor(r.file_type);
   const sharedByOther = !r.is_general && r.owner_id !== profile.id;
   const ownerName = sharedByOther ? profiles.find((p) => p.id === r.owner_id)?.name : null;
+  const publishedByMe = r.is_general && r.owner_id === profile.id;
   const account = accounts.find((a) => a.id === r.account_id);
   return (
     <button
@@ -445,6 +449,9 @@ function ResourceCard({ r, profiles, profile, accounts, onOpen }) {
         <span style={{ color: thumbnail ? C.paper : C.ink, fontFamily: FONT_SERIF, fontSize: 17 }} className="leading-tight block mb-1.5">{r.title}</span>
         {ownerName && (
           <span style={{ color: thumbnail ? "rgba(255,255,255,0.85)" : C.inkSoft, fontSize: 10.5, fontWeight: 600 }} className="block mb-1">de {ownerName}</span>
+        )}
+        {publishedByMe && (
+          <span style={{ color: thumbnail ? "rgba(255,255,255,0.85)" : C.signal, fontSize: 10.5, fontWeight: 600 }} className="block mb-1">Público</span>
         )}
         {r.tags && r.tags.length > 0 && (
           <div className="flex flex-wrap gap-1">
@@ -515,7 +522,7 @@ function ResourceDetail({ resource, profile, profiles, accounts, isAdmin, alread
             </a>
           )}
           <div className="flex gap-4 justify-center flex-wrap pt-1">
-            {resource.is_general && (
+            {resource.is_general && !isMine && (
               <button onClick={onAddToMine} disabled={alreadyCopied} className="text-xs font-semibold flex items-center gap-1 disabled:opacity-40" style={{ color: C.signal }}>
                 <Copy size={12} /> {alreadyCopied ? "Ya en mis recursos" : "Añadir a mis recursos"}
               </button>
