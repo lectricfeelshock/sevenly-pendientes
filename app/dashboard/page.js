@@ -3406,7 +3406,7 @@ function NotificationsPanel({ onClose, notifications, onOpenTask, onOpenFilter, 
               style={{ background: n.read ? C.panel : C.signalSoft, borderRadius: R.md, boxShadow: n.read ? SH.soft : "none", cursor: (n.task_id || n.target) ? "pointer" : "default" }}
               className="w-full text-left px-3.5 py-3 flex flex-col gap-0.5">
               {n.title && <span className="text-sm font-medium break-words" style={{ color: C.ink }}>{n.title}</span>}
-              <span className="text-sm break-words" style={{ color: n.title ? C.inkSoft : C.ink }}>{renderWithLinks(n.message, C.signal)}</span>
+              <span className="text-sm whitespace-pre-wrap break-words" style={{ color: n.title ? C.inkSoft : C.ink }}>{renderWithLinks(n.message, C.signal)}</span>
               {n.image_url && (
                 <button
                   onClick={(e) => { e.stopPropagation(); setFullMediaUrl(n.image_url); }}
