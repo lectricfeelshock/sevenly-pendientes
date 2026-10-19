@@ -71,6 +71,14 @@ e. La burbuja flotante vive en Pendientes, Biblioteca y Perfil; el
    ícono fijo junto a la campana solo en Pendientes, porque es el
    único lugar donde existe esa campana.
 
+_Ajustado 2026-10-19:_ se corrigió que el encabezado "Preguntas
+frecuentes" se deformaba al scrollear la lista de preguntas (el
+scroll ahora queda dentro de la tarjeta, con el encabezado fijo
+arriba). Además, la burbuja ahora es un poco más pequeña y, en vez de
+quedar siempre pegada al mismo borde derecho, se puede soltar en
+cualquiera de los 4 bordes de la pantalla (derecho, izquierdo, arriba
+o abajo) y recuerda en ese dispositivo dónde la dejaste.
+
 ### [x] 19. Quitar el tipo "Personal" al crear: Individual permite elegir solicitante y asignarte a ti
 _Aplicada 2026-10-17._
 

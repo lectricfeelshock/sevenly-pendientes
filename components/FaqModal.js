@@ -10,20 +10,20 @@ export default function FaqModal({ onClose }) {
   const [openIndex, setOpenIndex] = useState(null);
 
   return (
-    <div className="fixed inset-0 z-[60] flex items-start justify-center p-4 overflow-y-auto" style={{ background: "rgba(27,30,36,0.45)" }} onClick={onClose}>
+    <div className="fixed inset-0 z-[60] flex items-center justify-center p-4" style={{ background: "rgba(27,30,36,0.45)" }} onClick={onClose}>
       <div
-        style={{ background: C.panel, borderRadius: R.xxl, boxShadow: SH.card }}
-        className="w-full max-w-md mt-10 mb-10 flex flex-col"
+        style={{ background: C.panel, borderRadius: R.xxl, boxShadow: SH.card, maxHeight: "80vh" }}
+        className="w-full max-w-md flex flex-col overflow-hidden"
         onClick={(e) => e.stopPropagation()}
       >
-        <div style={{ borderColor: C.hairline }} className="border-b px-5 py-4 flex items-center justify-between sticky top-0" >
+        <div style={{ borderColor: C.hairline }} className="border-b px-5 py-4 flex items-center justify-between flex-shrink-0">
           <div className="flex items-center gap-2">
             <HelpCircle size={18} style={{ color: C.signal }} />
             <h2 style={{ color: C.ink, fontFamily: FONT_SERIF, fontSize: 19 }}>Preguntas frecuentes</h2>
           </div>
           <button onClick={onClose} style={{ color: C.inkSoft }}><X size={18} /></button>
         </div>
-        <div className="p-2 flex flex-col">
+        <div className="p-2 flex flex-col overflow-y-auto flex-1">
           {FAQ_ITEMS.map((item, i) => {
             const open = openIndex === i;
             return (
