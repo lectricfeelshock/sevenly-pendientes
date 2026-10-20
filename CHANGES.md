@@ -302,6 +302,14 @@ c. **A los 4 días hábiles de entregado** (hábiles = lunes a viernes, sin
    "Descargar historial" que se ve en ese mismo desglose (hoy bloqueado
    hasta finalizar). Este pop up se puede cerrar/ignorar sin hacer nada.
 
+   _Ajustado 2026-10-20:_ el texto confundía (parecía que el equipo no
+   estaba entregando). Ahora el título es `Revisa lo que te entregaron` y
+   la descripción `Ya se entregaron algunos pendientes que solicitaste, tú
+   como solicitante eres el único que puede finalizarlos. Recuerda
+   finalizar los pendientes que te entregan para llevar el control del
+   progreso de tu equipo de trabajo. Desde aquí puedes finalizar esos
+   pendientes:` (seguido de la lista).
+
    Este pop up se debe **programar con 2 días hábiles de anticipación**
    (o sea, en cuanto se sabe que va a hacer falta, no el mismo día que
    sale) para que aparezca en el apartado de Popups del admin (punto 3 —
