@@ -175,15 +175,14 @@ function PopupConfirmModal({ title, description, existingUrl, file, onlyNotifica
                       <div className="text-[11.5px] font-bold tracking-[0.09em]" style={{ color: C.inkSoft }}>Pendientes relacionados</div>
                       {relatedEntries.map(({ entry, task }) => {
                         const open = openTaskId === task.id;
-                        const previewFields = (entry.fields || []).filter((f) => f !== "finalize");
                         return (
                           <div key={task.id} style={{ background: C.panel, borderRadius: R.md, overflow: "hidden" }}>
                             <button type="button" onClick={() => setOpenTaskId(open ? null : task.id)} className="w-full px-3 py-2.5 text-left flex items-center justify-between gap-2">
                               <span className="text-xs font-semibold truncate" style={{ color: C.ink }}>{task.title}</span>
                               <ChevronDown size={12} style={{ color: C.inkSoft, flexShrink: 0, transform: open ? "rotate(180deg)" : "none" }} />
                             </button>
-                            {open && previewFields.length > 0 && (
-                              <PopupTaskBreakdown task={task} fields={previewFields} profiles={profiles || []} subtasks={subtasks || []} onFinalizeTask={async () => {}} />
+                            {open && (entry.fields || []).length > 0 && (
+                              <PopupTaskBreakdown task={task} fields={entry.fields} profiles={profiles || []} subtasks={subtasks || []} onFinalizeTask={async () => {}} preview />
                             )}
                           </div>
                         );
@@ -2262,7 +2261,9 @@ function canFinalizeInPopup(task, subsForTask) {
   return task.status === "Entregado";
 }
 
-function PopupTaskBreakdown({ task, fields, profiles, subtasks, onFinalizeTask }) {
+// preview: en la vista previa del admin el botón "Finalizar pendiente" se ve
+// pero deshabilitado, para que no finalice el pendiente de alguien más.
+function PopupTaskBreakdown({ task, fields, profiles, subtasks, onFinalizeTask, preview = false }) {
   const [busy, setBusy] = useState(false);
   const [justFinalized, setJustFinalized] = useState(false);
   const subsForTask = subtasks.filter((s) => s.task_id === task.id);
@@ -2273,7 +2274,7 @@ function PopupTaskBreakdown({ task, fields, profiles, subtasks, onFinalizeTask }
   const deliveredCount = subsForTask.filter((s) => s.status === "Entregado").length;
   const canFinalize = fields.includes("finalize") && canFinalizeInPopup(task, subsForTask);
   const isFinalized = task.status === "Finalizado" || justFinalized;
-  const showDownload = fields.includes("finalize") && isFinalized;
+  const showDownload = !preview && fields.includes("finalize") && isFinalized;
   const fmtDateTime = (iso) => iso ? new Date(iso).toLocaleDateString("es-MX", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" }) : null;
 
   const handleFinalize = async () => {
@@ -2349,7 +2350,7 @@ function PopupTaskBreakdown({ task, fields, profiles, subtasks, onFinalizeTask }
         </div>
       )}
       {canFinalize && (
-        <button onClick={handleFinalize} disabled={busy} style={{ background: C.signal, color: "#fff", borderRadius: R.pill }} className="px-3 py-2 text-xs font-semibold disabled:opacity-60">{busy ? "Finalizando..." : "Finalizar pendiente"}</button>
+        <button onClick={handleFinalize} disabled={busy || preview} title={preview ? "Vista previa: aquí no se finaliza" : undefined} style={{ background: C.signal, color: "#fff", borderRadius: R.pill }} className="px-3 py-2 text-xs font-semibold disabled:opacity-60">{busy ? "Finalizando..." : "Finalizar pendiente"}</button>
       )}
       {showDownload && (
         <button onClick={handleDownload} style={{ background: C.subtle, color: C.inkMedium, borderRadius: R.pill }} className="px-3 py-2 text-xs font-semibold flex items-center justify-center gap-1.5"><Download size={12} /> Descargar historial</button>
