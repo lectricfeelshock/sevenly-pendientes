@@ -307,7 +307,8 @@ c. **A los 4 días hábiles de entregado** (hábiles = lunes a viernes, sin
    la descripción `Ya se entregaron algunos pendientes que solicitaste, tú
    como solicitante eres el único que puede finalizarlos. Recuerda
    finalizar los pendientes que te entregan para llevar el control del
-   progreso de tu equipo de trabajo.`
+   progreso de tu equipo de trabajo. Desde aquí puedes finalizar esos
+   pendientes:` (seguido de la lista).
 
    Este pop up se debe **programar con 2 días hábiles de anticipación**
    (o sea, en cuanto se sabe que va a hacer falta, no el mismo día que
