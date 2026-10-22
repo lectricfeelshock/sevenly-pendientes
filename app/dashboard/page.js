@@ -1057,13 +1057,10 @@ export default function Dashboard() {
   };
 
   // CHANGES.md #23: cualquiera con acceso puede cambiar el deadline de una
-  // subtarea — pero si quien lo cambia no es el solicitante, se le avisa.
+  // subtarea. El aviso a los involucrados lo manda TaskDetail
+  // (confirmDeadlineChange), junto con el motivo del cambio.
   const updateSubtaskDeadline = async (subtask, deadline) => {
     await supabase.from("subtasks").update({ deadline }).eq("id", subtask.id);
-    const task = tasks.find((t) => t.id === subtask.task_id);
-    if (task && task.requested_by_id && task.requested_by_id !== profile.id) {
-      await notify(task.requested_by_id, task.id, `${profile.name} cambió el deadline de la subtarea "${subtask.title}" de "${task.title}" a ${fmtDate(deadline)}`);
-    }
     loadAll();
   };
 
@@ -2629,6 +2626,9 @@ function TaskDetail({ task, onClose, onUpdate, onDelete, onDeleteRecurring, recu
   const [editingSubtaskId, setEditingSubtaskId] = useState(null);
   const [subtaskDescriptionDraft, setSubtaskDescriptionDraft] = useState("");
   const [confirmLeave, setConfirmLeave] = useState(false);
+  // Mover una deadline (general o de subtarea) primero abre una ventana que
+  // pide un comentario con los motivos; el cambio solo se aplica al dejarlo.
+  const [pendingDeadline, setPendingDeadline] = useState(null), [deadlineComment, setDeadlineComment] = useState("");
   const assignee = profiles.find((p) => p.id === task.assigned_to_id);
 
   const isColaborativo = task.task_type === "colaborativo";
@@ -2729,18 +2729,35 @@ function TaskDetail({ task, onClose, onUpdate, onDelete, onDeleteRecurring, recu
     onUpdate(task, { urgency: u }, `${profile.name} cambió la urgencia a "${u}"`);
   };
   const changeDeadline = (d) => {
-    if (!canEditDeadline) return;
+    if (!canEditDeadline || d === (task.deadline || "")) return;
     if (showSubtasks && d) {
       if (d < todayISO()) return;
       if (latestSubtaskDeadline && d < latestSubtaskDeadline) return;
     }
-    onUpdate(task, { deadline: d }, `${profile.name} cambió el deadline a ${fmtDate(d)}`);
-    // CHANGES.md #23: cualquiera puede cambiar el deadline, pero si quien lo
-    // cambia no es un solicitante, se les avisa a todos los solicitantes.
-    if (!isAnyRequester) {
-      const requesterIds = new Set([task.requested_by_id, task.responsible_id, ...(task.co_requester_ids || [])].filter(Boolean));
-      for (const rid of requesterIds) notify(rid, task.id, `${profile.name} cambió el deadline de "${task.title}" a ${fmtDate(d)}`);
-    }
+    setDeadlineComment(""); setPendingDeadline({ date: d });
+  };
+  const changeSubtaskDeadline = (subtask, d) => {
+    if (isFinalized || viewerIsGerente || d === (subtask.deadline || "")) return;
+    setDeadlineComment(""); setPendingDeadline({ date: d, subtask });
+  };
+  const confirmDeadlineChange = async () => {
+    const text = deadlineComment.trim();
+    if (!pendingDeadline || !text) return;
+    const { date: d, subtask } = pendingDeadline;
+    const what = subtask ? `la deadline de la subtarea "${subtask.title}"` : "la deadline";
+    await supabase.from("task_comments").insert({ task_id: task.id, author_id: profile.id, author_name: profile.name, text: `📅 Movió ${what} a ${fmtDate(d)}: ${text}` });
+    setPendingDeadline(null); setDeadlineComment("");
+    if (subtask) await onUpdateSubtaskDeadline(subtask, d);
+    else await onUpdate(task, { deadline: d }, `${profile.name} cambió el deadline a ${fmtDate(d)}`);
+    // Se avisa a todos los involucrados del pendiente (solicitantes,
+    // asignado, equipo y asignados de subtareas), menos a quien lo cambió.
+    const involvedIds = new Set([
+      task.requested_by_id, task.responsible_id, ...(task.co_requester_ids || []),
+      task.assigned_to_id, ...(task.team_member_ids || []), ...subtasks.map((s) => s.assigned_to_id),
+    ].filter((id) => id && id !== profile.id));
+    const where = subtask ? `de la subtarea "${subtask.title}" de "${task.title}"` : `de "${task.title}"`;
+    for (const id of involvedIds) notify(id, task.id, `${profile.name} cambió el deadline ${where} a ${fmtDate(d)}. Motivo: ${text}`);
+    loadExtras(); markCommentsRead();
   };
   // CHANGES.md #9: convertir individual a colaborativo abre una ventana
   // completa (ConvertToColaborativoModal) en vez de solo agregar gente al
@@ -3141,7 +3158,7 @@ function TaskDetail({ task, onClose, onUpdate, onDelete, onDeleteRecurring, recu
                             min={todayISO()}
                             max={task.deadline || undefined}
                             disabled={isFinalized || viewerIsGerente}
-                            onChange={(e) => onUpdateSubtaskDeadline(s, e.target.value)}
+                            onChange={(e) => changeSubtaskDeadline(s, e.target.value)}
                             style={{ background: C.paper, color: C.ink, borderRadius: R.sm }}
                             className="text-xs outline-none px-2 py-1 disabled:opacity-50"
                           />
@@ -3360,6 +3377,23 @@ function TaskDetail({ task, onClose, onUpdate, onDelete, onDeleteRecurring, recu
               </div>
             </div>
           ))}
+          {pendingDeadline && (
+            <div className="fixed inset-0 z-[60] flex items-center justify-center p-4" style={{ background: "rgba(27,30,36,0.5)" }}>
+              <div style={{ background: C.paper, borderRadius: R.xxl, boxShadow: SH.card }} className="w-full max-w-sm p-5 flex flex-col gap-3">
+                <div className="text-[15px] font-semibold" style={{ color: C.ink }}>¿Quieres mover la fecha de entrega?</div>
+                <div className="text-[13px]" style={{ color: C.inkSoft }}>No olvides comunicar con tu equipo los motivos del cambio.</div>
+                <div className="text-xs" style={{ color: C.inkMedium }}>
+                  {pendingDeadline.subtask ? `Subtarea "${pendingDeadline.subtask.title}": ` : ""}{fmtDate(pendingDeadline.subtask ? pendingDeadline.subtask.deadline : task.deadline)} → <b>{fmtDate(pendingDeadline.date)}</b>
+                </div>
+                <textarea autoFocus value={deadlineComment} onChange={(e) => setDeadlineComment(e.target.value)} placeholder="Escribe el motivo del cambio..." rows={3}
+                  style={{ background: C.panel, borderRadius: R.md, boxShadow: SH.soft }} className="px-3.5 py-2.5 text-sm outline-none resize-none" />
+                <div className="flex gap-2 justify-end items-center">
+                  <button onClick={() => { setPendingDeadline(null); setDeadlineComment(""); }} className="text-xs" style={{ color: C.inkSoft }}>Cancelar</button>
+                  <button onClick={confirmDeadlineChange} disabled={!deadlineComment.trim()} style={{ background: C.ink, color: C.paper, borderRadius: R.pill }} className="text-xs px-3.5 py-1.5 font-semibold disabled:opacity-50 disabled:cursor-not-allowed">Comentar y mover fecha</button>
+                </div>
+              </div>
+            </div>
+          )}
           {confirmLeave && (
             <div style={{ borderColor: C.urgent, background: C.urgentSoft }} className="border px-3 py-2.5 flex items-center justify-between gap-2 mt-1">
               <span className="text-xs" style={{ color: C.urgent }}>Dejarás de ser responsable de este pendiente.</span>
