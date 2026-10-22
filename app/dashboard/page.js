@@ -1504,6 +1504,8 @@ function TaskRow({ task, onOpen, unreadComments = 0 }) {
 function NewTaskForm({ onClose, onCreate, onCreatePopup, profiles, profile, isAdmin, tasks, subtasks, initialData, accounts }) {
   const [mode, setMode] = useState("pendiente"); // "pendiente" | "popup" (solo admins ven el selector)
   const [accountId, setAccountId] = useState("");
+  // Elegir cuenta es su propia ventanita, antes de la de Individual/Colaborativo.
+  const [accountChosen, setAccountChosen] = useState(accounts.length === 0);
   const [taskType, setTaskType] = useState("individual"); // individual | personal | colaborativo
   const [title, setTitle] = useState(initialData?.title || ""), [description, setDescription] = useState("");
   const [category, setCategory] = useState(DEFAULT_CATEGORIES[0]), [newCategory, setNewCategory] = useState("");
@@ -1600,7 +1602,6 @@ function NewTaskForm({ onClose, onCreate, onCreatePopup, profiles, profile, isAd
 
   const submit = () => {
     if (!title.trim()) return;
-    if (accounts.length > 0 && !accountId) return;
     const finalCategory = newCategory.trim() || category;
     const changesRound = initialData?.changesRound || null;
     if (taskType === "individual") {
@@ -1741,6 +1742,47 @@ function NewTaskForm({ onClose, onCreate, onCreatePopup, profiles, profile, isAd
     </div>
   );
 
+  if (mode === "pendiente" && !accountChosen) {
+    return (
+      <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: "rgba(27,30,36,0.55)" }}>
+        <div style={{ background: C.panel, borderRadius: R.xxl, boxShadow: SH.card }} className="w-full max-w-sm max-h-[90vh] overflow-y-auto">
+          <div style={{ boxShadow: `inset 0 -1px 0 ${C.hairline}` }} className="px-5 py-4 flex items-center justify-between">
+            {isAdmin ? (
+              <div style={{ background: C.subtle, borderRadius: R.pill }} className="flex gap-1 p-1">
+                {[["pendiente", "Pendiente"], ["popup", "Pop Up"]].map(([key, label]) => (
+                  <button key={key} onClick={() => setMode(key)}
+                    style={mode === key ? { background: C.panel, boxShadow: "0 1px 3px rgba(27,30,36,0.10)", color: C.ink, fontWeight: 700 } : { color: C.inkSoft, fontWeight: 600 }}
+                    className="h-9 px-3.5 rounded-full text-sm">{label}</button>
+                ))}
+              </div>
+            ) : (
+              <h2 style={{ color: C.ink, fontFamily: FONT_SERIF, fontSize: 23, fontWeight: 500 }}>Nuevo pendiente</h2>
+            )}
+            <button onClick={onClose}
+              style={{ width: 34, height: 34, borderRadius: R.pill, background: C.subtle, color: C.inkMedium }}
+              className="flex items-center justify-center"><X size={17} /></button>
+          </div>
+          <div className="p-5">
+            <label className="text-[11.5px] font-bold tracking-[0.09em]" style={{ color: C.inkSoft }}>Elige la cuenta de tu nuevo pendiente:</label>
+            <div className="flex flex-wrap gap-1.5 mt-2">
+              {accounts.map((a) => (
+                <button key={a.id} type="button" onClick={() => setAccountId(a.id)}
+                  style={accountId === a.id ? { background: C.ink, color: C.paper, fontWeight: 600 } : { background: C.panel, color: C.inkMedium, boxShadow: SH.soft, fontWeight: 500 }}
+                  className="h-9 px-3.5 rounded-full text-[13px]">{a.name}</button>
+              ))}
+            </div>
+          </div>
+          <div style={{ boxShadow: `inset 0 1px 0 ${C.hairline}` }} className="px-5 py-4 flex justify-end gap-2">
+            <button onClick={onClose} style={{ color: C.inkMedium, background: C.subtle, borderRadius: R.pill }} className="px-5 py-2.5 text-sm font-semibold">Cancelar</button>
+            <button onClick={() => setAccountChosen(true)} disabled={!accountId}
+              style={{ background: C.ink, color: C.paper, opacity: accountId ? 1 : 0.5, borderRadius: R.pill }}
+              className="px-5 py-2.5 text-sm font-semibold disabled:cursor-not-allowed">Continuar</button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: "rgba(27,30,36,0.55)" }}>
       <div style={{ background: C.panel, borderRadius: R.xxl, boxShadow: SH.card }} className="w-full max-w-2xl max-h-[90vh] overflow-y-auto">
@@ -1809,20 +1851,6 @@ function NewTaskForm({ onClose, onCreate, onCreatePopup, profiles, profile, isAd
           </div>
         ) : (
           <div className="p-5 flex flex-col gap-4">
-            {accounts.length > 0 && (
-              <div>
-                <label className="text-[11.5px] font-bold tracking-[0.09em]" style={{ color: C.inkSoft }}>¿Para qué cuenta es?</label>
-                <div className="flex flex-wrap gap-1.5 mt-1.5">
-                  {accounts.map((a) => (
-                    <button key={a.id} type="button" onClick={() => setAccountId(a.id)}
-                      style={accountId === a.id ? { background: C.ink, color: C.paper, fontWeight: 600 } : { background: C.panel, color: C.inkMedium, boxShadow: SH.soft, fontWeight: 500 }}
-                      className="h-9 px-3.5 rounded-full text-[13px]">{a.name}</button>
-                  ))}
-                </div>
-                {!accountId && <p className="text-[11px] mt-1.5" style={{ color: C.inkSoft }}>Elige una cuenta para poder crear el pendiente.</p>}
-              </div>
-            )}
-
             <div style={{ background: C.subtle, borderRadius: R.pill }} className="flex gap-1 p-1">
               {/* CHANGES.md #19: se quita "Personal" de las opciones al crear
                   — Individual ya cubre ese caso (solicitante = tú, asignado
@@ -1987,7 +2015,7 @@ function NewTaskForm({ onClose, onCreate, onCreatePopup, profiles, profile, isAd
           {mode === "popup" && isAdmin ? (
             <button onClick={() => setShowPopupConfirm(true)} disabled={!popupTitle.trim() || popupSaving || !!popupImageError} style={{ background: C.ink, color: C.paper, opacity: popupSaving ? 0.6 : 1, borderRadius: R.pill }} className="px-5 py-2.5 text-sm font-semibold disabled:cursor-not-allowed">¿Listo?</button>
           ) : (
-            <button onClick={handleCreateClick} disabled={(usesDeadlineRules && !!deadlineError) || (accounts.length > 0 && !accountId)} style={{ background: C.ink, color: C.paper, opacity: (usesDeadlineRules && deadlineError) || (accounts.length > 0 && !accountId) ? 0.5 : 1, borderRadius: R.pill }} className="px-5 py-2.5 text-sm font-semibold disabled:cursor-not-allowed">Crear pendiente</button>
+            <button onClick={handleCreateClick} disabled={usesDeadlineRules && !!deadlineError} style={{ background: C.ink, color: C.paper, opacity: usesDeadlineRules && deadlineError ? 0.5 : 1, borderRadius: R.pill }} className="px-5 py-2.5 text-sm font-semibold disabled:cursor-not-allowed">Crear pendiente</button>
           )}
         </div>
       </div>
