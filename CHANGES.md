@@ -46,6 +46,25 @@ el encabezado `<h1>Pendientes</h1>` debe cambiar para incluir el nombre
 de la cuenta elegida, por ejemplo `Pendientes-Sevenly`. Si se vuelve a
 "Todas las cuentas", el título regresa a solo "Pendientes".
 
+### 27. Click derecho en Pendientes: "Descargar Pendientes" con filtros a elegir, en PDF
+En la pantalla de Pendientes, al dar **clic derecho** sobre la pantalla
+(fuera de una tarjeta), que aparezca una opción de menú contextual:
+**"Descargar Pendientes"**.
+
+Al darle clic, abre una ventana con **casillas de verificación** para
+elegir qué incluir en el PDF — usando los filtros que ya existen hoy en
+el dashboard (no inventar unos nuevos): pestaña (Solicitudes /
+Asignados), Estado, Urgencia, Categoría, cuenta (de las que ya existen
+en el filtro de "Pendientes-Cuenta", ver #26), y si se incluyen o no los
+"Programados". Se puede elegir varias casillas a la vez (ej. Estado =
+Entregado + En proceso).
+
+El documento PDF resultante debe verse **parecido al de "Pendientes
+finalizados"** que ya existe en Perfil (mismo estilo "Papel suave":
+fondo papel, tarjetas blancas por pendiente, encabezado serif — ver
+`lib/logPdf.js` / `downloadActivityPdf`), pero listando los pendientes
+que cumplan con las casillas elegidas, no solo finalizados.
+
 ### 21. Vista de calendario para deadlines
 _Movida desde PROPUESTAS.md #3._
 
