@@ -83,6 +83,11 @@ activa / Supabase Realtime presence?), si avisa también cuando se
 desconecta, y si hay límite de un aviso por persona por sesión para no
 saturar si hay mucha gente conectándose y desconectándose seguido.
 
+c. **Puntito verde en "Mi equipo"** (`components/TeamPanel.js`): junto
+   al nombre de cada persona, mostrar un punto verde pequeño cuando esté
+   en línea (misma detección de "en línea" que el aviso tipo push de
+   arriba — se construyen juntos).
+
 ### 21. Vista de calendario para deadlines
 _Movida desde PROPUESTAS.md #3._
 
