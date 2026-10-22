@@ -1057,13 +1057,10 @@ export default function Dashboard() {
   };
 
   // CHANGES.md #23: cualquiera con acceso puede cambiar el deadline de una
-  // subtarea — pero si quien lo cambia no es el solicitante, se le avisa.
+  // subtarea. El aviso a los involucrados lo manda TaskDetail
+  // (confirmDeadlineChange), junto con el motivo del cambio.
   const updateSubtaskDeadline = async (subtask, deadline) => {
     await supabase.from("subtasks").update({ deadline }).eq("id", subtask.id);
-    const task = tasks.find((t) => t.id === subtask.task_id);
-    if (task && task.requested_by_id && task.requested_by_id !== profile.id) {
-      await notify(task.requested_by_id, task.id, `${profile.name} cambió el deadline de la subtarea "${subtask.title}" de "${task.title}" a ${fmtDate(deadline)}`);
-    }
     loadAll();
   };
 
@@ -2751,17 +2748,16 @@ function TaskDetail({ task, onClose, onUpdate, onDelete, onDeleteRecurring, recu
     await supabase.from("task_comments").insert({ task_id: task.id, author_id: profile.id, author_name: profile.name, text: `📅 Movió ${what} a ${fmtDate(d)}: ${text}` });
     setPendingDeadline(null); setDeadlineComment("");
     if (subtask) await onUpdateSubtaskDeadline(subtask, d);
-    else await applyDeadline(d);
+    else await onUpdate(task, { deadline: d }, `${profile.name} cambió el deadline a ${fmtDate(d)}`);
+    // Se avisa a todos los involucrados del pendiente (solicitantes,
+    // asignado, equipo y asignados de subtareas), menos a quien lo cambió.
+    const involvedIds = new Set([
+      task.requested_by_id, task.responsible_id, ...(task.co_requester_ids || []),
+      task.assigned_to_id, ...(task.team_member_ids || []), ...subtasks.map((s) => s.assigned_to_id),
+    ].filter((id) => id && id !== profile.id));
+    const where = subtask ? `de la subtarea "${subtask.title}" de "${task.title}"` : `de "${task.title}"`;
+    for (const id of involvedIds) notify(id, task.id, `${profile.name} cambió el deadline ${where} a ${fmtDate(d)}. Motivo: ${text}`);
     loadExtras(); markCommentsRead();
-  };
-  const applyDeadline = async (d) => {
-    await onUpdate(task, { deadline: d }, `${profile.name} cambió el deadline a ${fmtDate(d)}`);
-    // CHANGES.md #23: cualquiera puede cambiar el deadline, pero si quien lo
-    // cambia no es un solicitante, se les avisa a todos los solicitantes.
-    if (!isAnyRequester) {
-      const requesterIds = new Set([task.requested_by_id, task.responsible_id, ...(task.co_requester_ids || [])].filter(Boolean));
-      for (const rid of requesterIds) notify(rid, task.id, `${profile.name} cambió el deadline de "${task.title}" a ${fmtDate(d)}`);
-    }
   };
   // CHANGES.md #9: convertir individual a colaborativo abre una ventana
   // completa (ConvertToColaborativoModal) en vez de solo agregar gente al
