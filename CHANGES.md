@@ -39,6 +39,13 @@ lo detallo. Preguntas abiertas antes de construirlo:
 - ¿Es solo para hoy (se reinicia cada día) o también se puede armar el
   de días futuros, tipo semana?
 
+### 26. Título "Pendientes" debe reflejar la cuenta filtrada
+Cuando se usa el filtro de "cuentas" en Pendientes (la flechita junto al
+título) y se selecciona una cuenta específica (no "Todas las cuentas"),
+el encabezado `<h1>Pendientes</h1>` debe cambiar para incluir el nombre
+de la cuenta elegida, por ejemplo `Pendientes-Sevenly`. Si se vuelve a
+"Todas las cuentas", el título regresa a solo "Pendientes".
+
 ### 21. Vista de calendario para deadlines
 _Movida desde PROPUESTAS.md #3._
 
