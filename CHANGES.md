@@ -65,6 +65,24 @@ fondo papel, tarjetas blancas por pendiente, encabezado serif — ver
 `lib/logPdf.js` / `downloadActivityPdf`), pero listando los pendientes
 que cumplan con las casillas elegidas, no solo finalizados.
 
+### 28. Aviso tipo "push" cuando un compañero se conecta (no en la campanita)
+Cuando alguien del equipo se pone en línea, que le salga a los demás un
+aviso — pero **no** como notificación de la campanita (no se guarda en
+el historial de notificaciones, no suma al contador). En vez de eso, un
+**rectángulo que baja desde arriba de la pantalla**, como si fuera un
+push notification del sistema pero dentro de la misma app, diciendo
+algo como "(Nombre) está en línea" — se queda un momento y se
+oculta/desliza solo (sin que haga falta cerrarlo a mano).
+
+Solo debe salirle a quienes comparten **al menos una cuenta** con esa
+persona (de las cuentas de #24 — `profiles.account_ids`), no a todo el
+equipo en general.
+
+Falta definir (cuando se programe): cómo se detecta "en línea" (¿sesión
+activa / Supabase Realtime presence?), si avisa también cuando se
+desconecta, y si hay límite de un aviso por persona por sesión para no
+saturar si hay mucha gente conectándose y desconectándose seguido.
+
 ### 21. Vista de calendario para deadlines
 _Movida desde PROPUESTAS.md #3._
 
