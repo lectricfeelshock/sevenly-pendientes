@@ -8,13 +8,41 @@ se hizo).
 
 ## Pendientes
 
-### 17. Widget de Pomodoro timer en el perfil
-En la página de perfil, agregar un widget de temporizador Pomodoro
-(ciclos de trabajo/descanso) para quien quiera usarlo mientras trabaja
-en sus pendientes. Aún sin definir bien — duración de los ciclos,
-si suena alguna alerta al terminar cada uno, si se puede personalizar,
-etc. Lo dejo como opción por ahora; cuando lo tenga más claro lo
-detallo.
+### 17. Sistema de widgets (Pomodoro, calendario y más) que viven en Comunidad y se agregan a tu Perfil
+La idea del Pomodoro (abajo) crece a un sistema de **widgets**:
+herramientas para chambear mejor que primero se ven en la pantalla
+nueva de **Comunidad** (ver la propuesta visual que ya armamos), y cada
+quien elige cuáles quiere tener a la mano en su propio Perfil.
+
+a. **Primeros dos widgets**: un **Pomodoro timer** (ciclos de
+   trabajo/descanso) y un **calendario** para visualizar tus pendientes
+   por día (qué se entrega cuándo, de un vistazo).
+
+b. **En Comunidad**: la sección de widgets los muestra como tarjetas.
+   Cada tarjeta tiene un botón **"+"**, y al pasar el mouse por encima
+   se lee el mensaje **"Agregar widget a mi perfil"**. Al darle clic, ese
+   widget se agrega a tu Perfil (sin quitarlo de Comunidad — ahí se
+   queda disponible para que lo agreguen otros también).
+
+c. **En Perfil**: la tarjeta de "Mi actividad" (abajo del todo, donde
+   hoy está) se reorganiza en una sección de **Widgets** — cada widget
+   que agregaste es su propia tarjeta, y hay una **flecha hacia la
+   derecha** para ir scrolleando entre los widgets que tienes agregados
+   (como un carrusel horizontal, uno a la vez o varios según el ancho
+   de pantalla).
+
+Falta definir (cuando se programe):
+- Pomodoro: duración de los ciclos, si suena alguna alerta al terminar
+  cada uno, si se puede personalizar.
+- Calendario: ¿muestra todos tus pendientes o se puede filtrar por
+  cuenta? ¿Qué pasa al día de clic — abre el desglose del pendiente o
+  solo lo lista?
+- ¿Cómo se quita un widget que ya agregaste a tu Perfil (botón "-" en
+  la propia tarjeta, o se desactiva desde Comunidad)?
+- ¿Qué pasa si le das "+" a un widget que ya tienes agregado — no hace
+  nada, o muestra algún aviso de "ya lo tienes"?
+- "Mi actividad" dentro de este carrusel, ¿es un widget más (el
+  primero, fijo) o se queda aparte, arriba de la sección de Widgets?
 
 ### 20. Cronograma diario: línea de tiempo con tus pendientes como bloques que arrastras
 Un apartado nuevo (tipo "mi día") donde eliges de tus pendientes ya
