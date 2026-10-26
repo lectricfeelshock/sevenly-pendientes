@@ -33,9 +33,9 @@ const DONE_STATUSES = ["Entregado", "Finalizado"];
 // target de la notificación "¡Se pasó la fecha de entrega!" — al tocarla
 // abre ForgottenSubtasksModal para ese pendiente (`${FORGOTTEN_TARGET}<id>`).
 const FORGOTTEN_TARGET = "forgotten-subtasks:";
-// Un pendiente normal (sin subtareas) solo se le ofrece al solicitante para
-// darlo por entregado cuando lleva MÁS de 1 día vencido.
-const FORGOTTEN_TASK_MIN_DAYS_LATE = 2;
+// Al solicitante solo se le ofrece dar por entregado un pendiente (o sus
+// subtareas olvidadas) cuando lleva MÁS de 1 día vencido.
+const FORGOTTEN_MIN_DAYS_LATE = 2;
 
 // Pendiente normal: Individual (o Personal delegado) sin subtareas, asignado
 // a alguien que no es su solicitante — el que el solicitante puede dar por
@@ -676,10 +676,9 @@ export default function Dashboard() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [ready, tasks, subtasks]);
 
-  // Cuando un pendiente se vence con subtareas de otras personas sin
-  // entregar — o, si es un pendiente normal sin subtareas, cuando lleva más
-  // de 1 día vencido — se le avisa UNA vez al solicitante (y
-  // co-solicitantes). Al tocar la notificación se abre
+  // Cuando un pendiente lleva más de 1 día vencido con subtareas de otras
+  // personas sin entregar — o sin entregarse, si es un pendiente normal sin
+  // subtareas — se le avisa UNA vez al solicitante (y co-solicitantes). Al tocar la notificación se abre
   // ForgottenSubtasksModal — el único lugar desde donde puede darlas por
   // entregadas (ver deliverSubtaskAsRequester / deliverTaskAsRequester).
   // overdue_requester_notified_for guarda el deadline avisado: si se mueve
@@ -688,12 +687,12 @@ export default function Dashboard() {
     if (!ready) return;
     (async () => {
       for (const t of tasks) {
-        if (!isOverdueUrgent(t) || t.overdue_requester_notified_for === t.deadline) continue;
+        if (!isOverdueUrgent(t) || -daysUntil(t.deadline) < FORGOTTEN_MIN_DAYS_LATE || t.overdue_requester_notified_for === t.deadline) continue;
         const requesterIds = Array.from(new Set([t.requested_by_id, t.responsible_id, ...(t.co_requester_ids || [])].filter(Boolean)));
         const taskSubtasks = subtasks.filter((s) => s.task_id === t.id);
         const isNormal = isNormalForgottenCandidate(t, taskSubtasks, requesterIds);
         const forgotten = taskSubtasks.filter((s) => s.assigned_to_id && s.status !== "Entregado" && !requesterIds.includes(s.assigned_to_id));
-        if (isNormal ? -daysUntil(t.deadline) < FORGOTTEN_TASK_MIN_DAYS_LATE : forgotten.length === 0) continue;
+        if (!isNormal && forgotten.length === 0) continue;
         const { data: claimed } = await supabase.from("tasks").update({ overdue_requester_notified_for: t.deadline })
           .eq("id", t.id).or(`overdue_requester_notified_for.is.null,overdue_requester_notified_for.neq.${t.deadline}`).select("id");
         if (!claimed || claimed.length === 0) continue; // otra sesión ya avisó
@@ -1120,7 +1119,7 @@ export default function Dashboard() {
   };
 
   // Igual que deliverSubtaskAsRequester, pero para un pendiente normal (sin
-  // subtareas) con más de 1 día vencido. delivery_reminder_sent en true: el
+  // subtareas). delivery_reminder_sent en true: el
   // propio solicitante lo acaba de marcar, no hace falta recordárselo a las 24h.
   const deliverTaskAsRequester = async (task) => {
     await supabase.from("tasks").update({ status: "Entregado", delivered_at: new Date().toISOString(), delivery_reminder_sent: true, delivered_by_requester: true }).eq("id", task.id);
@@ -3576,7 +3575,7 @@ function SearchModal({ onClose, tasks, profiles, resources, onOpenTask, onOpenRe
 // Ventana que abre la notificación "¡Se pasó la fecha de entrega!": el
 // solicitante ve las subtareas que otros dejaron sin entregar en un pendiente
 // vencido y, si ya se las entregaron, las da por entregadas. En un pendiente
-// normal (sin subtareas, con más de 1 día vencido) es el pendiente completo.
+// normal (sin subtareas) es el pendiente completo. Solo con más de 1 día vencido.
 // Es el único lugar donde se puede hacer (ver deliverSubtaskAsRequester y
 // deliverTaskAsRequester).
 function ForgottenSubtasksModal({ task, subtasks, profile, onDeliver, onDeliverTask, onClose }) {
@@ -3587,7 +3586,7 @@ function ForgottenSubtasksModal({ task, subtasks, profile, onDeliver, onDeliverT
   // a "Entregado" y la ventana debe seguir mostrando cómo quedó.
   const isNormal = !!task && isNormalForgottenCandidate(task, subtasks, requesterIds);
   const canAct = !!task && requesterIds.includes(profile.id) && task.status !== "Finalizado" && !!task.deadline &&
-    -daysUntil(task.deadline) >= (isNormal ? FORGOTTEN_TASK_MIN_DAYS_LATE : 1);
+    -daysUntil(task.deadline) >= FORGOTTEN_MIN_DAYS_LATE;
   // Un pendiente normal se muestra como si fuera su única "subtarea".
   const normalAsItem = isNormal && (task.status !== "Entregado" || task.delivered_by_requester)
     ? [{ id: task.id, title: task.title, assigned_to_name: task.assigned_to_name, status: task.status, isTask: true }] : [];
