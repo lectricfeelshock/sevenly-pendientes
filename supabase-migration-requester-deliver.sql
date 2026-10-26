@@ -14,6 +14,9 @@ alter table tasks add column if not exists overdue_requester_notified_for date;
 -- vencido sin que el asignado la actualizara. No le cuenta al asignado como
 -- entregada (ni en "Mi actividad" ni en finalized_log) y le suma un strike.
 alter table subtasks add column if not exists delivered_by_requester boolean not null default false;
+-- Lo mismo para un pendiente normal (sin subtareas) que el solicitante dio
+-- por entregado tras más de 1 día vencido.
+alter table tasks add column if not exists delivered_by_requester boolean not null default false;
 
 -- ---------- Motivo del strike ----------
 -- Para distinguir los strikes por auto-borrado a los 7 días de los que se

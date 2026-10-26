@@ -96,7 +96,8 @@ export async function GET(req) {
   const { data: overdue } = await supabaseAdmin.from("tasks").select("*").eq("status", "Entregado").lte("delivered_at", sevenDaysAgo);
   let autoFinalized = 0;
   for (const t of overdue || []) {
-    await supabaseAdmin.from("finalized_log").insert({ user_id: t.assigned_to_id || t.requested_by_id, task_title: t.title, delivered_at: t.delivered_at });
+    // Si lo entregó el solicitante porque se venció, no le cuenta al asignado.
+    if (!t.delivered_by_requester) await supabaseAdmin.from("finalized_log").insert({ user_id: t.assigned_to_id || t.requested_by_id, task_title: t.title, delivered_at: t.delivered_at });
     await supabaseAdmin.from("tasks").delete().eq("id", t.id);
     autoFinalized++;
   }

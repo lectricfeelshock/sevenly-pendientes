@@ -33,6 +33,17 @@ const DONE_STATUSES = ["Entregado", "Finalizado"];
 // target de la notificación "¡Se pasó la fecha de entrega!" — al tocarla
 // abre ForgottenSubtasksModal para ese pendiente (`${FORGOTTEN_TARGET}<id>`).
 const FORGOTTEN_TARGET = "forgotten-subtasks:";
+// Un pendiente normal (sin subtareas) solo se le ofrece al solicitante para
+// darlo por entregado cuando lleva MÁS de 1 día vencido.
+const FORGOTTEN_TASK_MIN_DAYS_LATE = 2;
+
+// Pendiente normal: Individual (o Personal delegado) sin subtareas, asignado
+// a alguien que no es su solicitante — el que el solicitante puede dar por
+// entregado desde ForgottenSubtasksModal.
+function isNormalForgottenCandidate(task, subtasksForTask, requesterIds) {
+  return task.task_type !== "colaborativo" && subtasksForTask.length === 0 &&
+    !!task.assigned_to_id && !requesterIds.includes(task.assigned_to_id);
+}
 // CHANGES.md #12: orden "de mayor a menor" del filtro Estado.
 const STATUS_GROUP_ORDER = ["Finalizado", "Entregado", "Detenido", "En progreso", "No iniciado"];
 const TASK_TYPES = [
@@ -666,9 +677,11 @@ export default function Dashboard() {
   }, [ready, tasks, subtasks]);
 
   // Cuando un pendiente se vence con subtareas de otras personas sin
-  // entregar, se le avisa UNA vez al solicitante (y co-solicitantes). Al
-  // tocar la notificación se abre ForgottenSubtasksModal — el único lugar
-  // desde donde puede darlas por entregadas (ver deliverSubtaskAsRequester).
+  // entregar — o, si es un pendiente normal sin subtareas, cuando lleva más
+  // de 1 día vencido — se le avisa UNA vez al solicitante (y
+  // co-solicitantes). Al tocar la notificación se abre
+  // ForgottenSubtasksModal — el único lugar desde donde puede darlas por
+  // entregadas (ver deliverSubtaskAsRequester / deliverTaskAsRequester).
   // overdue_requester_notified_for guarda el deadline avisado: si se mueve
   // y se vuelve a vencer, se avisa de nuevo.
   useEffect(() => {
@@ -677,13 +690,17 @@ export default function Dashboard() {
       for (const t of tasks) {
         if (!isOverdueUrgent(t) || t.overdue_requester_notified_for === t.deadline) continue;
         const requesterIds = Array.from(new Set([t.requested_by_id, t.responsible_id, ...(t.co_requester_ids || [])].filter(Boolean)));
-        const forgotten = subtasks.filter((s) => s.task_id === t.id && s.assigned_to_id && s.status !== "Entregado" && !requesterIds.includes(s.assigned_to_id));
-        if (forgotten.length === 0) continue;
+        const taskSubtasks = subtasks.filter((s) => s.task_id === t.id);
+        const isNormal = isNormalForgottenCandidate(t, taskSubtasks, requesterIds);
+        const forgotten = taskSubtasks.filter((s) => s.assigned_to_id && s.status !== "Entregado" && !requesterIds.includes(s.assigned_to_id));
+        if (isNormal ? -daysUntil(t.deadline) < FORGOTTEN_TASK_MIN_DAYS_LATE : forgotten.length === 0) continue;
         const { data: claimed } = await supabase.from("tasks").update({ overdue_requester_notified_for: t.deadline })
           .eq("id", t.id).or(`overdue_requester_notified_for.is.null,overdue_requester_notified_for.neq.${t.deadline}`).select("id");
         if (!claimed || claimed.length === 0) continue; // otra sesión ya avisó
         const n = forgotten.length;
-        const body = `“${t.title}” venció y ${n === 1 ? "quedó 1 subtarea" : `quedaron ${n} subtareas`} sin entregar. Sabemos que a uno se le puede olvidar actualizar la app. Si ya te ${n === 1 ? "la" : "las"} entregaron, toca aquí y tendrás la oportunidad para que tú ${n === 1 ? "la des por entregada" : "las des por entregadas"}.`;
+        const body = isNormal
+          ? `“${t.title}” venció y sigue sin entregarse. Sabemos que a uno se le puede olvidar actualizar la app. Si ya te lo entregaron, toca aquí y tendrás la oportunidad para que tú lo des por entregado.`
+          : `“${t.title}” venció y ${n === 1 ? "quedó 1 subtarea" : `quedaron ${n} subtareas`} sin entregar. Sabemos que a uno se le puede olvidar actualizar la app. Si ya te ${n === 1 ? "la" : "las"} entregaron, toca aquí y tendrás la oportunidad para que tú ${n === 1 ? "la des por entregada" : "las des por entregadas"}.`;
         for (const rid of requesterIds) await notify(rid, null, body, "¡Se pasó la fecha de entrega!", `${FORGOTTEN_TARGET}${t.id}`);
       }
     })();
@@ -999,7 +1016,9 @@ export default function Dashboard() {
     await supabase.from("tasks").update({ status: "Finalizado", finalized_at: new Date().toISOString() }).eq("id", task.id);
     await addHistory(task.id, `${profile.name} finalizó el pendiente`);
     await notifyFollowers(task, `${profile.name} finalizó "${task.title}"`);
-    await supabase.from("finalized_log").insert({ user_id: task.assigned_to_id || task.requested_by_id, task_title: task.title, delivered_at: task.delivered_at || null });
+    // Si lo entregó el solicitante porque se venció (delivered_by_requester),
+    // no le cuenta al asignado.
+    if (!task.delivered_by_requester) await supabase.from("finalized_log").insert({ user_id: task.assigned_to_id || task.requested_by_id, task_title: task.title, delivered_at: task.delivered_at || null });
     await refreshSelected(task.id);
   };
 
@@ -1097,6 +1116,21 @@ export default function Dashboard() {
     );
     const forTask = subtasks.filter((s) => s.task_id === subtask.task_id).map((s) => (s.id === subtask.id ? { ...s, status: "Entregado" } : s));
     await applyGeneralStatusFromSubtasks(subtask.task_id, forTask);
+    loadAll();
+  };
+
+  // Igual que deliverSubtaskAsRequester, pero para un pendiente normal (sin
+  // subtareas) con más de 1 día vencido. delivery_reminder_sent en true: el
+  // propio solicitante lo acaba de marcar, no hace falta recordárselo a las 24h.
+  const deliverTaskAsRequester = async (task) => {
+    await supabase.from("tasks").update({ status: "Entregado", delivered_at: new Date().toISOString(), delivery_reminder_sent: true, delivered_by_requester: true }).eq("id", task.id);
+    await supabase.from("strikes").insert({ user_id: task.assigned_to_id, task_title: task.title, reason: `${profile.name} entregó el pendiente porque se venció sin actualizarse` });
+    await addHistory(task.id, `${profile.name} marcó como entregado el pendiente de ${task.assigned_to_name} (vencido)`);
+    await notify(
+      task.assigned_to_id, task.id,
+      `Acaban de marcar como entregado tu pendiente "${task.title}" porque ya había vencido y seguía sin actualizarse. Intenta mantener al día el avance de tus actividades en la app.`,
+      "¡No dejes olvidada la app!"
+    );
     loadAll();
   };
 
@@ -1480,7 +1514,7 @@ export default function Dashboard() {
       {selected && <TaskDetail task={selected} onClose={() => setSelected(null)} onUpdate={updateTask} onDelete={deleteTask} onDeleteRecurring={deleteRecurringTask} recurringTemplates={recurringTemplates} onFinalize={finalizeTask} onDeliver={deliverTask} profiles={profiles} assignableProfiles={assignableProfiles} profile={profile} notify={notify} subtasks={subtasks.filter((s) => s.task_id === selected.id)} onAddSubtask={addSubtask} onUpdateSubtaskStatus={updateSubtaskStatus} onUpdateSubtaskDescription={updateSubtaskDescription} onUpdateSubtaskDeadline={updateSubtaskDeadline} onAssignChanges={startAssignChanges} viewerIsGerente={!!viewingAs && !isAdmin} onCommentsRead={reloadMyCommentReads} />}
       {showTeam && <TeamPanel onClose={() => setShowTeam(false)} profiles={assignableProfiles} tasks={tasks} />}
       {showFaq && <FaqModal onClose={() => setShowFaq(false)} />}
-      {forgottenTaskId && <ForgottenSubtasksModal task={tasks.find((t) => t.id === forgottenTaskId)} subtasks={subtasks.filter((s) => s.task_id === forgottenTaskId)} profile={profile} onDeliver={deliverSubtaskAsRequester} onClose={() => setForgottenTaskId(null)} />}
+      {forgottenTaskId && <ForgottenSubtasksModal task={tasks.find((t) => t.id === forgottenTaskId)} subtasks={subtasks.filter((s) => s.task_id === forgottenTaskId)} profile={profile} onDeliver={deliverSubtaskAsRequester} onDeliverTask={deliverTaskAsRequester} onClose={() => setForgottenTaskId(null)} />}
       <FaqBubble profile={profile} onDismiss={(iso) => setProfile((p) => ({ ...p, faq_bubble_dismissed_at: iso }))} />
       {showNotifs && <NotificationsPanel onClose={() => setShowNotifs(false)} notifications={notifications} onOpenTask={(taskId) => { const t = tasks.find((x) => x.id === taskId); if (t) setSelected(t); setShowNotifs(false); }} onOpenFilter={(target) => { if (target.startsWith(FORGOTTEN_TARGET)) setForgottenTaskId(target.slice(FORGOTTEN_TARGET.length)); else if (target === "requests:Entregado") { setPrimaryTab("requests"); setActiveFilter({ type: "Estado", value: "Entregado" }); } setShowNotifs(false); }} pushSupported={pushSupported} pushEnabled={pushEnabled} onEnablePush={enablePush} />}
       {showSearch && <SearchModal onClose={() => setShowSearch(false)} tasks={myTasks} profiles={profiles} resources={resources} onOpenTask={(t) => { setSelected(t); setShowSearch(false); }} onOpenResource={(r) => { setShowSearch(false); router.push(`/biblioteca?open=${r.id}`); }} />}
@@ -3541,20 +3575,27 @@ function SearchModal({ onClose, tasks, profiles, resources, onOpenTask, onOpenRe
 
 // Ventana que abre la notificación "¡Se pasó la fecha de entrega!": el
 // solicitante ve las subtareas que otros dejaron sin entregar en un pendiente
-// vencido y, si ya se las entregaron, las da por entregadas. Es el único
-// lugar donde se puede hacer (ver deliverSubtaskAsRequester).
-function ForgottenSubtasksModal({ task, subtasks, profile, onDeliver, onClose }) {
+// vencido y, si ya se las entregaron, las da por entregadas. En un pendiente
+// normal (sin subtareas, con más de 1 día vencido) es el pendiente completo.
+// Es el único lugar donde se puede hacer (ver deliverSubtaskAsRequester y
+// deliverTaskAsRequester).
+function ForgottenSubtasksModal({ task, subtasks, profile, onDeliver, onDeliverTask, onClose }) {
   const [confirmId, setConfirmId] = useState(null);
   const [busyId, setBusyId] = useState(null);
   const requesterIds = task ? [task.requested_by_id, task.responsible_id, ...(task.co_requester_ids || [])].filter(Boolean) : [];
   // No usa isOverdueUrgent: al entregar la última subtarea el pendiente pasa
   // a "Entregado" y la ventana debe seguir mostrando cómo quedó.
-  const canAct = !!task && requesterIds.includes(profile.id) && task.status !== "Finalizado" && !!task.deadline && daysUntil(task.deadline) < 0;
-  const forgotten = canAct ? subtasks.filter((s) => s.assigned_to_id && !requesterIds.includes(s.assigned_to_id) && (s.status !== "Entregado" || s.delivered_by_requester)) : [];
+  const isNormal = !!task && isNormalForgottenCandidate(task, subtasks, requesterIds);
+  const canAct = !!task && requesterIds.includes(profile.id) && task.status !== "Finalizado" && !!task.deadline &&
+    -daysUntil(task.deadline) >= (isNormal ? FORGOTTEN_TASK_MIN_DAYS_LATE : 1);
+  // Un pendiente normal se muestra como si fuera su única "subtarea".
+  const normalAsItem = isNormal && (task.status !== "Entregado" || task.delivered_by_requester)
+    ? [{ id: task.id, title: task.title, assigned_to_name: task.assigned_to_name, status: task.status, isTask: true }] : [];
+  const forgotten = !canAct ? [] : isNormal ? normalAsItem : subtasks.filter((s) => s.assigned_to_id && !requesterIds.includes(s.assigned_to_id) && (s.status !== "Entregado" || s.delivered_by_requester));
   const pendingCount = forgotten.filter((s) => s.status !== "Entregado").length;
   const deliver = async (s) => {
     setBusyId(s.id);
-    await onDeliver(s);
+    await (s.isTask ? onDeliverTask(task) : onDeliver(s));
     setBusyId(null);
     setConfirmId(null);
   };
@@ -3573,9 +3614,9 @@ function ForgottenSubtasksModal({ task, subtasks, profile, onDeliver, onClose })
           ) : (
             <>
               <p className="text-[13.5px] leading-relaxed" style={{ color: C.inkMedium }}>
-                <b style={{ color: C.ink }}>{task.title}</b> venció el {fmtDate(task.deadline)}. Si ya te entregaron alguna de estas subtareas y solo faltó actualizarla en la app, dala por entregada aquí.
+                <b style={{ color: C.ink }}>{task.title}</b> venció el {fmtDate(task.deadline)}. {isNormal ? "Si ya te lo entregaron y solo faltó actualizarlo en la app, dalo por entregado aquí." : "Si ya te entregaron alguna de estas subtareas y solo faltó actualizarla en la app, dala por entregada aquí."}
               </p>
-              {forgotten.length === 0 && <p className="text-xs" style={{ color: C.inkSoft }}>Ya no quedan subtareas sin entregar.</p>}
+              {forgotten.length === 0 && <p className="text-xs" style={{ color: C.inkSoft }}>{isNormal ? "Este pendiente ya se entregó." : "Ya no quedan subtareas sin entregar."}</p>}
               {forgotten.map((s) => (
                 <div key={s.id} style={{ background: C.paper, borderRadius: R.md }} className="p-3 flex flex-col gap-2">
                   <div className="flex items-center justify-between gap-2">
@@ -3584,23 +3625,23 @@ function ForgottenSubtasksModal({ task, subtasks, profile, onDeliver, onClose })
                       <div className="text-[11px] font-semibold" style={{ color: C.inkSoft }}>{s.assigned_to_name} · {s.status}</div>
                     </div>
                     {s.status === "Entregado" ? (
-                      <span className="flex items-center gap-1 text-[11px] font-semibold shrink-0" style={{ color: C.signal }}><CheckCheck size={12} /> Entregada</span>
+                      <span className="flex items-center gap-1 text-[11px] font-semibold shrink-0" style={{ color: C.signal }}><CheckCheck size={12} /> {s.isTask ? "Entregado" : "Entregada"}</span>
                     ) : confirmId !== s.id && (
-                      <button onClick={() => setConfirmId(s.id)} style={{ background: C.spine, color: C.paper, borderRadius: R.pill }} className="text-[11px] px-2.5 py-1 font-semibold shrink-0">Dar por entregada</button>
+                      <button onClick={() => setConfirmId(s.id)} style={{ background: C.spine, color: C.paper, borderRadius: R.pill }} className="text-[11px] px-2.5 py-1 font-semibold shrink-0">{s.isTask ? "Dar por entregado" : "Dar por entregada"}</button>
                     )}
                   </div>
                   {confirmId === s.id && s.status !== "Entregado" && (
                     <div className="flex items-center justify-between gap-2">
-                      <span className="text-xs" style={{ color: C.ink }}>¿{s.assigned_to_name} ya te la entregó?</span>
+                      <span className="text-xs" style={{ color: C.ink }}>¿{s.assigned_to_name} ya te {s.isTask ? "lo" : "la"} entregó?</span>
                       <div className="flex gap-2 flex-shrink-0">
                         <button onClick={() => setConfirmId(null)} className="text-xs" style={{ color: C.inkSoft }}>Cancelar</button>
-                        <button onClick={() => deliver(s)} disabled={busyId === s.id} style={{ background: C.signal, color: "#fff", borderRadius: R.pill }} className="text-xs px-3.5 py-1.5 font-semibold disabled:opacity-50">Sí, entregada</button>
+                        <button onClick={() => deliver(s)} disabled={busyId === s.id} style={{ background: C.signal, color: "#fff", borderRadius: R.pill }} className="text-xs px-3.5 py-1.5 font-semibold disabled:opacity-50">{s.isTask ? "Sí, entregado" : "Sí, entregada"}</button>
                       </div>
                     </div>
                   )}
                 </div>
               ))}
-              {forgotten.length > 0 && pendingCount === 0 && <p className="text-xs" style={{ color: C.inkSoft }}>Listo, ya no quedan subtareas sin entregar.</p>}
+              {forgotten.length > 0 && pendingCount === 0 && <p className="text-xs" style={{ color: C.inkSoft }}>{isNormal ? "Listo, ya quedó como entregado. Ya lo puedes finalizar." : "Listo, ya no quedan subtareas sin entregar."}</p>}
             </>
           )}
         </div>
