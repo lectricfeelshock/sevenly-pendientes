@@ -683,7 +683,7 @@ export default function Dashboard() {
           .eq("id", t.id).or(`overdue_requester_notified_for.is.null,overdue_requester_notified_for.neq.${t.deadline}`).select("id");
         if (!claimed || claimed.length === 0) continue; // otra sesión ya avisó
         const n = forgotten.length;
-        const body = `"${t.title}" venció y ${n === 1 ? "quedó 1 subtarea" : `quedaron ${n} subtareas`} sin entregar. Sabemos que a veces se olvida actualizar la app: si ya te ${n === 1 ? "la entregaron, toca aquí y se abrirá una ventana para que tú la des" : "las entregaron, toca aquí y se abrirá una ventana para que tú las des"} por entregada${n === 1 ? "" : "s"}.`;
+        const body = `“${t.title}” venció y ${n === 1 ? "quedó 1 subtarea" : `quedaron ${n} subtareas`} sin entregar. Sabemos que a uno se le puede olvidar actualizar la app. Si ya te ${n === 1 ? "la" : "las"} entregaron, toca aquí y tendrás la oportunidad para que tú ${n === 1 ? "la des por entregada" : "las des por entregadas"}.`;
         for (const rid of requesterIds) await notify(rid, null, body, "¡Se pasó la fecha de entrega!", `${FORGOTTEN_TARGET}${t.id}`);
       }
     })();
