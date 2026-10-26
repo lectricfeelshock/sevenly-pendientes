@@ -661,6 +661,31 @@ export default function Dashboard() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [ready, tasks, subtasks]);
 
+  // Cuando un pendiente se vence con subtareas de otras personas sin
+  // entregar, se le avisa UNA vez al solicitante (y co-solicitantes) para
+  // que, si ya se las entregaron y solo faltó actualizarlo, las marque él
+  // mismo desde el desglose (ver deliverSubtaskAsRequester).
+  // overdue_requester_notified_for guarda el deadline avisado: si se mueve
+  // y se vuelve a vencer, se avisa de nuevo.
+  useEffect(() => {
+    if (!ready) return;
+    (async () => {
+      for (const t of tasks) {
+        if (!isOverdueUrgent(t) || t.overdue_requester_notified_for === t.deadline) continue;
+        const requesterIds = Array.from(new Set([t.requested_by_id, t.responsible_id, ...(t.co_requester_ids || [])].filter(Boolean)));
+        const forgotten = subtasks.filter((s) => s.task_id === t.id && s.assigned_to_id && s.status !== "Entregado" && !requesterIds.includes(s.assigned_to_id));
+        if (forgotten.length === 0) continue;
+        const { data: claimed } = await supabase.from("tasks").update({ overdue_requester_notified_for: t.deadline })
+          .eq("id", t.id).or(`overdue_requester_notified_for.is.null,overdue_requester_notified_for.neq.${t.deadline}`).select("id");
+        if (!claimed || claimed.length === 0) continue; // otra sesión ya avisó
+        const n = forgotten.length;
+        const body = `"${t.title}" venció con ${n === 1 ? "1 subtarea" : `${n} subtareas`} sin entregar. A veces se nos olvida actualizar la app: si ya te ${n === 1 ? "la" : "las"} entregaron, entra al pendiente y márcala${n === 1 ? "" : "s"} tú como entregada${n === 1 ? "" : "s"}.`;
+        for (const rid of requesterIds) await notify(rid, t.id, body, "¡Se pasó la fecha de entrega!");
+      }
+    })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [ready, tasks, subtasks]);
+
   // CHANGES.md #4b: avisa al solicitante (y co-solicitantes) exactamente 24h
   // después de entregado un pendiente si sigue sin finalizarse — una sola vez
   // por pendiente. Corre en cualquier sesión con el dashboard abierto (se
@@ -1051,6 +1076,25 @@ export default function Dashboard() {
     loadAll();
   };
 
+  // El solicitante entrega una subtarea olvidada de un pendiente vencido:
+  // no le cuenta al asignado como entregada (delivered_by_requester), le
+  // suma un strike y se le avisa para que mantenga la app al día.
+  const deliverSubtaskAsRequester = async (subtask) => {
+    const task = tasks.find((t) => t.id === subtask.task_id);
+    if (!task) return;
+    await supabase.from("subtasks").update({ status: "Entregado", delivered_at: new Date().toISOString(), delivered_by_requester: true }).eq("id", subtask.id);
+    await supabase.from("strikes").insert({ user_id: subtask.assigned_to_id, task_title: task.title, reason: `${profile.name} entregó la subtarea "${subtask.title}" porque se venció sin actualizarse` });
+    await addHistory(task.id, `${profile.name} marcó como entregada la subtarea "${subtask.title}" de ${subtask.assigned_to_name} (vencida)`);
+    await notify(
+      subtask.assigned_to_id, task.id,
+      `${profile.name} marcó como entregada tu subtarea "${subtask.title}" en "${task.title}" porque ya había vencido y no estaba actualizada. Esta vez cuenta como un strike — acuérdate de ir actualizando el avance de tus actividades.`,
+      "¡No dejes olvidada la app!"
+    );
+    const forTask = subtasks.filter((s) => s.task_id === subtask.task_id).map((s) => (s.id === subtask.id ? { ...s, status: "Entregado" } : s));
+    await applyGeneralStatusFromSubtasks(subtask.task_id, forTask);
+    loadAll();
+  };
+
   const updateSubtaskDescription = async (subtask, description) => {
     await supabase.from("subtasks").update({ description }).eq("id", subtask.id);
     loadAll();
@@ -1428,7 +1472,7 @@ export default function Dashboard() {
 
       {showNew && <NewTaskForm onClose={() => { setShowNew(false); setAssignChangesFor(null); }} onCreate={createTask} onCreatePopup={createPopup} profiles={assignableProfiles} profile={profile} isAdmin={isAdmin} tasks={tasks} subtasks={subtasks} initialData={assignChangesFor} accounts={myAccounts.length > 0 ? myAccounts : accounts} />}
       {popupQueue[0] && <PopupModal popup={popupQueue[0]} onClose={dismissPopup} tasks={tasks} subtasks={subtasks} profiles={profiles} onFinalizeTask={finalizeTask} />}
-      {selected && <TaskDetail task={selected} onClose={() => setSelected(null)} onUpdate={updateTask} onDelete={deleteTask} onDeleteRecurring={deleteRecurringTask} recurringTemplates={recurringTemplates} onFinalize={finalizeTask} onDeliver={deliverTask} profiles={profiles} assignableProfiles={assignableProfiles} profile={profile} notify={notify} subtasks={subtasks.filter((s) => s.task_id === selected.id)} onAddSubtask={addSubtask} onUpdateSubtaskStatus={updateSubtaskStatus} onUpdateSubtaskDescription={updateSubtaskDescription} onUpdateSubtaskDeadline={updateSubtaskDeadline} onAssignChanges={startAssignChanges} viewerIsGerente={!!viewingAs && !isAdmin} onCommentsRead={reloadMyCommentReads} />}
+      {selected && <TaskDetail task={selected} onClose={() => setSelected(null)} onUpdate={updateTask} onDelete={deleteTask} onDeleteRecurring={deleteRecurringTask} recurringTemplates={recurringTemplates} onFinalize={finalizeTask} onDeliver={deliverTask} profiles={profiles} assignableProfiles={assignableProfiles} profile={profile} notify={notify} subtasks={subtasks.filter((s) => s.task_id === selected.id)} onAddSubtask={addSubtask} onUpdateSubtaskStatus={updateSubtaskStatus} onDeliverSubtaskAsRequester={deliverSubtaskAsRequester} onUpdateSubtaskDescription={updateSubtaskDescription} onUpdateSubtaskDeadline={updateSubtaskDeadline} onAssignChanges={startAssignChanges} viewerIsGerente={!!viewingAs && !isAdmin} onCommentsRead={reloadMyCommentReads} />}
       {showTeam && <TeamPanel onClose={() => setShowTeam(false)} profiles={assignableProfiles} tasks={tasks} />}
       {showFaq && <FaqModal onClose={() => setShowFaq(false)} />}
       <FaqBubble profile={profile} onDismiss={(iso) => setProfile((p) => ({ ...p, faq_bubble_dismissed_at: iso }))} />
@@ -2632,7 +2676,7 @@ function ConvertToColaborativoModal({ task, profiles, profile, onClose, onConver
   );
 }
 
-function TaskDetail({ task, onClose, onUpdate, onDelete, onDeleteRecurring, recurringTemplates, onFinalize, onDeliver, profiles, assignableProfiles, profile, notify, subtasks, onAddSubtask, onUpdateSubtaskStatus, onUpdateSubtaskDescription, onUpdateSubtaskDeadline, onAssignChanges, viewerIsGerente, onCommentsRead }) {
+function TaskDetail({ task, onClose, onUpdate, onDelete, onDeleteRecurring, recurringTemplates, onFinalize, onDeliver, profiles, assignableProfiles, profile, notify, subtasks, onAddSubtask, onUpdateSubtaskStatus, onDeliverSubtaskAsRequester, onUpdateSubtaskDescription, onUpdateSubtaskDeadline, onAssignChanges, viewerIsGerente, onCommentsRead }) {
   const recurringTpl = task.recurring_template_id ? (recurringTemplates || []).find((r) => r.id === task.recurring_template_id) : null;
   const [comment, setComment] = useState(""), [comments, setComments] = useState([]);
   const [history, setHistory] = useState([]), [showHistory, setShowHistory] = useState(false);
@@ -2657,6 +2701,7 @@ function TaskDetail({ task, onClose, onUpdate, onDelete, onDeleteRecurring, recu
   // Mover una deadline (general o de subtarea) primero abre una ventana que
   // pide un comentario con los motivos; el cambio solo se aplica al dejarlo.
   const [pendingDeadline, setPendingDeadline] = useState(null), [deadlineComment, setDeadlineComment] = useState("");
+  const [confirmDeliverSubtaskId, setConfirmDeliverSubtaskId] = useState(null);
   const assignee = profiles.find((p) => p.id === task.assigned_to_id);
 
   const isColaborativo = task.task_type === "colaborativo";
@@ -2685,6 +2730,12 @@ function TaskDetail({ task, onClose, onUpdate, onDelete, onDeleteRecurring, recu
   const sameDay = task.request_date && task.deadline && task.request_date === task.deadline;
   const hasSubtasks = subtasks.length > 0;
   const allSubtasksDelivered = hasSubtasks && subtasks.every((s) => s.status === "Entregado");
+  // Pendiente vencido: el solicitante puede entregar las subtareas que
+  // otros dejaron olvidadas (ver deliverSubtaskAsRequester) — cuenta como
+  // strike para quien la tenía asignada.
+  const requesterIdList = [task.requested_by_id, task.responsible_id, ...(task.co_requester_ids || [])].filter(Boolean);
+  const canDeliverForgotten = (s) => isAnyRequester && !viewerIsGerente && !isFinalized && isOverdueUrgent(task) &&
+    s.status !== "Entregado" && !!s.assigned_to_id && !requesterIdList.includes(s.assigned_to_id);
   const canFinalize = !viewerIsGerente && !isFinalized && (isAdmin || (isColaborativo ? isAnyRequester && allSubtasksDelivered : isRequester && (hasSubtasks ? allSubtasksDelivered : isDelivered)));
   // CHANGES.md #23: ya no solo el solicitante/admin — cualquiera con acceso
   // al pendiente puede cambiar el deadline (se le avisa al solicitante si
@@ -3149,10 +3200,21 @@ function TaskDetail({ task, onClose, onUpdate, onDelete, onDeleteRecurring, recu
                           <select value={s.status} onClick={(e) => e.stopPropagation()} onChange={(e) => onUpdateSubtaskStatus(s, e.target.value)} style={{ borderColor: C.hairline, background: C.paper }} className="border px-1.5 py-1 text-[11px] outline-none shrink-0">
                             {ASSIGNEE_STATUSES.map((st) => <option key={st} value={st}>{st}</option>)}
                           </select>
+                        ) : canDeliverForgotten(s) ? (
+                          <button onClick={(e) => { e.stopPropagation(); setConfirmDeliverSubtaskId(s.id); }} style={{ background: C.spine, color: C.paper, borderRadius: R.pill }} className="text-[11px] px-2.5 py-1 font-semibold shrink-0">Marcar entregada</button>
                         ) : (
-                          <span className="flex items-center gap-1 text-[11px] shrink-0" style={{ color: C.inkSoft }}><StIcon size={12} /> {s.status}</span>
+                          <span className="flex items-center gap-1 text-[11px] shrink-0" style={{ color: C.inkSoft }}><StIcon size={12} /> {s.status}{s.delivered_by_requester ? " por solicitante" : ""}</span>
                         )}
                       </div>
+                      {confirmDeliverSubtaskId === s.id && (
+                        <div className="mt-2 pt-2.5 flex flex-col gap-2" onClick={(e) => e.stopPropagation()}>
+                          <span className="text-xs" style={{ color: C.ink }}>Se marcará como entregada por ti: no le contará a {s.assigned_to_name} como entregada y le sumará un strike. ¿Seguro?</span>
+                          <div className="flex gap-2 justify-end">
+                            <button onClick={() => setConfirmDeliverSubtaskId(null)} className="text-xs" style={{ color: C.inkSoft }}>Cancelar</button>
+                            <button onClick={() => { setConfirmDeliverSubtaskId(null); onDeliverSubtaskAsRequester(s); }} style={{ background: C.urgent, color: "#fff", borderRadius: R.pill }} className="text-xs px-3.5 py-1.5 font-semibold">Sí, marcar entregada</button>
+                          </div>
+                        </div>
+                      )}
                       {expanded && (
                         editingSubtaskId === s.id ? (
                           <div className="mt-2 pt-2.5 flex flex-col gap-1.5" style={{ borderColor: C.hairline }} onClick={(e) => e.stopPropagation()}>

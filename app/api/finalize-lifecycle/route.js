@@ -6,7 +6,9 @@ import { createClient } from "@supabase/supabase-js";
 //    marca un strike a quien no entregó (tabla "strikes", sin apartado en
 //    el perfil todavía). En Colaborativo, a quien sí entregó su subtarea se
 //    le cuenta como si el pendiente se hubiera finalizado (finalized_log) —
-//    solo a quien no entregó la suya se le marca el strike.
+//    solo a quien no entregó la suya se le marca el strike. Si su subtarea
+//    la entregó el solicitante (delivered_by_requester), no cuenta como
+//    finalizada para él — su strike ya se dio en ese momento.
 // 1. Auto-finaliza pendientes "Entregado" hace 7+ días sin que el
 //    solicitante los finalice, y los borra de inmediato (el registro en
 //    "Mi actividad" del asignado se queda, vía finalized_log).
@@ -73,15 +75,16 @@ export async function GET(req) {
       const { data: teamSubtasks } = await supabaseAdmin.from("subtasks").select("*").eq("task_id", t.id);
       for (const s of teamSubtasks || []) {
         if (!s.assigned_to_id) continue;
+        if (s.status === "Entregado" && s.delivered_by_requester) continue; // su strike ya se dio al entregarla el solicitante
         if (s.status === "Entregado") {
           await supabaseAdmin.from("finalized_log").insert({ user_id: s.assigned_to_id, task_title: t.title, delivered_at: s.delivered_at || null });
         } else {
-          await supabaseAdmin.from("strikes").insert({ user_id: s.assigned_to_id, task_title: t.title });
+          await supabaseAdmin.from("strikes").insert({ user_id: s.assigned_to_id, task_title: t.title, reason: "Pendiente borrado a los 7 días de vencido sin entregar" });
           strikesGiven++;
         }
       }
     } else if (t.assigned_to_id) {
-      await supabaseAdmin.from("strikes").insert({ user_id: t.assigned_to_id, task_title: t.title });
+      await supabaseAdmin.from("strikes").insert({ user_id: t.assigned_to_id, task_title: t.title, reason: "Pendiente borrado a los 7 días de vencido sin entregar" });
       strikesGiven++;
     }
     await supabaseAdmin.from("tasks").delete().eq("id", t.id);
