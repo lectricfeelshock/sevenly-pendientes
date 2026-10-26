@@ -93,6 +93,17 @@ fondo papel, tarjetas blancas por pendiente, encabezado serif — ver
 `lib/logPdf.js` / `downloadActivityPdf`), pero listando los pendientes
 que cumplan con las casillas elegidas, no solo finalizados.
 
+### 29. En el modal de FAQ (?), poder enviar tus propias dudas
+En la ventana de preguntas frecuentes (ver #8), al final de la lista de
+las 12 preguntas, agregar una casilla de texto (o un botón) para que
+cualquiera pueda escribir y enviar una duda propia que no esté en la
+lista — para ir detectando qué preguntas faltan agregar.
+
+Falta definir (cuando se programe): a dónde llega esa duda (¿tabla
+nueva en Supabase visible para el admin, o notificación directa al
+admin?), y si la persona que la mandó recibe algún aviso de que ya se
+agregó su pregunta a la lista.
+
 ### 28. Aviso tipo "push" cuando un compañero se conecta (no en la campanita)
 Cuando alguien del equipo se pone en línea, que le salga a los demás un
 aviso — pero **no** como notificación de la campanita (no se guarda en
