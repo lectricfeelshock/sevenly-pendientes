@@ -55,14 +55,16 @@ export default function PerfilPage() {
   // llegó a Entregado (delivered_at se sobrescribe en cada entrega). Si el
   // pendiente regresó a No iniciado / En progreso, no cuenta hasta que se
   // vuelva a entregar. Incluye los del finalized_log cuyo pendiente ya se
-  // borró (auto-finalizado a los 7 días).
+  // borró (auto-finalizado a los 7 días). Las subtareas que entregó el
+  // solicitante porque se vencieron (delivered_by_requester), igual que
+  // los pendientes, no cuentan.
   useEffect(() => {
     if (!profile?.id) return;
     (async () => {
       const since = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
-      const { data: tsk } = await supabase.from("tasks").select("title, status, delivered_at").eq("assigned_to_id", profile.id).gte("delivered_at", since);
+      const { data: tsk } = await supabase.from("tasks").select("title, status, delivered_at").eq("assigned_to_id", profile.id).eq("delivered_by_requester", false).gte("delivered_at", since);
       const { data: lg } = await supabase.from("finalized_log").select("task_title, delivered_at").eq("user_id", profile.id).gte("delivered_at", since).order("delivered_at", { ascending: false });
-      const { data: sub } = await supabase.from("subtasks").select("title, status, delivered_at").eq("assigned_to_id", profile.id).gte("delivered_at", since);
+      const { data: sub } = await supabase.from("subtasks").select("title, status, delivered_at").eq("assigned_to_id", profile.id).eq("delivered_by_requester", false).gte("delivered_at", since);
       const isDone = (x) => x.status === "Entregado" || x.status === "Finalizado";
       const liveTitles = new Set((tsk || []).map((t) => t.title)); // el pendiente sigue existiendo: manda su estado actual
       const rows = [];
