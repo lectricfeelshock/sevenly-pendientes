@@ -1489,19 +1489,20 @@ export default function Dashboard() {
         </div>
       )}
 
-      {primaryTab === "popups" && isAdmin ? (
-        <PopupsAdminPanel profile={profile} profiles={assignableProfiles} tasks={tasks} subtasks={subtasks} />
-      ) : (
-      <>
-
       <div
-        className="max-w-3xl mx-auto px-5 pb-10"
+        className="min-h-[60vh]"
         onContextMenu={(e) => {
           if (e.target.closest("[data-taskrow]")) return;
           e.preventDefault();
           setContextMenu({ x: e.clientX, y: e.clientY });
         }}
       >
+      {primaryTab === "popups" && isAdmin ? (
+        <PopupsAdminPanel profile={profile} profiles={assignableProfiles} tasks={tasks} subtasks={subtasks} />
+      ) : (
+      <>
+
+      <div className="max-w-3xl mx-auto px-5 pb-10">
         {flatDeadlineList ? (
           <>
             {flatDeadlineList.length === 0 && <div className="text-center py-16" style={{ color: C.inkSoft }}><p className="text-sm">No hay pendientes que coincidan con el filtro.</p></div>}
@@ -1535,6 +1536,7 @@ export default function Dashboard() {
       </div>
       </>
       )}
+      </div>
 
       <BottomNav active="pendientes" profile={profile} onEquipo={() => setShowTeam(true)} />
 
