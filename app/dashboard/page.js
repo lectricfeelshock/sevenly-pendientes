@@ -1557,7 +1557,7 @@ export default function Dashboard() {
             style={{ color: C.ink }}
             className="w-full text-left px-3.5 py-2.5 text-sm flex items-center gap-2"
           >
-            <Download size={15} style={{ color: C.inkSoft }} /> Descargar Pendientes
+            <Download size={15} style={{ color: C.inkSoft }} /> {viewingProfile ? `Descargar pendientes de ${viewingProfile.name}` : "Descargar Pendientes"}
           </button>
         </div>
       )}
@@ -1565,7 +1565,8 @@ export default function Dashboard() {
         <DownloadTasksModal
           onClose={() => setShowDownloadTasks(false)}
           tasks={myTasks} subtasks={subtasks} accounts={myAccounts}
-          categoryOptions={myCategoryOptions} effectiveId={effectiveId} viewerName={profile.name}
+          categoryOptions={myCategoryOptions} effectiveId={effectiveId}
+          viewerName={viewingProfile ? viewingProfile.name : profile.name}
         />
       )}
       {forgottenTaskId && <ForgottenSubtasksModal task={tasks.find((t) => t.id === forgottenTaskId)} subtasks={subtasks.filter((s) => s.task_id === forgottenTaskId)} profile={profile} onDeliver={deliverSubtaskAsRequester} onDeliverTask={deliverTaskAsRequester} onClose={() => setForgottenTaskId(null)} />}
