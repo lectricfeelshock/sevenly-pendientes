@@ -11,6 +11,8 @@ import BottomNav from "@/components/BottomNav";
 import LoadingScreen from "@/components/LoadingScreen";
 import TeamPanel from "@/components/TeamPanel";
 import FaqBubble from "@/components/FaqBubble";
+import OnlineBanner from "@/components/OnlineBanner";
+import { usePresence } from "@/lib/presence";
 
 // CHANGES.md #2d: bucket "resource-files" — 20 MB por archivo, solo estos
 // tipos (confirmado viable: plan Free de Supabase, 1 GB de storage total,
@@ -119,6 +121,7 @@ function BibliotecaPageInner() {
   const [tasks, setTasks] = useState([]);
   const [accounts, setAccounts] = useState([]);
   const [showTeam, setShowTeam] = useState(false);
+  const { onlineIds, joinQueue, dequeueJoin } = usePresence(profile); // CHANGES.md #28
   const [showForm, setShowForm] = useState(false);
   const [editing, setEditing] = useState(null);
   const [selected, setSelected] = useState(null);
@@ -367,7 +370,8 @@ function BibliotecaPageInner() {
       <BottomNav active="biblioteca" profile={profile} onEquipo={() => setShowTeam(true)} />
       <FaqBubble profile={profile} onDismiss={(iso) => setProfile((p) => ({ ...p, faq_bubble_dismissed_at: iso }))} />
 
-      {showTeam && <TeamPanel onClose={() => setShowTeam(false)} profiles={profiles.filter((p) => p.role !== "admin")} tasks={tasks} />}
+      {showTeam && <TeamPanel onClose={() => setShowTeam(false)} profiles={profiles.filter((p) => p.role !== "admin")} tasks={tasks} onlineIds={onlineIds} />}
+      <OnlineBanner queue={joinQueue} onDequeue={dequeueJoin} />
 
       {selected && (
         <ResourceDetail

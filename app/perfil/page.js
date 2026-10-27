@@ -8,6 +8,8 @@ import BottomNav from "@/components/BottomNav";
 import LoadingScreen from "@/components/LoadingScreen";
 import TeamPanel from "@/components/TeamPanel";
 import FaqBubble from "@/components/FaqBubble";
+import OnlineBanner from "@/components/OnlineBanner";
+import { usePresence } from "@/lib/presence";
 import { downloadActivityPdf } from "@/lib/logPdf";
 
 function activityMsg(n) {
@@ -30,6 +32,7 @@ export default function PerfilPage() {
   const [teamProfiles, setTeamProfiles] = useState([]);
   const [teamTasks, setTeamTasks] = useState([]);
   const [showTeam, setShowTeam] = useState(false);
+  const { onlineIds, joinQueue, dequeueJoin } = usePresence(profile); // CHANGES.md #28
   const [view, setView] = useState("finalizados"); // "finalizados" | "entregados" — el rectángulo de arriba alterna entre ambos
   const [delivered, setDelivered] = useState([]); // entregados en los últimos 7 días: { title, at }
 
@@ -232,7 +235,8 @@ export default function PerfilPage() {
       <BottomNav active="perfil" profile={profile} onEquipo={() => setShowTeam(true)} />
       <FaqBubble profile={profile} onDismiss={(iso) => setProfile((p) => ({ ...p, faq_bubble_dismissed_at: iso }))} />
 
-      {showTeam && <TeamPanel onClose={() => setShowTeam(false)} profiles={teamProfiles.filter((p) => p.role !== "admin")} tasks={teamTasks} />}
+      {showTeam && <TeamPanel onClose={() => setShowTeam(false)} profiles={teamProfiles.filter((p) => p.role !== "admin")} tasks={teamTasks} onlineIds={onlineIds} />}
+      <OnlineBanner queue={joinQueue} onDequeue={dequeueJoin} />
     </div>
   );
 }

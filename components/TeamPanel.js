@@ -10,7 +10,7 @@ function fmtDate(d) {
 
 // Panel compartido "Mi equipo" — lo abren Pendientes, Biblioteca y Perfil
 // (vía el botón "Equipo" de BottomNav), no solo Pendientes.
-export default function TeamPanel({ onClose, profiles, tasks }) {
+export default function TeamPanel({ onClose, profiles, tasks, onlineIds }) {
   const [picked, setPicked] = useState(null);
   return (
     <div className="fixed inset-0 z-50 flex items-stretch justify-end" style={{ background: "rgba(27,30,36,0.5)" }} onClick={onClose}>
@@ -24,10 +24,16 @@ export default function TeamPanel({ onClose, profiles, tasks }) {
             const inProgress = tasks.filter((t) => t.assigned_to_id === p.id && t.status === "En progreso");
             const open = picked === p.id;
             const initial = (p.name || "?").trim().charAt(0).toUpperCase();
+            const isOnline = onlineIds?.has?.(p.id);
             return (
               <div key={p.id} style={{ background: C.panel, borderRadius: R.xl, boxShadow: SH.card }} className="overflow-hidden">
                 <button onClick={() => setPicked(open ? null : p.id)} className="w-full text-left flex items-center gap-3 px-4 py-3.5">
-                  <div style={{ width: 40, height: 40, borderRadius: R.pill, background: inProgress.length > 0 ? C.ink : C.subtle, color: inProgress.length > 0 ? C.paper : "#6F747E" }} className="flex items-center justify-center flex-shrink-0 text-[14px] font-bold">{initial}</div>
+                  <div className="relative flex-shrink-0">
+                    <div style={{ width: 40, height: 40, borderRadius: R.pill, background: inProgress.length > 0 ? C.ink : C.subtle, color: inProgress.length > 0 ? C.paper : "#6F747E" }} className="flex items-center justify-center text-[14px] font-bold">{initial}</div>
+                    {isOnline && (
+                      <span style={{ width: 11, height: 11, borderRadius: R.pill, background: "#4ADE80", border: `2px solid ${C.panel}` }} className="absolute -bottom-0.5 -right-0.5" title="En línea" />
+                    )}
+                  </div>
                   <div className="flex-1 min-w-0 flex flex-col gap-0.5">
                     <span className="text-[15.5px] font-semibold">{p.name}</span>
                     <span className="text-[12.5px]" style={{ color: inProgress.length > 0 ? C.inkSoft : C.inkFaint }}>{inProgress.length > 0 ? `${inProgress.length} en progreso` : "Nada en progreso"}</span>
