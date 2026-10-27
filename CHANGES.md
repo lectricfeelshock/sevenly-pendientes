@@ -74,25 +74,6 @@ el encabezado `<h1>Pendientes</h1>` debe cambiar para incluir el nombre
 de la cuenta elegida, por ejemplo `Pendientes-Sevenly`. Si se vuelve a
 "Todas las cuentas", el título regresa a solo "Pendientes".
 
-### 27. Click derecho en Pendientes: "Descargar Pendientes" con filtros a elegir, en PDF
-En la pantalla de Pendientes, al dar **clic derecho** sobre la pantalla
-(fuera de una tarjeta), que aparezca una opción de menú contextual:
-**"Descargar Pendientes"**.
-
-Al darle clic, abre una ventana con **casillas de verificación** para
-elegir qué incluir en el PDF — usando los filtros que ya existen hoy en
-el dashboard (no inventar unos nuevos): pestaña (Solicitudes /
-Asignados), Estado, Urgencia, Categoría, cuenta (de las que ya existen
-en el filtro de "Pendientes-Cuenta", ver #26), y si se incluyen o no los
-"Programados". Se puede elegir varias casillas a la vez (ej. Estado =
-Entregado + En proceso).
-
-El documento PDF resultante debe verse **parecido al de "Pendientes
-finalizados"** que ya existe en Perfil (mismo estilo "Papel suave":
-fondo papel, tarjetas blancas por pendiente, encabezado serif — ver
-`lib/logPdf.js` / `downloadActivityPdf`), pero listando los pendientes
-que cumplan con las casillas elegidas, no solo finalizados.
-
 ### 29. En el modal de FAQ (?), poder enviar tus propias dudas
 En la ventana de preguntas frecuentes (ver #8), al final de la lista de
 las 12 preguntas, agregar una casilla de texto (o un botón) para que
@@ -104,29 +85,6 @@ nueva en Supabase visible para el admin, o notificación directa al
 admin?), y si la persona que la mandó recibe algún aviso de que ya se
 agregó su pregunta a la lista.
 
-### 28. Aviso tipo "push" cuando un compañero se conecta (no en la campanita)
-Cuando alguien del equipo se pone en línea, que le salga a los demás un
-aviso — pero **no** como notificación de la campanita (no se guarda en
-el historial de notificaciones, no suma al contador). En vez de eso, un
-**rectángulo que baja desde arriba de la pantalla**, como si fuera un
-push notification del sistema pero dentro de la misma app, diciendo
-algo como "(Nombre) está en línea" — se queda un momento y se
-oculta/desliza solo (sin que haga falta cerrarlo a mano).
-
-Solo debe salirle a quienes comparten **al menos una cuenta** con esa
-persona (de las cuentas de #24 — `profiles.account_ids`), no a todo el
-equipo en general.
-
-Falta definir (cuando se programe): cómo se detecta "en línea" (¿sesión
-activa / Supabase Realtime presence?), si avisa también cuando se
-desconecta, y si hay límite de un aviso por persona por sesión para no
-saturar si hay mucha gente conectándose y desconectándose seguido.
-
-c. **Puntito verde en "Mi equipo"** (`components/TeamPanel.js`): junto
-   al nombre de cada persona, mostrar un punto verde pequeño cuando esté
-   en línea (misma detección de "en línea" que el aviso tipo push de
-   arriba — se construyen juntos).
-
 ### 21. Vista de calendario para deadlines
 _Movida desde PROPUESTAS.md #3._
 
@@ -136,6 +94,49 @@ los días según qué tan cerca está la fecha (se puede reusar la lógica
 que ya existe en `dueLegend()`).
 
 ## Historial (aplicadas)
+
+### [x] 27. Click derecho en Pendientes: "Descargar Pendientes" con filtros a elegir, en PDF
+_Aplicada 2026-10-27._
+
+En la pantalla de Pendientes, al dar **clic derecho** sobre la pantalla
+(fuera de una tarjeta), aparece una opción de menú contextual:
+**"Descargar Pendientes"**.
+
+Al darle clic, abre una ventana con **casillas de verificación** —
+usando los filtros que ya existían en el dashboard: pestaña
+(Solicitudes / Asignados), Estado, Urgencia, Categoría, Cuenta (incluye
+"Sin cuenta" para pendientes de antes de #24), y si se incluyen o no
+los "Programados" (casilla aparte, sin marcar por default, igual que el
+resto de la app). Se pueden marcar varias casillas a la vez por grupo.
+
+El PDF resultante usa el mismo estilo "Papel suave" que el de
+"Pendientes finalizados" de Perfil (`lib/logPdf.js` —
+`downloadTasksPdf`, nueva función junto a la ya existente
+`downloadActivityPdf`), con una tarjeta por pendiente mostrando
+categoría, urgencia, estado, deadline y cuenta.
+
+### [x] 28. Aviso tipo "push" cuando un compañero se conecta (no en la campanita)
+_Aplicada 2026-10-27._
+
+Cuando alguien del equipo se pone en línea, a los demás les sale un
+aviso — no es notificación de campanita (no se guarda, no suma al
+contador): un **rectángulo que baja desde arriba de la pantalla** con
+"(Nombre) está en línea", que se oculta solo a los pocos segundos.
+
+Solo le sale a quienes comparten **al menos una cuenta** con esa
+persona (`profiles.account_ids`, ver #24).
+
+a. **Cómo se detecta "en línea"**: Supabase Realtime Presence — un
+   canal compartido por toda la app (`lib/presence.js`,
+   `usePresence(profile)`) al que cada página (Pendientes, Biblioteca,
+   Perfil) se conecta mientras está montada. Se "sale" de línea
+   automáticamente al cerrar/perder la pestaña, sin acción extra.
+b. **No avisa al desconectarse** — solo al conectarse, para no duplicar
+   avisos.
+c. **Puntito verde en "Mi equipo"** (`components/TeamPanel.js`): junto
+   al nombre de cada persona, un punto verde pequeño cuando está en
+   línea — este no se filtra por cuenta (ahí ya solo se muestra a quien
+   el usuario puede ver en su equipo).
 
 ### [x] 8. Apartado de FAQ (dudas de cómo usar la app)
 _Aplicada 2026-10-19._

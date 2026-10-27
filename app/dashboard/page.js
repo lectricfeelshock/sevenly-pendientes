@@ -17,6 +17,9 @@ import AccountsOnboarding from "@/components/AccountsOnboarding";
 import FaqBubble from "@/components/FaqBubble";
 import FaqModal from "@/components/FaqModal";
 import { shouldFloatFaqBubble } from "@/lib/faq";
+import { usePresence } from "@/lib/presence";
+import OnlineBanner from "@/components/OnlineBanner";
+import DownloadTasksModal from "@/components/DownloadTasksModal";
 
 // Estados que puede elegir la persona ASIGNADA
 const ASSIGNEE_STATUSES = ["No iniciado", "En progreso", "Detenido", "Entregado"];
@@ -491,6 +494,22 @@ export default function Dashboard() {
   const [showTeam, setShowTeam] = useState(false);
   const [showNotifs, setShowNotifs] = useState(false);
   const [showFaq, setShowFaq] = useState(false); // CHANGES.md #8
+  const { onlineIds, joinQueue, dequeueJoin } = usePresence(profile); // CHANGES.md #28
+  const [contextMenu, setContextMenu] = useState(null); // CHANGES.md #27: { x, y }
+  const [showDownloadTasks, setShowDownloadTasks] = useState(false);
+  useEffect(() => {
+    if (!contextMenu) return;
+    const close = () => setContextMenu(null);
+    const onKey = (e) => { if (e.key === "Escape") close(); };
+    window.addEventListener("click", close);
+    window.addEventListener("scroll", close, true);
+    window.addEventListener("keydown", onKey);
+    return () => {
+      window.removeEventListener("click", close);
+      window.removeEventListener("scroll", close, true);
+      window.removeEventListener("keydown", onKey);
+    };
+  }, [contextMenu]);
   const [forgottenTaskId, setForgottenTaskId] = useState(null); // ForgottenSubtasksModal abierto para este pendiente
   const [showSearch, setShowSearch] = useState(false);
   // CHANGES.md #12: filtro activo del dashboard — reemplaza los tabs de
@@ -1210,6 +1229,10 @@ export default function Dashboard() {
   // pendientes" — los que solicité o me asignaron — sin importar qué pestaña
   // esté activa.
   const myTasks = tasks.filter((t) => isRequesterOf(t, effectiveId) || isAssignedTo(t, effectiveId));
+  // CHANGES.md #27: categorías disponibles para el modal de "Descargar
+  // Pendientes" — sobre todo mi universo (solicité o me asignaron), no solo
+  // la pestaña activa, para no esconder opciones del PDF.
+  const myCategoryOptions = Array.from(new Set(myTasks.map((t) => t.category).filter(Boolean))).sort();
 
   const filtered = base.filter((t) => {
     if (activeFilter.type === "Programados") return isProgramado(t);
@@ -1466,6 +1489,14 @@ export default function Dashboard() {
         </div>
       )}
 
+      <div
+        className="min-h-[60vh]"
+        onContextMenu={(e) => {
+          if (e.target.closest("[data-taskrow]")) return;
+          e.preventDefault();
+          setContextMenu({ x: e.clientX, y: e.clientY });
+        }}
+      >
       {primaryTab === "popups" && isAdmin ? (
         <PopupsAdminPanel profile={profile} profiles={assignableProfiles} tasks={tasks} subtasks={subtasks} />
       ) : (
@@ -1505,14 +1536,38 @@ export default function Dashboard() {
       </div>
       </>
       )}
+      </div>
 
       <BottomNav active="pendientes" profile={profile} onEquipo={() => setShowTeam(true)} />
 
       {showNew && <NewTaskForm onClose={() => { setShowNew(false); setAssignChangesFor(null); }} onCreate={createTask} onCreatePopup={createPopup} profiles={assignableProfiles} profile={profile} isAdmin={isAdmin} tasks={tasks} subtasks={subtasks} initialData={assignChangesFor} accounts={myAccounts.length > 0 ? myAccounts : accounts} />}
       {popupQueue[0] && <PopupModal popup={popupQueue[0]} onClose={dismissPopup} tasks={tasks} subtasks={subtasks} profiles={profiles} onFinalizeTask={finalizeTask} />}
       {selected && <TaskDetail task={selected} onClose={() => setSelected(null)} onUpdate={updateTask} onDelete={deleteTask} onDeleteRecurring={deleteRecurringTask} recurringTemplates={recurringTemplates} onFinalize={finalizeTask} onDeliver={deliverTask} profiles={profiles} assignableProfiles={assignableProfiles} profile={profile} notify={notify} subtasks={subtasks.filter((s) => s.task_id === selected.id)} onAddSubtask={addSubtask} onUpdateSubtaskStatus={updateSubtaskStatus} onUpdateSubtaskDescription={updateSubtaskDescription} onUpdateSubtaskDeadline={updateSubtaskDeadline} onAssignChanges={startAssignChanges} viewerIsGerente={!!viewingAs && !isAdmin} onCommentsRead={reloadMyCommentReads} />}
-      {showTeam && <TeamPanel onClose={() => setShowTeam(false)} profiles={assignableProfiles} tasks={tasks} />}
+      {showTeam && <TeamPanel onClose={() => setShowTeam(false)} profiles={assignableProfiles} tasks={tasks} onlineIds={onlineIds} />}
       {showFaq && <FaqModal onClose={() => setShowFaq(false)} />}
+      <OnlineBanner queue={joinQueue} onDequeue={dequeueJoin} />
+      {contextMenu && (
+        <div
+          style={{ position: "fixed", left: contextMenu.x, top: contextMenu.y, background: C.panel, borderRadius: R.lg, boxShadow: SH.card, zIndex: 80 }}
+          className="py-1.5 min-w-[190px]"
+          onClick={(e) => e.stopPropagation()}
+        >
+          <button
+            onClick={() => { setShowDownloadTasks(true); setContextMenu(null); }}
+            style={{ color: C.ink }}
+            className="w-full text-left px-3.5 py-2.5 text-sm flex items-center gap-2"
+          >
+            <Download size={15} style={{ color: C.inkSoft }} /> Descargar Pendientes
+          </button>
+        </div>
+      )}
+      {showDownloadTasks && (
+        <DownloadTasksModal
+          onClose={() => setShowDownloadTasks(false)}
+          tasks={myTasks} subtasks={subtasks} accounts={myAccounts}
+          categoryOptions={myCategoryOptions} effectiveId={effectiveId} viewerName={profile.name}
+        />
+      )}
       {forgottenTaskId && <ForgottenSubtasksModal task={tasks.find((t) => t.id === forgottenTaskId)} subtasks={subtasks.filter((s) => s.task_id === forgottenTaskId)} profile={profile} onDeliver={deliverSubtaskAsRequester} onDeliverTask={deliverTaskAsRequester} onClose={() => setForgottenTaskId(null)} />}
       <FaqBubble profile={profile} onDismiss={(iso) => setProfile((p) => ({ ...p, faq_bubble_dismissed_at: iso }))} />
       {showNotifs && <NotificationsPanel onClose={() => setShowNotifs(false)} notifications={notifications} onOpenTask={(taskId) => { const t = tasks.find((x) => x.id === taskId); if (t) setSelected(t); setShowNotifs(false); }} onOpenFilter={(target) => { if (target.startsWith(FORGOTTEN_TARGET)) setForgottenTaskId(target.slice(FORGOTTEN_TARGET.length)); else if (target === "requests:Entregado") { setPrimaryTab("requests"); setActiveFilter({ type: "Estado", value: "Entregado" }); } setShowNotifs(false); }} pushSupported={pushSupported} pushEnabled={pushEnabled} onEnablePush={enablePush} />}
@@ -1543,6 +1598,7 @@ function TaskRow({ task, onOpen, unreadComments = 0 }) {
   return (
     <button
       onClick={onOpen}
+      data-taskrow
       style={{ borderRadius: R.lg, background: overdue ? C.spine : urgent ? "#FBEFEB" : C.panel, boxShadow: SH.card }}
       className="w-full text-left p-[14px] flex gap-3"
     >
