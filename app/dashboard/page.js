@@ -1289,15 +1289,7 @@ export default function Dashboard() {
   const dueTodayCount = activeInTab.filter((t) => t.deadline === todayISO()).length;
 
   return (
-    <div
-      style={{ background: C.paper, minHeight: "100vh" }}
-      className="w-full font-sans pb-28 md:pb-10 md:pl-[248px]"
-      onContextMenu={(e) => {
-        if (e.target.closest("[data-taskrow]")) return;
-        e.preventDefault();
-        setContextMenu({ x: e.clientX, y: e.clientY });
-      }}
-    >
+    <div style={{ background: C.paper, minHeight: "100vh" }} className="w-full font-sans pb-28 md:pb-10 md:pl-[248px]">
       <div className="px-5 pt-4 md:hidden">
         <div className="text-[11px] font-bold tracking-[0.18em]" style={{ color: C.inkSoft }}>TERREGAL</div>
       </div>
@@ -1502,7 +1494,14 @@ export default function Dashboard() {
       ) : (
       <>
 
-      <div className="max-w-3xl mx-auto px-5 pb-10">
+      <div
+        className="max-w-3xl mx-auto px-5 pb-10"
+        onContextMenu={(e) => {
+          if (e.target.closest("[data-taskrow]")) return;
+          e.preventDefault();
+          setContextMenu({ x: e.clientX, y: e.clientY });
+        }}
+      >
         {flatDeadlineList ? (
           <>
             {flatDeadlineList.length === 0 && <div className="text-center py-16" style={{ color: C.inkSoft }}><p className="text-sm">No hay pendientes que coincidan con el filtro.</p></div>}
