@@ -8,3 +8,15 @@ body {
   font-family: 'Plus Jakarta Sans', 'Segoe UI', system-ui, sans-serif;
   -webkit-font-smoothing: antialiased;
 }
+
+/* iPhone: que la barrita de inicio (y la hora, si llegara a haber espacio
+   arriba) no tapen el contenido de ventanas y paneles a pantalla completa.
+   El menú de abajo ya lo maneja BottomNav con env(safe-area-inset-bottom). */
+.fixed.inset-0.p-4 {
+  padding-top: calc(1rem + env(safe-area-inset-top));
+  padding-bottom: calc(1rem + env(safe-area-inset-bottom));
+}
+.fixed.inset-0.items-stretch > * {
+  padding-top: env(safe-area-inset-top);
+  padding-bottom: env(safe-area-inset-bottom);
+}

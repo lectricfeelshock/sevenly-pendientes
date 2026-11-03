@@ -6,8 +6,17 @@ export const metadata = {
   manifest: "/manifest.json",
 };
 
+// viewportFit "cover": sin esto el iPhone (app instalada en el inicio)
+// reporta env(safe-area-inset-bottom) en 0 y la barrita de inicio queda
+// encima del menú de abajo. maximumScale 1 evita que se haga zoom (incluido
+// el zoom automático de iOS al escribir en un campo) y se desacomode.
 export const viewport = {
   themeColor: "#14181F",
+  width: "device-width",
+  initialScale: 1,
+  maximumScale: 1,
+  userScalable: false,
+  viewportFit: "cover",
 };
 
 export default function RootLayout({ children }) {
@@ -16,7 +25,10 @@ export default function RootLayout({ children }) {
       <head>
         <link rel="apple-touch-icon" href="/icons/icon-192.png" />
         <meta name="apple-mobile-web-app-capable" content="yes" />
-        <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+        {/* "default": la app empieza debajo de la hora y la batería (con
+            "black-translucent" el contenido se metía debajo y la hora salía
+            en blanco sobre el fondo claro). */}
+        <meta name="apple-mobile-web-app-status-bar-style" content="default" />
         <meta name="apple-mobile-web-app-title" content="Terregal" />
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
