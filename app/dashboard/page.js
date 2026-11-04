@@ -1548,7 +1548,7 @@ export default function Dashboard() {
       {popupQueue[0] && <PopupModal popup={popupQueue[0]} onClose={dismissPopup} tasks={tasks} subtasks={subtasks} profiles={profiles} onFinalizeTask={finalizeTask} />}
       {selected && <TaskDetail task={selected} onClose={() => setSelected(null)} onUpdate={updateTask} onDelete={deleteTask} onDeleteRecurring={deleteRecurringTask} recurringTemplates={recurringTemplates} onFinalize={finalizeTask} onDeliver={deliverTask} profiles={profiles} assignableProfiles={assignableProfiles} profile={profile} notify={notify} subtasks={subtasks.filter((s) => s.task_id === selected.id)} onAddSubtask={addSubtask} onUpdateSubtaskStatus={updateSubtaskStatus} onUpdateSubtaskDescription={updateSubtaskDescription} onUpdateSubtaskDeadline={updateSubtaskDeadline} onAssignChanges={startAssignChanges} viewerIsGerente={!!viewingAs && !isAdmin} onCommentsRead={reloadMyCommentReads} />}
       {showTeam && <TeamPanel onClose={() => setShowTeam(false)} profiles={assignableProfiles} tasks={tasks} onlineIds={onlineIds} />}
-      {showFaq && <FaqModal onClose={() => setShowFaq(false)} />}
+      {showFaq && <FaqModal onClose={() => setShowFaq(false)} profile={profile} />}
       <OnlineBanner queue={joinQueue} onDequeue={dequeueJoin} />
       {contextMenu && (
         <div

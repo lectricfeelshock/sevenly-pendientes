@@ -74,17 +74,6 @@ el encabezado `<h1>Pendientes</h1>` debe cambiar para incluir el nombre
 de la cuenta elegida, por ejemplo `Pendientes-Sevenly`. Si se vuelve a
 "Todas las cuentas", el título regresa a solo "Pendientes".
 
-### 29. En el modal de FAQ (?), poder enviar tus propias dudas
-En la ventana de preguntas frecuentes (ver #8), al final de la lista de
-las 12 preguntas, agregar una casilla de texto (o un botón) para que
-cualquiera pueda escribir y enviar una duda propia que no esté en la
-lista — para ir detectando qué preguntas faltan agregar.
-
-Falta definir (cuando se programe): a dónde llega esa duda (¿tabla
-nueva en Supabase visible para el admin, o notificación directa al
-admin?), y si la persona que la mandó recibe algún aviso de que ya se
-agregó su pregunta a la lista.
-
 ### 21. Vista de calendario para deadlines
 _Movida desde PROPUESTAS.md #3._
 
@@ -94,6 +83,19 @@ los días según qué tan cerca está la fecha (se puede reusar la lógica
 que ya existe en `dueLegend()`).
 
 ## Historial (aplicadas)
+
+### [x] 29. En el modal de FAQ (?), poder enviar tus propias dudas + sección de admin
+_Aplicada 2026-11-04._
+
+a. Al final de la lista de preguntas del modal de FAQ (?), cualquiera
+   puede escribir y enviar una duda propia que no esté en la lista —
+   se guarda en una tabla nueva (`faq_submissions`).
+b. El admin tiene una sección nueva en el menú (**FAQ**, visible solo
+   para él) donde ve esas dudas enviadas (con quién la mandó y cuándo,
+   y las puede quitar de la lista una vez revisadas) y, debajo, las
+   preguntas que ya están activas en el modal de FAQ — todavía sin
+   editor: para cambiarlas hay que tocar código (`lib/faq.js`).
+c. Quien manda la duda no recibe ningún aviso de vuelta por ahora.
 
 ### [x] 30. Mi equipo y Biblioteca respetan tus cuentas
 _Aplicada 2026-11-04._

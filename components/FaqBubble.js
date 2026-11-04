@@ -170,7 +170,7 @@ export default function FaqBubble({ profile, onDismiss }) {
         </div>
       )}
 
-      {showModal && <FaqModal onClose={() => setShowModal(false)} />}
+      {showModal && <FaqModal onClose={() => setShowModal(false)} profile={profile} />}
     </>
   );
 }

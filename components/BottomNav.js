@@ -1,6 +1,6 @@
 "use client";
 import { useRouter } from "next/navigation";
-import { ClipboardList, BookOpen, Users, User, ChevronRight } from "lucide-react";
+import { ClipboardList, BookOpen, Users, User, ChevronRight, HelpCircle } from "lucide-react";
 import { C, R, SH } from "@/lib/theme";
 
 // Navegación compartida: barra inferior en móvil, barra lateral en escritorio
@@ -11,10 +11,14 @@ import { C, R, SH } from "@/lib/theme";
 // — Equipo no tiene ruta propia todavía, vive como panel del dashboard.
 export default function BottomNav({ active, profile, onEquipo }) {
   const router = useRouter();
+  const isAdmin = profile?.role === "admin";
   const items = [
     { key: "pendientes", label: "Pendientes", icon: ClipboardList, href: "/dashboard" },
     { key: "biblioteca", label: "Biblioteca", icon: BookOpen, href: "/biblioteca" },
     { key: "equipo", label: "Equipo", icon: Users, href: "/dashboard" },
+    // CHANGES.md #29: solo el admin ve esta sección, con las dudas que
+    // mandan desde el modal de FAQ (?) y las preguntas ya activas ahí.
+    ...(isAdmin ? [{ key: "faq", label: "FAQ", icon: HelpCircle, href: "/faq" }] : []),
     { key: "perfil", label: "Perfil", icon: User, href: "/perfil" },
   ];
   const initial = (profile?.name || "?").trim().charAt(0).toUpperCase();
