@@ -95,6 +95,20 @@ que ya existe en `dueLegend()`).
 
 ## Historial (aplicadas)
 
+### [x] 30. Mi equipo y Biblioteca respetan tus cuentas
+_Aplicada 2026-11-04._
+
+a. **Mi equipo (Pendientes).** Ahora sigue el filtro de cuentas de
+   Pendientes: con "Todas las cuentas" salen todos los que comparten
+   alguna cuenta contigo; con una cuenta elegida (ej. Ragasa) solo los
+   de esa cuenta. Quien entre nuevo y elija Ragasa le aparece a los
+   gerentes que tengan Ragasa (ej. Ruth) sin configurar nada más.
+b. **Biblioteca.** Solo se ven los recursos de las cuentas a las que
+   perteneces, más los generales (sin cuenta), que le salen a todos.
+   Lo que tú subiste siempre lo ves. El filtro "Cuentas" lista solo tus
+   cuentas y agrega la opción "Generales" (recursos sin cuenta).
+   También aplica a la búsqueda.
+
 ### [x] 27. Click derecho en Pendientes: "Descargar Pendientes" con filtros a elegir, en PDF
 _Aplicada 2026-10-27._
 

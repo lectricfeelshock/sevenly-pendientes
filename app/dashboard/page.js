@@ -1189,7 +1189,11 @@ export default function Dashboard() {
   // cuenta con él. Si el gerente todavía no configuró sus cuentas en Mi
   // perfil, no se restringe nada (se sigue viendo a todo el equipo).
   const viewAsCandidates = profiles.filter((p) => p.id !== profile.id && p.role !== "admin")
-    .filter((p) => (profile.account_ids || []).length === 0 || (p.account_ids || []).some((id) => (profile.account_ids || []).includes(id)));
+    .filter((p) => (profile.account_ids || []).length === 0 || (p.account_ids || []).some((id) => (profile.account_ids || []).includes(id)))
+    // CHANGES.md #30: Mi equipo respeta el filtro de cuentas de Pendientes —
+    // con "Todas las cuentas" salen todos los que comparten alguna cuenta
+    // contigo; con una cuenta elegida, solo los de esa cuenta.
+    .filter((p) => !accountFilterId || (p.account_ids || []).includes(accountFilterId));
   const effectiveId = viewingAs || profile.id;
   const viewingProfile = viewingAs ? profiles.find((p) => p.id === viewingAs) : null;
 
@@ -1475,7 +1479,7 @@ export default function Dashboard() {
                     className="w-full text-left px-3.5 py-2 text-sm">{p.name}</button>
                 ))}
                 {viewAsCandidates.length === 0 && (profile.account_ids || []).length > 0 && (
-                  <p className="px-3.5 py-2 text-xs" style={{ color: C.inkSoft }}>Nadie más comparte tus cuentas todavía.</p>
+                  <p className="px-3.5 py-2 text-xs" style={{ color: C.inkSoft }}>{accountFilterId ? "Nadie más está en esta cuenta todavía." : "Nadie más comparte tus cuentas todavía."}</p>
                 )}
               </div>
             )}

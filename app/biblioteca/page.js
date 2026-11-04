@@ -176,18 +176,27 @@ function BibliotecaPageInner() {
   }, [ready, resources, searchParams]);
 
   const isAdmin = profile?.role === "admin";
-  const generalResources = resources.filter((r) => r.is_general);
+  // CHANGES.md #30: solo se ven los recursos de las cuentas a las que
+  // perteneces, más los generales (sin cuenta), que le salen a todos. Los
+  // que tú subiste siempre los ves, aunque ya no estés en esa cuenta.
+  const myAccountIds = profile.account_ids || [];
+  const myAccounts = accounts.filter((a) => myAccountIds.includes(a.id));
+  const canSee = (r) => !r.account_id || myAccountIds.includes(r.account_id) || r.owner_id === profile.id;
+  const visibleResources = resources.filter(canSee);
+  const generalResources = visibleResources.filter((r) => r.is_general);
   // Un recurso publicado sigue apareciendo en "Mis recursos" de quien lo
   // publicó, además de en "Recursos públicos" — solo deja de estar ahí si
   // no es tuyo.
-  const myResources = resources.filter((r) => !r.is_general || r.owner_id === profile.id);
+  const myResources = visibleResources.filter((r) => !r.is_general || r.owner_id === profile.id);
   const currentList = view === "general" ? generalResources : myResources;
   const allTags = Array.from(new Set(currentList.flatMap((r) => r.tags || []))).sort();
   const byTags = (list) => activeTags.length === 0 ? list : list.filter((r) => (r.tags || []).some((t) => activeTags.includes(t)));
-  const byAccount = (list) => !selectedAccountId ? list : list.filter((r) => r.account_id === selectedAccountId);
+  const byAccount = (list) => !selectedAccountId ? list
+    : selectedAccountId === "general" ? list.filter((r) => !r.account_id)
+    : list.filter((r) => r.account_id === selectedAccountId);
   const applyFilters = (list) => byAccount(byTags(list));
   const searching = query.trim().length > 0;
-  const searchResults = searching ? resources.filter((r) => matchesQuery(r, query)) : [];
+  const searchResults = searching ? visibleResources.filter((r) => matchesQuery(r, query)) : [];
 
   const changeView = (v) => { setView(v); setActiveTags([]); setSelectedAccountId(null); };
   const toggleTagFilter = (tag) => setActiveTags((prev) => prev.includes(tag) ? prev.filter((t) => t !== tag) : [...prev, tag]);
@@ -293,7 +302,7 @@ function BibliotecaPageInner() {
                 <button type="button" onClick={() => setOpenFilterKey((k) => k === "cuentas" ? null : "cuentas")}
                   style={selectedAccountId ? { background: C.ink, color: C.paper, fontWeight: 600 } : { background: C.panel, boxShadow: SH.soft, color: C.inkMedium, fontWeight: 500 }}
                   className="h-[34px] px-3.5 rounded-full text-[12.5px] whitespace-nowrap flex items-center gap-1">
-                  {selectedAccountId ? accounts.find((a) => a.id === selectedAccountId)?.name : "Cuentas"}
+                  {selectedAccountId === "general" ? "Generales" : selectedAccountId ? accounts.find((a) => a.id === selectedAccountId)?.name : "Cuentas"}
                   <ChevronDown size={13} style={{ transform: openFilterKey === "cuentas" ? "rotate(180deg)" : "none" }} />
                 </button>
                 {openFilterKey === "cuentas" && (
@@ -301,7 +310,10 @@ function BibliotecaPageInner() {
                     <button onClick={() => { setSelectedAccountId(null); setOpenFilterKey(null); }}
                       style={{ color: !selectedAccountId ? C.signal : C.ink }}
                       className="w-full text-left px-3.5 py-2 text-sm">Todas</button>
-                    {accounts.map((a) => (
+                    <button onClick={() => { setSelectedAccountId("general"); setOpenFilterKey(null); }}
+                      style={{ color: selectedAccountId === "general" ? C.signal : C.ink }}
+                      className="w-full text-left px-3.5 py-2 text-sm">Generales</button>
+                    {myAccounts.map((a) => (
                       <button key={a.id} onClick={() => { setSelectedAccountId(a.id); setOpenFilterKey(null); }}
                         style={{ color: selectedAccountId === a.id ? C.signal : C.ink }}
                         className="w-full text-left px-3.5 py-2 text-sm">{a.name}</button>
