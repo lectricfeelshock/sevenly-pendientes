@@ -179,15 +179,15 @@ function BibliotecaPageInner() {
   // CHANGES.md #30: solo se ven los recursos de las cuentas a las que
   // perteneces, más los generales (sin cuenta), que le salen a todos. Los
   // que tú subiste siempre los ves, aunque ya no estés en esa cuenta.
-  const myAccountIds = profile.account_ids || [];
+  const myAccountIds = profile?.account_ids || [];
   const myAccounts = accounts.filter((a) => myAccountIds.includes(a.id));
-  const canSee = (r) => !r.account_id || myAccountIds.includes(r.account_id) || r.owner_id === profile.id;
+  const canSee = (r) => !r.account_id || myAccountIds.includes(r.account_id) || r.owner_id === profile?.id;
   const visibleResources = resources.filter(canSee);
   const generalResources = visibleResources.filter((r) => r.is_general);
   // Un recurso publicado sigue apareciendo en "Mis recursos" de quien lo
   // publicó, además de en "Recursos públicos" — solo deja de estar ahí si
   // no es tuyo.
-  const myResources = visibleResources.filter((r) => !r.is_general || r.owner_id === profile.id);
+  const myResources = visibleResources.filter((r) => !r.is_general || r.owner_id === profile?.id);
   const currentList = view === "general" ? generalResources : myResources;
   const allTags = Array.from(new Set(currentList.flatMap((r) => r.tags || []))).sort();
   const byTags = (list) => activeTags.length === 0 ? list : list.filter((r) => (r.tags || []).some((t) => activeTags.includes(t)));
