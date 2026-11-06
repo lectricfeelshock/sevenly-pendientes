@@ -8,6 +8,7 @@ import {
   PauseCircle, PlayCircle, Send, LogOut, History, Mail, Users,
   BookOpen, Download, Lock, CheckCheck, BellRing, HelpCircle,
   Image as ImageIcon, Megaphone, Eye, Pencil, Paperclip, Link2, Clock,
+  CalendarClock,
 } from "lucide-react";
 import { C, R, SH, FONT_SERIF } from "@/lib/theme";
 import BottomNav from "@/components/BottomNav";
@@ -20,6 +21,7 @@ import { shouldFloatFaqBubble } from "@/lib/faq";
 import { usePresence } from "@/lib/presence";
 import OnlineBanner from "@/components/OnlineBanner";
 import DownloadTasksModal from "@/components/DownloadTasksModal";
+import { downloadEventSummaryPdf } from "@/lib/logPdf";
 
 // Estados que puede elegir la persona ASIGNADA
 const ASSIGNEE_STATUSES = ["No iniciado", "En progreso", "Detenido", "Entregado"];
@@ -478,9 +480,14 @@ export default function Dashboard() {
   const [profile, setProfile] = useState(null);
   const [profiles, setProfiles] = useState([]);
   const [tasks, setTasks] = useState([]);
+  const [events, setEvents] = useState([]); // CHANGES.md #35: Eventos
   const [notifications, setNotifications] = useState([]);
   const [showNew, setShowNew] = useState(false);
   const [selected, setSelected] = useState(null);
+  // CHANGES.md #35: Eventos — "Nuevo" ahora abre un selector Pendiente/Evento.
+  const [showNewPicker, setShowNewPicker] = useState(false);
+  const [showNewEvent, setShowNewEvent] = useState(false);
+  const [selectedEvent, setSelectedEvent] = useState(null);
   // CHANGES.md #6: "Asignar cambios" abre el formulario de crear pendiente
   // con el título fijo del pendiente al que se le piden cambios, y sube de
   // ronda cada vez que se repite el ciclo sobre un pendiente que ya venía
@@ -546,12 +553,14 @@ export default function Dashboard() {
     // RLS ya limita esto a generales + propios + compartidos conmigo.
     const { data: res } = await supabase.from("resources").select("*");
     const { data: accs } = await supabase.from("accounts").select("*").order("name");
+    const { data: ev } = await supabase.from("events").select("*").order("event_date", { ascending: true });
     setTasks(t || []);
     setProfiles(p || []);
     setSubtasks(st || []);
     setRecurringTemplates(rt || []);
     setResources(res || []);
     setAccounts(accs || []);
+    setEvents(ev || []);
   }, []);
 
   const loadNotifications = useCallback(async (userId) => {
@@ -851,6 +860,13 @@ export default function Dashboard() {
     await supabase.from("notifications").insert({ user_id: userId, task_id: taskId, message, ...(title ? { title } : {}), ...(target ? { target } : {}) });
     fetch("/api/send-push", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ userId, title: title || "Terregal", body: message, url: "/dashboard" }) }).catch(() => {});
   };
+  // CHANGES.md #35: Eventos — mismo patrón que addHistory/notify, pero
+  // apuntando a event_id en vez de task_id.
+  const addEventHistory = async (eventId, text) => { await supabase.from("event_history").insert({ event_id: eventId, text }); };
+  const notifyEvent = async (userId, eventId, message, title) => {
+    await supabase.from("notifications").insert({ user_id: userId, event_id: eventId, message, ...(title ? { title } : {}) });
+    fetch("/api/send-push", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ userId, title: title || "Terregal", body: message, url: "/dashboard" }) }).catch(() => {});
+  };
 
   const createTask = async (form) => {
     if (form.scheduling && (form.repeatMode === "weekly" || form.repeatMode === "monthly")) {
@@ -1057,6 +1073,58 @@ export default function Dashboard() {
   };
 
   const deleteTask = async (id) => { await supabase.from("tasks").delete().eq("id", id); setSelected(null); loadAll(); };
+
+  // CHANGES.md #35: Eventos.
+  const createEvent = async (form) => {
+    const { data: created } = await supabase.from("events").insert({
+      title: form.title, description: form.description || null, category: form.category,
+      account_ids: form.accountIds, team_member_ids: form.teamMemberIds,
+      event_date: form.eventDate, start_time: form.startTime, end_time: form.endTime || null,
+      created_by: profile.id,
+    }).select().single();
+    setShowNewEvent(false);
+    if (created) {
+      await addEventHistory(created.id, `${profile.name} creó el evento`);
+      for (const id of form.teamMemberIds) {
+        if (id !== profile.id) await notifyEvent(id, created.id, `Te invitaron a ${form.title}`, "Nuevo evento");
+      }
+    }
+    loadAll();
+  };
+  const updateEvent = async (event, patch, historyText) => {
+    await supabase.from("events").update(patch).eq("id", event.id);
+    if (historyText) await addEventHistory(event.id, historyText);
+    loadAll();
+  };
+  const deleteEvent = async (id) => { await supabase.from("events").delete().eq("id", id); setSelectedEvent(null); loadAll(); };
+  const confirmEventAttendance = async (event) => {
+    if ((event.confirmed_ids || []).includes(profile.id)) return;
+    await supabase.from("events").update({ confirmed_ids: [...(event.confirmed_ids || []), profile.id] }).eq("id", event.id);
+    await addEventHistory(event.id, `${profile.name} confirmó su asistencia`);
+    const others = (event.team_member_ids || []).filter((id) => id !== profile.id);
+    for (const id of others) await notifyEvent(id, event.id, `${profile.name} ha confirmado su asistencia a "${event.title}"`);
+    loadAll();
+  };
+  const postponeEvent = async (event, patch, commentText) => {
+    await supabase.from("event_comments").insert({ event_id: event.id, author_id: profile.id, author_name: profile.name, text: `📅 Movió la fecha y hora a ${fmtEventDate(patch.event_date)} · ${fmtEventTime(patch.start_time)}: ${commentText}` });
+    await supabase.from("events").update(patch).eq("id", event.id);
+    await addEventHistory(event.id, `${profile.name} cambió la fecha y hora`);
+    const others = (event.team_member_ids || []).filter((id) => id !== profile.id);
+    for (const id of others) await notifyEvent(id, event.id, `${profile.name} cambió la fecha y hora de "${event.title}" a ${fmtEventDate(patch.event_date)} · ${fmtEventTime(patch.start_time)}. Motivo: ${commentText}`);
+    loadAll();
+  };
+  const finalizeEvent = async (event, summaryText) => {
+    await supabase.from("events").update({ finalized_at: new Date().toISOString(), summary: summaryText || event.summary || null }).eq("id", event.id);
+    await addEventHistory(event.id, `${profile.name} finalizó el evento`);
+    const others = (event.team_member_ids || []).filter((id) => id !== profile.id);
+    for (const id of others) await notifyEvent(id, event.id, `Se finalizó "${event.title}" ¿Quieres escribir un resumen del evento?`);
+    setSelectedEvent(null);
+    loadAll();
+  };
+  const saveEventSummaryDraft = async (event, text) => {
+    await supabase.from("events").update({ summary: text }).eq("id", event.id);
+    loadAll();
+  };
   // "Borrar pendientes programados": borra esta instancia Y detiene la
   // recurrencia (la plantilla deja de generar nuevas). "Borrar" solo pasa
   // por deleteTask de arriba, sin tocar la plantilla.
@@ -1237,6 +1305,11 @@ export default function Dashboard() {
   // Pendientes" — sobre todo mi universo (solicité o me asignaron), no solo
   // la pestaña activa, para no esconder opciones del PDF.
   const myCategoryOptions = Array.from(new Set(myTasks.map((t) => t.category).filter(Boolean))).sort();
+  // CHANGES.md #35: Eventos — solo en "Asignados", a todos los del equipo
+  // de trabajo (no hay solicitante), respetando el filtro de cuenta.
+  const myEvents = events
+    .filter((e) => (e.team_member_ids || []).includes(effectiveId))
+    .filter((e) => !accountFilterId || (e.account_ids || []).includes(accountFilterId));
 
   const filtered = base.filter((t) => {
     if (activeFilter.type === "Programados") return isProgramado(t);
@@ -1318,11 +1391,22 @@ export default function Dashboard() {
             <span className="flex items-center justify-center w-full h-full"><HelpCircle size={18} /></span>
           </button>
         )}
-        <button onClick={() => setShowNew(true)}
-          style={{ background: C.ink, color: C.paper, borderRadius: R.pill, height: 44 }}
-          className="px-4 flex items-center gap-1.5 text-[13.5px] font-semibold flex-shrink-0 whitespace-nowrap">
-          <Plus size={16} /> <span className="hidden sm:inline">Nuevo pendiente</span>
-        </button>
+        <div className="relative flex-shrink-0">
+          <button onClick={() => setShowNewPicker((v) => !v)}
+            style={{ background: C.ink, color: C.paper, borderRadius: R.pill, height: 44 }}
+            className="px-4 flex items-center gap-1.5 text-[13.5px] font-semibold whitespace-nowrap">
+            <Plus size={16} /> <span className="hidden sm:inline">Nuevo</span>
+          </button>
+          {showNewPicker && (
+            <>
+              <div className="fixed inset-0 z-30" onClick={() => setShowNewPicker(false)} />
+              <div style={{ background: C.panel, borderRadius: R.lg, boxShadow: SH.card }} className="absolute right-0 top-full mt-1.5 z-40 min-w-[170px] py-1.5">
+                <button onClick={() => { setShowNewPicker(false); setShowNew(true); }} className="w-full text-left px-3.5 py-2.5 text-sm" style={{ color: C.ink }}>Pendiente</button>
+                <button onClick={() => { setShowNewPicker(false); setShowNewEvent(true); }} className="w-full text-left px-3.5 py-2.5 text-sm flex items-center gap-2" style={{ color: C.ink }}><CalendarClock size={15} style={{ color: C.inkSoft }} /> Evento</button>
+              </div>
+            </>
+          )}
+        </div>
       </div>
       <div className="px-5 pt-4">
         <div className="relative inline-block">
@@ -1507,6 +1591,20 @@ export default function Dashboard() {
       <>
 
       <div className="max-w-3xl mx-auto px-5 pb-10">
+        {primaryTab === "mine" && myEvents.length > 0 && (
+          <div className="mt-2 mb-2">
+            <div className="flex items-center gap-2 mb-3">
+              <CalendarClock size={14} style={{ color: C.signal }} />
+              <span style={{ color: C.inkMedium, fontSize: 11.5, fontWeight: 700, letterSpacing: "0.11em" }} className="uppercase">Eventos</span>
+              <span style={{ minWidth: 20, height: 20, padding: "0 6px", borderRadius: R.pill, background: C.subtle, color: C.inkMedium, fontSize: 11, fontWeight: 700 }} className="flex items-center justify-center">{myEvents.length}</span>
+            </div>
+            <div className="flex flex-col gap-2.5">
+              {myEvents.map((ev) => (
+                <EventRow key={ev.id} event={ev} profiles={profiles} onOpen={() => setSelectedEvent(ev)} onPostpone={postponeEvent} onFinalize={finalizeEvent} />
+              ))}
+            </div>
+          </div>
+        )}
         {flatDeadlineList ? (
           <>
             {flatDeadlineList.length === 0 && <div className="text-center py-16" style={{ color: C.inkSoft }}><p className="text-sm">No hay pendientes que coincidan con el filtro.</p></div>}
@@ -1575,8 +1673,19 @@ export default function Dashboard() {
       )}
       {forgottenTaskId && <ForgottenSubtasksModal task={tasks.find((t) => t.id === forgottenTaskId)} subtasks={subtasks.filter((s) => s.task_id === forgottenTaskId)} profile={profile} onDeliver={deliverSubtaskAsRequester} onDeliverTask={deliverTaskAsRequester} onClose={() => setForgottenTaskId(null)} />}
       <FaqBubble profile={profile} onDismiss={(iso) => setProfile((p) => ({ ...p, faq_bubble_dismissed_at: iso }))} />
-      {showNotifs && <NotificationsPanel onClose={() => setShowNotifs(false)} notifications={notifications} onOpenTask={(taskId) => { const t = tasks.find((x) => x.id === taskId); if (t) setSelected(t); setShowNotifs(false); }} onOpenFilter={(target) => { if (target.startsWith(FORGOTTEN_TARGET)) setForgottenTaskId(target.slice(FORGOTTEN_TARGET.length)); else if (target === "requests:Entregado") { setPrimaryTab("requests"); setActiveFilter({ type: "Estado", value: "Entregado" }); } setShowNotifs(false); }} pushSupported={pushSupported} pushEnabled={pushEnabled} onEnablePush={enablePush} />}
+      {showNotifs && <NotificationsPanel onClose={() => setShowNotifs(false)} notifications={notifications} onOpenTask={(taskId) => { const t = tasks.find((x) => x.id === taskId); if (t) setSelected(t); setShowNotifs(false); }} onOpenEvent={(eventId) => { const ev = events.find((x) => x.id === eventId); if (ev) setSelectedEvent(ev); setShowNotifs(false); }} onOpenFilter={(target) => { if (target.startsWith(FORGOTTEN_TARGET)) setForgottenTaskId(target.slice(FORGOTTEN_TARGET.length)); else if (target === "requests:Entregado") { setPrimaryTab("requests"); setActiveFilter({ type: "Estado", value: "Entregado" }); } setShowNotifs(false); }} pushSupported={pushSupported} pushEnabled={pushEnabled} onEnablePush={enablePush} />}
       {showSearch && <SearchModal onClose={() => setShowSearch(false)} tasks={myTasks} profiles={profiles} resources={resources} onOpenTask={(t) => { setSelected(t); setShowSearch(false); }} onOpenResource={(r) => { setShowSearch(false); router.push(`/biblioteca?open=${r.id}`); }} />}
+      {showNewEvent && <NewEventForm onClose={() => setShowNewEvent(false)} onCreate={createEvent} profiles={assignableProfiles} profile={profile} accounts={myAccounts.length > 0 ? myAccounts : accounts} />}
+      {selectedEvent && (
+        <EventDetail
+          event={events.find((x) => x.id === selectedEvent.id) || selectedEvent}
+          onClose={() => setSelectedEvent(null)}
+          onUpdate={updateEvent} onDelete={deleteEvent}
+          onConfirm={confirmEventAttendance} onPostpone={postponeEvent}
+          onFinalize={finalizeEvent} onSaveDraft={saveEventSummaryDraft}
+          profiles={profiles} profile={profile}
+        />
+      )}
     </div>
   );
 }
@@ -2199,6 +2308,469 @@ function NewTaskForm({ onClose, onCreate, onCreatePopup, profiles, profile, isAd
     </div>
   );
 }
+
+// ───────────────────────── CHANGES.md #35: Eventos ─────────────────────────
+// Un tipo de pendiente aparte (tabla "events", no "tasks") para juntas,
+// sesiones de fotos, cobertura, etc. No tiene solicitante (le aparece a todo
+// su Equipo de trabajo en "Asignados"), ni urgencia/estado editables a mano
+// (se mueven solos según la fecha), ni subtareas ni recordatorios de
+// "avísame". Vive junto al resto de pendientes, pero con su propio ciclo de
+// vida: No iniciada → En progreso → Finalizada (con resumen opcional en
+// PDF), y se autoelimina poco después de finalizarse o si se vence sin
+// finalizar (ver app/api/events-lifecycle/route.js).
+const EVENT_CATEGORIES = ["Junta", "Sesión de Fotos", "Cobertura"];
+
+function eventDateTime(e) {
+  return new Date(`${e.event_date}T${(e.start_time || "00:00:00").slice(0, 8)}`);
+}
+function eventEndDateTime(e) {
+  if (!e.end_time) return null;
+  return new Date(`${e.event_date}T${e.end_time.slice(0, 8)}`);
+}
+function eventStatus(e) {
+  if (e.finalized_at) return "Finalizada";
+  return new Date() < eventDateTime(e) ? "No iniciada" : "En progreso";
+}
+// Pasó la hora (de fin, o de inicio si no tiene fin): en la tarjeta y el
+// desglose se habilitan los botones de Finalizar / Posponer.
+function eventIsDue(e) {
+  if (e.finalized_at) return false;
+  const end = eventEndDateTime(e) || eventDateTime(e);
+  return new Date() > end;
+}
+// Sin urgencia que se pueda tocar a mano — el color sube solo según qué tan
+// cerca está la fecha, mismos tonos que ya usa el resto de la app.
+function eventUrgencyColor(e) {
+  if (e.finalized_at) return C.gray;
+  const days = Math.ceil((eventDateTime(e) - new Date()) / 86400000);
+  if (days <= 1) return C.urgent;
+  if (days <= 3) return C.amber;
+  return C.signal;
+}
+function fmtEventDate(d) {
+  return d ? new Date(d + "T00:00:00").toLocaleDateString("es-MX", { day: "2-digit", month: "short" }) : "—";
+}
+function fmtEventTime(t) {
+  if (!t) return "";
+  const [h, m] = t.split(":");
+  const hh = ((+h + 11) % 12) + 1;
+  return `${hh}:${m} ${+h < 12 ? "am" : "pm"}`;
+}
+
+function NewEventForm({ onClose, onCreate, profiles, profile, accounts }) {
+  const [accountIds, setAccountIds] = useState([]);
+  const [accountChosen, setAccountChosen] = useState(false);
+  const [title, setTitle] = useState("");
+  const [category, setCategory] = useState("Junta");
+  const [customCategory, setCustomCategory] = useState("");
+  const [description, setDescription] = useState("");
+  const [teamMemberIds, setTeamMemberIds] = useState([]);
+  const [eventDate, setEventDate] = useState("");
+  const [startTime, setStartTime] = useState("");
+  const [endTime, setEndTime] = useState("");
+  const [saving, setSaving] = useState(false);
+
+  const toggleAccount = (id) => setAccountIds((prev) => prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]);
+  const toggleTeam = (id) => setTeamMemberIds((prev) => prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]);
+  // Mismo criterio que al crear un pendiente: el equipo solo ofrece gente de
+  // la(s) cuenta(s) elegida(s).
+  const accountMembers = accountIds.length > 0
+    ? profiles.filter((p) => p.id === profile.id || (p.account_ids || []).some((id) => accountIds.includes(id)))
+    : profiles;
+  const finalCategory = category === "Otra" ? customCategory.trim() : category;
+  const canSubmit = title.trim() && eventDate && startTime && finalCategory;
+
+  const submit = async () => {
+    if (!canSubmit || saving) return;
+    setSaving(true);
+    await onCreate({
+      title: title.trim(), description: description.trim(), category: finalCategory, accountIds,
+      teamMemberIds: Array.from(new Set([profile.id, ...teamMemberIds])),
+      eventDate, startTime, endTime: endTime || null,
+    });
+    setSaving(false);
+  };
+
+  if (!accountChosen) {
+    return (
+      <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: "rgba(27,30,36,0.55)" }}>
+        <div style={{ background: C.panel, borderRadius: R.xxl, boxShadow: SH.card }} className="w-full max-w-sm">
+          <div style={{ boxShadow: `inset 0 -1px 0 ${C.hairline}` }} className="px-5 py-4 flex items-center justify-between">
+            <h2 style={{ color: C.ink, fontFamily: FONT_SERIF, fontSize: 23, fontWeight: 500 }}>Nuevo evento</h2>
+            <button onClick={onClose} style={{ width: 34, height: 34, borderRadius: R.pill, background: C.subtle, color: C.inkMedium }} className="flex items-center justify-center"><X size={17} /></button>
+          </div>
+          <div className="p-5">
+            <label className="text-[11.5px] font-bold tracking-[0.09em]" style={{ color: C.inkSoft }}>Elige la cuenta (o cuentas) de tu evento:</label>
+            <div className="flex flex-wrap gap-1.5 mt-2">
+              {accounts.map((a) => (
+                <button key={a.id} type="button" onClick={() => toggleAccount(a.id)}
+                  style={accountIds.includes(a.id) ? { background: C.ink, color: C.paper, fontWeight: 600 } : { background: C.panel, color: C.inkMedium, boxShadow: SH.soft, fontWeight: 500 }}
+                  className="h-9 px-3.5 rounded-full text-[13px]">{a.name}</button>
+              ))}
+            </div>
+          </div>
+          <div style={{ boxShadow: `inset 0 1px 0 ${C.hairline}` }} className="px-5 py-4 flex justify-end gap-2">
+            <button onClick={onClose} style={{ color: C.inkMedium, background: C.subtle, borderRadius: R.pill }} className="px-5 py-2.5 text-sm font-semibold">Cancelar</button>
+            <button onClick={() => setAccountChosen(true)} disabled={accountIds.length === 0}
+              style={{ background: C.ink, color: C.paper, opacity: accountIds.length > 0 ? 1 : 0.5, borderRadius: R.pill }}
+              className="px-5 py-2.5 text-sm font-semibold disabled:cursor-not-allowed">Continuar</button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: "rgba(27,30,36,0.55)" }}>
+      <div style={{ background: C.panel, borderRadius: R.xxl, boxShadow: SH.card }} className="w-full max-w-lg max-h-[90vh] overflow-y-auto">
+        <div style={{ boxShadow: `inset 0 -1px 0 ${C.hairline}` }} className="px-5 py-4 flex items-center justify-between">
+          <h2 style={{ color: C.ink, fontFamily: FONT_SERIF, fontSize: 23, fontWeight: 500 }}>Nuevo evento</h2>
+          <button onClick={onClose} style={{ width: 34, height: 34, borderRadius: R.pill, background: C.subtle, color: C.inkMedium }} className="flex items-center justify-center"><X size={17} /></button>
+        </div>
+        <div className="p-5 flex flex-col gap-4">
+          <div>
+            <label className="text-[11.5px] font-bold tracking-[0.09em]" style={{ color: C.inkSoft }}>Título</label>
+            <input value={title} onChange={(e) => setTitle(e.target.value)} style={{ background: C.paper, borderRadius: R.md }} className="w-full px-3.5 py-2.5 text-sm mt-1.5 outline-none" />
+          </div>
+          <div>
+            <label className="text-[11.5px] font-bold tracking-[0.09em]" style={{ color: C.inkSoft }}>Categoría</label>
+            <div className="flex flex-wrap gap-1.5 mt-1.5">
+              {[...EVENT_CATEGORIES, "Otra"].map((c) => (
+                <button key={c} type="button" onClick={() => setCategory(c)}
+                  style={category === c ? { background: C.ink, color: C.paper, fontWeight: 600 } : { background: C.subtle, color: C.inkMedium, fontWeight: 500 }}
+                  className="h-8 px-3 rounded-full text-[12.5px]">{c}</button>
+              ))}
+            </div>
+            {category === "Otra" && (
+              <input value={customCategory} onChange={(e) => setCustomCategory(e.target.value)} placeholder="Escribe la categoría..." style={{ background: C.paper, borderRadius: R.md }} className="w-full px-3.5 py-2.5 text-sm mt-2 outline-none" />
+            )}
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="text-[11.5px] font-bold tracking-[0.09em]" style={{ color: C.inkSoft }}>Fecha</label>
+              <input type="date" value={eventDate} min={todayISO()} onChange={(e) => setEventDate(e.target.value)} style={{ background: C.paper, borderRadius: R.md }} className="w-full px-3.5 py-2.5 text-sm mt-1.5 outline-none" />
+            </div>
+            <div className="grid grid-cols-2 gap-2">
+              <div>
+                <label className="text-[11.5px] font-bold tracking-[0.09em]" style={{ color: C.inkSoft }}>De</label>
+                <input type="time" value={startTime} onChange={(e) => setStartTime(e.target.value)} style={{ background: C.paper, borderRadius: R.md }} className="w-full px-2 py-2.5 text-sm mt-1.5 outline-none" />
+              </div>
+              <div>
+                <label className="text-[11.5px] font-bold tracking-[0.09em]" style={{ color: C.inkSoft }}>A</label>
+                <input type="time" value={endTime} onChange={(e) => setEndTime(e.target.value)} style={{ background: C.paper, borderRadius: R.md }} className="w-full px-2 py-2.5 text-sm mt-1.5 outline-none" />
+              </div>
+            </div>
+          </div>
+          <div>
+            <label className="text-[11.5px] font-bold tracking-[0.09em]" style={{ color: C.inkSoft }}>Equipo de trabajo</label>
+            <div style={{ borderColor: C.hairline, borderRadius: 14 }} className="border mt-1.5 max-h-40 overflow-y-auto">
+              {accountMembers.map((p) => (
+                <label key={p.id} className="flex items-center gap-2 px-3 py-2 text-sm" style={{ color: C.ink }}>
+                  <input type="checkbox" checked={p.id === profile.id || teamMemberIds.includes(p.id)} disabled={p.id === profile.id} onChange={() => toggleTeam(p.id)} />
+                  {p.name}{p.id === profile.id ? " (tú)" : ""}
+                </label>
+              ))}
+            </div>
+          </div>
+          <div>
+            <label className="text-[11.5px] font-bold tracking-[0.09em]" style={{ color: C.inkSoft }}>Descripción</label>
+            <textarea value={description} onChange={(e) => setDescription(e.target.value)} rows={4} placeholder="Escribe aquí... los links quedan clicables" style={{ background: C.paper, borderRadius: R.md }} className="w-full px-3.5 py-2.5 text-sm mt-1.5 outline-none resize-none" />
+          </div>
+        </div>
+        <div style={{ boxShadow: `inset 0 1px 0 ${C.hairline}` }} className="px-5 py-4 flex justify-end gap-2">
+          <button onClick={onClose} style={{ color: C.inkMedium, background: C.subtle, borderRadius: R.pill }} className="px-5 py-2.5 text-sm font-semibold">Cancelar</button>
+          <button onClick={submit} disabled={!canSubmit || saving} style={{ background: C.ink, color: C.paper, opacity: canSubmit ? 1 : 0.5, borderRadius: R.pill }} className="px-5 py-2.5 text-sm font-semibold disabled:cursor-not-allowed">{saving ? "Creando..." : "Crear evento"}</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// Usado al escribir el resumen mientras el evento está en progreso ("draft":
+// Omitir / Descargar / Guardar borrador) y al darle Finalizar una vez que ya
+// pasó la hora ("finalize": Omitir / Descargar y finalizar).
+function EventSummaryModal({ event, mode, onClose, onFinalize, onSaveDraft }) {
+  const [text, setText] = useState(event.summary || "");
+
+  const downloadSummary = () => {
+    downloadEventSummaryPdf({ event, summary: text, filename: `${event.title.replace(/[^a-z0-9]/gi, "_")}_resumen.pdf` });
+  };
+
+  return (
+    <div className="fixed inset-0 z-[70] flex items-center justify-center p-4" style={{ background: "rgba(27,30,36,0.55)" }} onClick={onClose}>
+      <div style={{ background: C.panel, borderRadius: R.xxl, boxShadow: SH.card }} className="w-full max-w-md" onClick={(e) => e.stopPropagation()}>
+        <div style={{ boxShadow: `inset 0 -1px 0 ${C.hairline}` }} className="px-5 py-4">
+          <h2 style={{ color: C.ink, fontFamily: FONT_SERIF, fontSize: 20 }}>{mode === "finalize" ? "¿Quiere escribir un resumen?" : "Escribir resumen"}</h2>
+        </div>
+        <div className="p-5">
+          <textarea autoFocus value={text} onChange={(e) => setText(e.target.value)} rows={6} placeholder="¿Qué pasó en este evento?" style={{ background: C.paper, borderRadius: R.md }} className="w-full px-3.5 py-3 text-sm outline-none resize-none" />
+        </div>
+        <div style={{ boxShadow: `inset 0 1px 0 ${C.hairline}` }} className="px-5 py-4 flex flex-wrap justify-end gap-2">
+          <button onClick={onClose} style={{ color: C.inkMedium, background: C.subtle, borderRadius: R.pill }} className="px-4 py-2.5 text-sm font-semibold">Omitir</button>
+          {mode === "draft" && (
+            <>
+              <button onClick={downloadSummary} style={{ color: C.inkMedium, background: C.subtle, borderRadius: R.pill }} className="px-4 py-2.5 text-sm font-semibold">Descargar</button>
+              <button onClick={() => { onSaveDraft(text); onClose(); }} style={{ background: C.ink, color: C.paper, borderRadius: R.pill }} className="px-4 py-2.5 text-sm font-semibold">Guardar borrador</button>
+            </>
+          )}
+          {mode === "finalize" && (
+            <button onClick={() => { downloadSummary(); onFinalize(text); }} style={{ background: C.ink, color: C.paper, borderRadius: R.pill }} className="px-4 py-2.5 text-sm font-semibold">Descargar y finalizar</button>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// Tarjeta del evento en la lista — como TaskRow, pero con Equipo en vez de
+// Solicita/Asignado, y Finalizar/Posponer aparecen aquí mismo en cuanto pasa
+// la hora (en los pendientes esas acciones viven en el desglose; aquí no).
+function EventRow({ event, profiles, onOpen, onPostpone, onFinalize }) {
+  const [postponing, setPostponing] = useState(false);
+  const [newDate, setNewDate] = useState(event.event_date);
+  const [newStart, setNewStart] = useState(event.start_time?.slice(0, 5) || "");
+  const [newEnd, setNewEnd] = useState(event.end_time?.slice(0, 5) || "");
+  const [comment, setComment] = useState("");
+  const [showSummary, setShowSummary] = useState(false);
+
+  const status = eventStatus(event);
+  const due = eventIsDue(event);
+  const color = eventUrgencyColor(event);
+  const teamNames = profiles.filter((p) => (event.team_member_ids || []).includes(p.id)).map((p) => p.name);
+
+  const submitPostpone = () => {
+    if (!comment.trim() || !newDate || !newStart) return;
+    onPostpone(event, { event_date: newDate, start_time: newStart, end_time: newEnd || null }, comment.trim());
+    setPostponing(false); setComment("");
+  };
+
+  return (
+    <div style={{ borderRadius: R.lg, background: C.panel, boxShadow: SH.card }} className="w-full p-[14px] flex flex-col gap-2.5">
+      <button onClick={onOpen} className="w-full text-left flex gap-3">
+        <div style={{ width: 38, height: 38, borderRadius: 13, background: C.subtle, color: C.inkSoft }} className="flex items-center justify-center flex-shrink-0">
+          <CalendarClock size={19} />
+        </div>
+        <div className="flex-1 min-w-0 flex flex-col gap-1.5">
+          <div className="flex items-center gap-1.5 flex-wrap">
+            <span style={{ background: C.subtle, color: "#6F747E" }} className="text-[10.5px] font-semibold px-2 py-0.5 rounded-full">{event.category || "Evento"}</span>
+            <span style={{ background: C.signalSoft, color: C.signal }} className="text-[10.5px] font-semibold px-2 py-0.5 rounded-full">{status}</span>
+          </div>
+          <span style={{ color: C.ink, fontSize: 15 }} className="font-semibold">{event.title}</span>
+          <span style={{ color: C.inkSoft }} className="text-[13px] truncate">Equipo: {teamNames.join(", ") || "—"}</span>
+        </div>
+        <div className="flex flex-col items-end gap-1 flex-shrink-0">
+          <span style={{ width: 9, height: 9, borderRadius: R.pill, background: color }} />
+          <span style={{ color: C.inkSoft, fontSize: 11.5 }}>{fmtEventDate(event.event_date)}</span>
+          <span style={{ color: C.inkMedium, fontSize: 11.5, fontWeight: 600 }}>{fmtEventTime(event.start_time)}</span>
+        </div>
+      </button>
+
+      {due && !postponing && (
+        <div className="flex gap-2">
+          <button onClick={() => setShowSummary(true)} style={{ background: C.ink, color: C.paper, borderRadius: R.pill }} className="flex-1 h-9 text-xs font-semibold">Finalizar</button>
+          <button onClick={() => setPostponing(true)} style={{ background: C.subtle, color: C.inkMedium, borderRadius: R.pill }} className="flex-1 h-9 text-xs font-semibold">Posponer</button>
+        </div>
+      )}
+      {postponing && (
+        <div className="flex flex-col gap-2 pt-2" style={{ borderTop: `1px solid ${C.hairline}` }}>
+          <div className="flex gap-2">
+            <input type="date" value={newDate} onChange={(e) => setNewDate(e.target.value)} style={{ background: C.paper, borderRadius: R.md }} className="flex-1 px-2.5 py-2 text-xs outline-none" />
+            <input type="time" value={newStart} onChange={(e) => setNewStart(e.target.value)} style={{ background: C.paper, borderRadius: R.md }} className="w-24 px-2.5 py-2 text-xs outline-none" />
+            <input type="time" value={newEnd} onChange={(e) => setNewEnd(e.target.value)} style={{ background: C.paper, borderRadius: R.md }} className="w-24 px-2.5 py-2 text-xs outline-none" />
+          </div>
+          <textarea value={comment} onChange={(e) => setComment(e.target.value)} placeholder="Motivo de posponer..." rows={2} style={{ background: C.paper, borderRadius: R.md }} className="w-full px-2.5 py-2 text-xs outline-none resize-none" />
+          <div className="flex gap-2">
+            <button onClick={() => setPostponing(false)} style={{ background: C.subtle, color: C.inkMedium, borderRadius: R.pill }} className="flex-1 h-9 text-xs font-semibold">Cancelar</button>
+            <button onClick={submitPostpone} disabled={!comment.trim()} style={{ background: C.ink, color: C.paper, borderRadius: R.pill, opacity: comment.trim() ? 1 : 0.5 }} className="flex-1 h-9 text-xs font-semibold disabled:cursor-not-allowed">Confirmar</button>
+          </div>
+        </div>
+      )}
+
+      {showSummary && (
+        <EventSummaryModal event={event} mode="finalize" onClose={() => setShowSummary(false)} onFinalize={(text) => { onFinalize(event, text); setShowSummary(false); }} />
+      )}
+    </div>
+  );
+}
+
+// Desglose del evento — como TaskDetail, pero sin Solicita/delegar/
+// subtareas/recordatorios; en su lugar: Equipo, Fecha y Hora (editable con
+// el mismo sistema de "deja un comentario con el motivo" que ya usan los
+// pendientes), Estado automático, y "Confirmar de enterado".
+function EventDetail({ event, onClose, onUpdate, onDelete, onConfirm, onPostpone, onFinalize, onSaveDraft, profiles, profile }) {
+  const [comments, setComments] = useState([]);
+  const [history, setHistory] = useState([]);
+  const [comment, setComment] = useState("");
+  const [showHistory, setShowHistory] = useState(false);
+  const [pendingDateTime, setPendingDateTime] = useState(null);
+  const [dateComment, setDateComment] = useState("");
+  const [showSummary, setShowSummary] = useState(false);
+  const [showFinalizeSummary, setShowFinalizeSummary] = useState(false);
+
+  const loadExtras = useCallback(async () => {
+    const { data: c } = await supabase.from("event_comments").select("*").eq("event_id", event.id).order("created_at");
+    const { data: h } = await supabase.from("event_history").select("*").eq("event_id", event.id).order("created_at", { ascending: false });
+    setComments(c || []); setHistory(h || []);
+  }, [event.id]);
+  useEffect(() => { loadExtras(); }, [loadExtras]);
+
+  const isFinalized = !!event.finalized_at;
+  const status = eventStatus(event);
+  const due = eventIsDue(event);
+  const teamProfiles = profiles.filter((p) => (event.team_member_ids || []).includes(p.id));
+  const confirmedNames = profiles.filter((p) => (event.confirmed_ids || []).includes(p.id)).map((p) => p.name);
+  const alreadyConfirmed = (event.confirmed_ids || []).includes(profile.id);
+
+  const openDateEdit = () => {
+    if (isFinalized) return;
+    setDateComment("");
+    setPendingDateTime({ date: event.event_date, start: event.start_time?.slice(0, 5) || "", end: event.end_time?.slice(0, 5) || "" });
+  };
+  const confirmDateChange = async () => {
+    const text = dateComment.trim();
+    if (!pendingDateTime || !text || !pendingDateTime.date || !pendingDateTime.start) return;
+    await onPostpone(event, { event_date: pendingDateTime.date, start_time: pendingDateTime.start, end_time: pendingDateTime.end || null }, text);
+    setPendingDateTime(null); setDateComment("");
+    loadExtras();
+  };
+
+  const addComment = async () => {
+    if (!comment.trim()) return;
+    await supabase.from("event_comments").insert({ event_id: event.id, author_id: profile.id, author_name: profile.name, text: comment.trim() });
+    await onUpdate(event, {}, `${profile.name} agregó un comentario`);
+    setComment(""); loadExtras();
+  };
+
+  const handleDownloadHistory = () => {
+    const lines = [
+      `Evento: ${event.title}`, `Categoría: ${event.category || "—"}`,
+      `Equipo: ${teamProfiles.map((p) => p.name).join(", ")}`,
+      `Fecha y hora: ${fmtEventDate(event.event_date)} · ${fmtEventTime(event.start_time)}`,
+      "", "--- Historial ---",
+      ...history.map((h) => `[${new Date(h.created_at).toLocaleString("es-MX")}] ${h.text}`),
+      "", "--- Comentarios ---",
+      ...comments.map((c) => `[${new Date(c.created_at).toLocaleString("es-MX")}] ${c.author_name}: ${c.text}`),
+    ];
+    const blob = new Blob([lines.join("\n")], { type: "text/plain" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url; a.download = `${event.title.replace(/[^a-z0-9]/gi, "_")}.txt`;
+    a.click(); URL.revokeObjectURL(url);
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-stretch justify-end" style={{ background: "rgba(27,30,36,0.5)" }} onClick={onClose}>
+      <div style={{ background: C.paper }} className="w-full max-w-lg h-full overflow-y-auto" onClick={(e) => e.stopPropagation()}>
+        <div style={{ background: C.paper, boxShadow: `inset 0 -1px 0 ${C.hairline}` }} className="px-5 py-4 sticky top-0 z-10 flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <CalendarClock size={18} style={{ color: C.signal }} />
+            <span className="text-[11.5px] font-bold tracking-[0.09em] uppercase" style={{ color: C.inkSoft }}>Evento</span>
+          </div>
+          <button onClick={onClose} style={{ width: 34, height: 34, borderRadius: R.pill, background: C.subtle, color: C.inkMedium }} className="flex items-center justify-center"><X size={17} /></button>
+        </div>
+
+        <div className="p-5 flex flex-col gap-4">
+          <h1 style={{ color: C.ink, fontFamily: FONT_SERIF, fontSize: 24 }}>{event.title}</h1>
+          <span style={{ background: C.subtle, color: "#6F747E", alignSelf: "flex-start" }} className="text-[11px] font-semibold px-2.5 py-1 rounded-full">{event.category}</span>
+
+          {event.description && (
+            <p className="text-sm whitespace-pre-wrap break-words" style={{ color: C.ink }}>{renderWithLinks(event.description, C.signal)}</p>
+          )}
+
+          <div><div className="text-[11.5px] font-bold tracking-[0.09em]" style={{ color: C.inkSoft }}>Equipo de trabajo</div><div style={{ color: C.ink }} className="text-sm mt-1">{teamProfiles.map((p) => p.name).join(", ") || "—"}</div></div>
+
+          <div>
+            <div className="text-[11.5px] font-bold tracking-[0.09em]" style={{ color: C.inkSoft }}>Fecha y Hora</div>
+            {!isFinalized ? (
+              <button onClick={openDateEdit} className="text-sm mt-1 underline" style={{ color: C.ink }}>
+                {fmtEventDate(event.event_date)} · {fmtEventTime(event.start_time)}{event.end_time ? ` a ${fmtEventTime(event.end_time)}` : ""}
+              </button>
+            ) : (
+              <div className="text-sm mt-1" style={{ color: C.ink }}>{fmtEventDate(event.event_date)} · {fmtEventTime(event.start_time)}</div>
+            )}
+          </div>
+
+          <div>
+            <div className="text-[11.5px] font-bold tracking-[0.09em]" style={{ color: C.inkSoft }}>Estado general</div>
+            <div className="flex items-center gap-1.5 mt-1">
+              <span style={{ width: 8, height: 8, borderRadius: R.pill, background: eventUrgencyColor(event) }} />
+              <span className="text-sm font-semibold" style={{ color: C.ink }}>{status}</span>
+            </div>
+            <div className="text-[11px] mt-1" style={{ color: C.inkFaint }}>Se mueve automáticamente acercándose la fecha</div>
+          </div>
+
+          <button onClick={() => onConfirm(event)} disabled={alreadyConfirmed}
+            style={{ background: alreadyConfirmed ? C.subtle : C.signalSoft, color: alreadyConfirmed ? C.inkSoft : C.signal, borderRadius: R.pill }}
+            className="h-11 text-sm font-semibold disabled:cursor-default">
+            {alreadyConfirmed ? "Ya confirmaste tu asistencia" : "Confirmar de enterado"}
+          </button>
+          {confirmedNames.length > 0 && <div className="text-[11.5px] -mt-2" style={{ color: C.inkSoft }}>Confirmaron: {confirmedNames.join(", ")}</div>}
+
+          {due && !isFinalized && (
+            <button onClick={() => setShowFinalizeSummary(true)} style={{ background: C.ink, color: C.paper, borderRadius: R.pill }} className="h-11 text-sm font-semibold">Finalizar evento</button>
+          )}
+          {!isFinalized && (
+            <button onClick={() => setShowSummary(true)} style={{ background: C.subtle, color: C.inkMedium, borderRadius: R.pill }} className="h-11 text-sm font-semibold">Escribir resumen</button>
+          )}
+
+          {pendingDateTime && (
+            <div style={{ background: C.panel, borderRadius: R.lg, boxShadow: SH.card }} className="p-4 flex flex-col gap-2.5">
+              <div className="text-[13px]" style={{ color: C.inkSoft }}>No olvides comunicar con tu equipo los motivos del cambio.</div>
+              <div className="flex gap-2">
+                <input type="date" value={pendingDateTime.date} onChange={(e) => setPendingDateTime((p) => ({ ...p, date: e.target.value }))} style={{ background: C.paper, borderRadius: R.md }} className="flex-1 px-2.5 py-2 text-sm outline-none" />
+                <input type="time" value={pendingDateTime.start} onChange={(e) => setPendingDateTime((p) => ({ ...p, start: e.target.value }))} style={{ background: C.paper, borderRadius: R.md }} className="w-24 px-2.5 py-2 text-sm outline-none" />
+                <input type="time" value={pendingDateTime.end} onChange={(e) => setPendingDateTime((p) => ({ ...p, end: e.target.value }))} style={{ background: C.paper, borderRadius: R.md }} className="w-24 px-2.5 py-2 text-sm outline-none" />
+              </div>
+              <textarea autoFocus value={dateComment} onChange={(e) => setDateComment(e.target.value)} placeholder="Escribe el motivo del cambio..." rows={2} style={{ background: C.paper, borderRadius: R.md }} className="w-full px-2.5 py-2 text-sm outline-none resize-none" />
+              <div className="flex gap-2 justify-end">
+                <button onClick={() => setPendingDateTime(null)} style={{ color: C.inkSoft }} className="text-xs px-3 py-1.5">Cancelar</button>
+                <button onClick={confirmDateChange} disabled={!dateComment.trim()} style={{ background: C.ink, color: C.paper, borderRadius: R.pill }} className="text-xs px-3.5 py-1.5 font-semibold disabled:opacity-50 disabled:cursor-not-allowed">Comentar y mover fecha</button>
+              </div>
+            </div>
+          )}
+
+          <div className="pt-3">
+            <div className="text-[11.5px] font-bold tracking-[0.09em] mb-2" style={{ color: C.inkSoft }}>Comentarios</div>
+            <div className="flex flex-col gap-2.5 mb-3">
+              {comments.map((c) => (
+                <div key={c.id} style={{ background: C.panel, borderRadius: R.md }} className="px-3.5 py-2.5">
+                  <div className="text-[12px] font-semibold" style={{ color: C.ink }}>{c.author_name}</div>
+                  <div className="text-[13px] mt-0.5 whitespace-pre-wrap break-words" style={{ color: C.inkMedium }}>{renderWithLinks(c.text, C.signal)}</div>
+                </div>
+              ))}
+            </div>
+            <div className="flex gap-2">
+              <input value={comment} onChange={(e) => setComment(e.target.value)} placeholder="Escribe un comentario..." style={{ background: C.panel, borderRadius: R.pill, boxShadow: SH.soft }} className="flex-1 px-3.5 py-2.5 text-sm outline-none" />
+              <button onClick={addComment} disabled={!comment.trim()} style={{ background: C.ink, color: C.paper, borderRadius: R.pill }} className="w-10 h-10 flex items-center justify-center flex-shrink-0 disabled:opacity-40"><Send size={15} /></button>
+            </div>
+          </div>
+
+          <button onClick={() => setShowHistory((v) => !v)} className="flex items-center gap-1.5 text-xs font-semibold mt-1" style={{ color: C.inkSoft }}>
+            <History size={14} /> Historial <ChevronDown size={13} style={{ transform: showHistory ? "rotate(180deg)" : "none" }} />
+          </button>
+          {showHistory && (
+            <div className="flex flex-col gap-1.5">
+              {history.map((h) => (
+                <div key={h.id} className="text-[12px]" style={{ color: C.inkSoft }}>{new Date(h.created_at).toLocaleString("es-MX")} — {h.text}</div>
+              ))}
+            </div>
+          )}
+
+          <button onClick={handleDownloadHistory} style={{ background: C.subtle, color: C.inkMedium, borderRadius: R.pill }} className="h-10 text-xs font-semibold flex items-center justify-center gap-2"><Download size={14} /> Descargar</button>
+          <button onClick={() => onDelete(event.id)} style={{ color: C.urgentInk }} className="h-10 text-xs font-semibold">Eliminar evento</button>
+        </div>
+      </div>
+
+      {showSummary && (
+        <EventSummaryModal event={event} mode="draft" onClose={() => setShowSummary(false)} onSaveDraft={(text) => onSaveDraft(event, text)} />
+      )}
+      {showFinalizeSummary && (
+        <EventSummaryModal event={event} mode="finalize" onClose={() => setShowFinalizeSummary(false)} onFinalize={(text) => { onFinalize(event, text); setShowFinalizeSummary(false); }} />
+      )}
+    </div>
+  );
+}
+// ─────────────────────── fin CHANGES.md #35: Eventos ───────────────────────
 
 const POPUP_TABS = [
   ["nuevos", "Nuevos"],
@@ -3725,7 +4297,7 @@ function ForgottenSubtasksModal({ task, subtasks, profile, onDeliver, onDeliverT
   );
 }
 
-function NotificationsPanel({ onClose, notifications, onOpenTask, onOpenFilter, pushSupported, pushEnabled, onEnablePush }) {
+function NotificationsPanel({ onClose, notifications, onOpenTask, onOpenEvent, onOpenFilter, pushSupported, pushEnabled, onEnablePush }) {
   const [fullMediaUrl, setFullMediaUrl] = useState(null);
   return (
     <div className="fixed inset-0 z-50 flex items-start justify-end p-4" style={{ background: "rgba(27,30,36,0.35)" }} onClick={onClose}>
@@ -3742,8 +4314,8 @@ function NotificationsPanel({ onClose, notifications, onOpenTask, onOpenFilter, 
         <div className="p-2.5 flex flex-col gap-1.5">
           {notifications.length === 0 && <div className="text-xs px-2.5 py-4" style={{ color: C.inkSoft }}>Sin notificaciones todavía.</div>}
           {notifications.map((n) => (
-            <div key={n.id} role={(n.task_id || n.target) ? "button" : undefined} onClick={() => { if (n.task_id) onOpenTask(n.task_id); else if (n.target) onOpenFilter(n.target); }}
-              style={{ background: n.read ? C.panel : C.signalSoft, borderRadius: R.md, boxShadow: n.read ? SH.soft : "none", cursor: (n.task_id || n.target) ? "pointer" : "default" }}
+            <div key={n.id} role={(n.task_id || n.event_id || n.target) ? "button" : undefined} onClick={() => { if (n.task_id) onOpenTask(n.task_id); else if (n.event_id) onOpenEvent(n.event_id); else if (n.target) onOpenFilter(n.target); }}
+              style={{ background: n.read ? C.panel : C.signalSoft, borderRadius: R.md, boxShadow: n.read ? SH.soft : "none", cursor: (n.task_id || n.event_id || n.target) ? "pointer" : "default" }}
               className="w-full text-left px-3.5 py-3 flex flex-col gap-0.5">
               {n.title && <span className="text-sm font-medium break-words" style={{ color: C.ink }}>{n.title}</span>}
               <span className="text-sm whitespace-pre-wrap break-words" style={{ color: n.title ? C.inkSoft : C.ink }}>{renderWithLinks(n.message, C.signal)}</span>
