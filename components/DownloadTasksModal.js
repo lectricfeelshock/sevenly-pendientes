@@ -63,11 +63,13 @@ export default function DownloadTasksModal({
       if (!statuses.has(t.status)) return false;
       if (!urgencies.has(t.urgency)) return false;
       if (!categories.has(t.category)) return false;
-      if (!accountIds.has(t.account_id || NO_ACCOUNT)) return false;
+      const taskAccts = t.account_ids?.length ? t.account_ids : (t.account_id ? [t.account_id] : []);
+      if (!(taskAccts.length === 0 ? accountIds.has(NO_ACCOUNT) : taskAccts.some((id) => accountIds.has(id)))) return false;
       return true;
     });
     const rows = filtered.map((t) => {
-      const accountName = accounts.find((a) => a.id === t.account_id)?.name;
+      const taskAcctIds = t.account_ids?.length ? t.account_ids : (t.account_id ? [t.account_id] : []);
+      const accountName = taskAcctIds.map((id) => accounts.find((a) => a.id === id)?.name).filter(Boolean).join(" + ");
       const metaParts = [t.category, t.urgency, t.status, t.deadline ? `vence ${fmtDate(t.deadline)}` : null, accountName].filter(Boolean);
       return { title: t.title, meta: metaParts.join(" · ") };
     });

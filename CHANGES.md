@@ -84,6 +84,31 @@ que ya existe en `dueLegend()`).
 
 ## Historial (aplicadas)
 
+### [x] 34. El admin no aparece "en línea"
+_Aplicada 2026-11-06._
+
+El admin ya no se anuncia en la presencia en línea: nadie ve el aviso
+"Admin está en línea" cuando entra. Él sigue viendo quién está conectado.
+
+### [x] 33. Varias cuentas por pendiente + Human Retail / Human Security
+_Aplicada 2026-11-06._
+
+a. **Varias cuentas al crear un pendiente.** En la ventanita de
+   "Elige la cuenta (o cuentas)..." ahora se pueden marcar varias. Las
+   personas de Solicita / Asignar a / Equipo de trabajo salen de la
+   unión de esas cuentas. El filtro de cuentas de Pendientes muestra el
+   pendiente si tiene esa cuenta entre las suyas, y el PDF de descarga
+   lo filtra y lo etiqueta igual (ej. "Human Retail + Human Security").
+   Los pendientes de repetición copian todas sus cuentas. Nueva columna
+   `tasks.account_ids` / `recurring_templates.account_ids`
+   (`supabase-migration-multi-cuentas.sql`); `account_id` se conserva
+   con la primera cuenta.
+b. **Cuentas.** La cuenta "Human" se renombró a **Human Retail** (así
+   conserva a sus personas y su pendiente) y se creó **Human Security**.
+c. **Datos.** Machis quedó con Ragasa, WorkHub, Human Retail y Human
+   Security. "ENERO RETAIL/SECURITY" quedó con Human Retail + Human
+   Security.
+
 ### [x] 32. Al crear un pendiente, el equipo sale según la cuenta elegida
 _Aplicada 2026-11-06._
 
