@@ -84,6 +84,12 @@ que ya existe en `dueLegend()`).
 
 ## Historial (aplicadas)
 
+### [x] 34. El admin no aparece "en línea"
+_Aplicada 2026-11-06._
+
+El admin ya no se anuncia en la presencia en línea: nadie ve el aviso
+"Admin está en línea" cuando entra. Él sigue viendo quién está conectado.
+
 ### [x] 33. Varias cuentas por pendiente + Human Retail / Human Security
 _Aplicada 2026-11-06._
 
