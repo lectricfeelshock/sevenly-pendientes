@@ -110,7 +110,7 @@ export async function GET(req) {
       deadline: deadlineISO, urgency: tpl.urgency || "Media",
       request_date: nextDateISO,
       recurring_template_id: tpl.id,
-      account_id: tpl.account_id || null,
+      account_id: tpl.account_id || null, account_ids: tpl.account_ids?.length ? tpl.account_ids : (tpl.account_id ? [tpl.account_id] : []),
     }).select().single();
 
     if (insErr || !newTask) continue;

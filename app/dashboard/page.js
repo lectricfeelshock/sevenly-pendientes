@@ -880,7 +880,7 @@ export default function Dashboard() {
         assigned_to_id: form.taskType === "colaborativo" ? null : (form.assignedToId || null),
         team_member_ids: form.taskType === "colaborativo" ? (form.teamMemberIds || []) : [],
         subtask_specs: subtaskSpecs,
-        account_id: form.accountId || null,
+        account_id: form.accountIds?.[0] || null, account_ids: form.accountIds || [],
       }).select().single();
 
       if (!tplError && tpl) {
@@ -899,7 +899,7 @@ export default function Dashboard() {
           request_date: form.scheduledDate,
           recurring_template_id: tpl.id,
           created_by: profile.id,
-          account_id: form.accountId || null,
+          account_id: form.accountIds?.[0] || null, account_ids: form.accountIds || [],
         }).select().single();
 
         if (firstTask) {
@@ -940,7 +940,7 @@ export default function Dashboard() {
       ...(form.scheduling && form.scheduledDate ? { request_date: form.scheduledDate } : {}),
       ...(form.changesRound ? { changes_round: form.changesRound } : {}),
       created_by: profile.id,
-      account_id: form.accountId || null,
+      account_id: form.accountIds?.[0] || null, account_ids: form.accountIds || [],
     }).select().single();
 
     if (!error && data) {
@@ -1228,7 +1228,7 @@ export default function Dashboard() {
   let base = tasks;
   if (primaryTab === "requests") base = tasks.filter((t) => isRequesterOf(t, effectiveId));
   else if (primaryTab === "mine") base = tasks.filter((t) => isAssignedTo(t, effectiveId) && !isProgramado(t));
-  if (accountFilterId) base = base.filter((t) => t.account_id === accountFilterId);
+  if (accountFilterId) base = base.filter((t) => taskAccountIds(t).includes(accountFilterId));
   // Universo de la búsqueda avanzada (CHANGES.md #1): siempre "todos mis
   // pendientes" — los que solicité o me asignaron — sin importar qué pestaña
   // esté activa.
@@ -1645,9 +1645,16 @@ function TaskRow({ task, onOpen, unreadComments = 0 }) {
   );
 }
 
+// CHANGES.md #33: un pendiente puede tener varias cuentas. account_ids es la
+// lista completa; account_id (la primera) se conserva por compatibilidad.
+function taskAccountIds(t) {
+  return t.account_ids?.length ? t.account_ids : (t.account_id ? [t.account_id] : []);
+}
+
 function NewTaskForm({ onClose, onCreate, onCreatePopup, profiles, profile, isAdmin, tasks, subtasks, initialData, accounts }) {
   const [mode, setMode] = useState("pendiente"); // "pendiente" | "popup" (solo admins ven el selector)
-  const [accountId, setAccountId] = useState("");
+  const [accountIds, setAccountIds] = useState([]); // varias cuentas por pendiente (CHANGES.md #33)
+  const toggleAccount = (id) => setAccountIds((prev) => prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]);
   // Elegir cuenta es su propia ventanita, antes de la de Individual/Colaborativo.
   const [accountChosen, setAccountChosen] = useState(accounts.length === 0);
   const [taskType, setTaskType] = useState("individual"); // individual | personal | colaborativo
@@ -1706,11 +1713,11 @@ function NewTaskForm({ onClose, onCreate, onCreatePopup, profiles, profile, isAd
   });
 
   // CHANGES.md #19: "Asignar a" ahora también te incluye a ti mismo.
-  // CHANGES.md #32: con la cuenta elegida al inicio, "Solicita", "Asignar a"
+  // CHANGES.md #32: con la(s) cuenta(s) elegida(s) al inicio, "Solicita", "Asignar a"
   // (individual) y "Equipo de trabajo" (colaborativo) solo ofrecen a quienes pertenecen a
   // esa cuenta (más tú mismo). Sin cuenta (no hay cuentas), sale todo el equipo.
-  const accountMembers = accountId
-    ? profiles.filter((p) => p.id === profile.id || (p.account_ids || []).includes(accountId))
+  const accountMembers = accountIds.length > 0
+    ? profiles.filter((p) => p.id === profile.id || (p.account_ids || []).some((id) => accountIds.includes(id)))
     : profiles;
   const individualAssignable = accountMembers;
   const assignedToProfile = profiles.find((p) => p.id === assignedToId);
@@ -1757,12 +1764,12 @@ function NewTaskForm({ onClose, onCreate, onCreatePopup, profiles, profile, isAd
     const changesRound = initialData?.changesRound || null;
     if (taskType === "individual") {
       if (!assignedToId || deadlineError) return;
-      onCreate({ title, description, category: finalCategory, taskType, requestedById: requesterId, coRequesterIds, deadline, urgency, assignedToId, subtasks: subtaskRows, scheduling, scheduledDate, repeatMode, changesRound, accountId });
+      onCreate({ title, description, category: finalCategory, taskType, requestedById: requesterId, coRequesterIds, deadline, urgency, assignedToId, subtasks: subtaskRows, scheduling, scheduledDate, repeatMode, changesRound, accountIds });
     } else if (taskType === "personal") {
-      onCreate({ title, description, category: finalCategory, taskType, requestedById: profile.id, deadline, urgency, assignedToId: profile.id, changesRound, accountId });
+      onCreate({ title, description, category: finalCategory, taskType, requestedById: profile.id, deadline, urgency, assignedToId: profile.id, changesRound, accountIds });
     } else if (taskType === "colaborativo") {
       if (teamMemberIds.length < 2 || deadlineError || missingSubtaskCoverage) return;
-      onCreate({ title, description, category: finalCategory, taskType, requestedById: profile.id, coRequesterIds, deadline, urgency, teamMemberIds, subtasks: subtaskRows, scheduling, scheduledDate, repeatMode, changesRound, accountId });
+      onCreate({ title, description, category: finalCategory, taskType, requestedById: profile.id, coRequesterIds, deadline, urgency, teamMemberIds, subtasks: subtaskRows, scheduling, scheduledDate, repeatMode, changesRound, accountIds });
     }
   };
 
@@ -1914,19 +1921,19 @@ function NewTaskForm({ onClose, onCreate, onCreatePopup, profiles, profile, isAd
               className="flex items-center justify-center"><X size={17} /></button>
           </div>
           <div className="p-5">
-            <label className="text-[11.5px] font-bold tracking-[0.09em]" style={{ color: C.inkSoft }}>Elige la cuenta de tu nuevo pendiente:</label>
+            <label className="text-[11.5px] font-bold tracking-[0.09em]" style={{ color: C.inkSoft }}>Elige la cuenta (o cuentas) de tu nuevo pendiente:</label>
             <div className="flex flex-wrap gap-1.5 mt-2">
               {accounts.map((a) => (
-                <button key={a.id} type="button" onClick={() => setAccountId(a.id)}
-                  style={accountId === a.id ? { background: C.ink, color: C.paper, fontWeight: 600 } : { background: C.panel, color: C.inkMedium, boxShadow: SH.soft, fontWeight: 500 }}
+                <button key={a.id} type="button" onClick={() => toggleAccount(a.id)}
+                  style={accountIds.includes(a.id) ? { background: C.ink, color: C.paper, fontWeight: 600 } : { background: C.panel, color: C.inkMedium, boxShadow: SH.soft, fontWeight: 500 }}
                   className="h-9 px-3.5 rounded-full text-[13px]">{a.name}</button>
               ))}
             </div>
           </div>
           <div style={{ boxShadow: `inset 0 1px 0 ${C.hairline}` }} className="px-5 py-4 flex justify-end gap-2">
             <button onClick={onClose} style={{ color: C.inkMedium, background: C.subtle, borderRadius: R.pill }} className="px-5 py-2.5 text-sm font-semibold">Cancelar</button>
-            <button onClick={() => setAccountChosen(true)} disabled={!accountId}
-              style={{ background: C.ink, color: C.paper, opacity: accountId ? 1 : 0.5, borderRadius: R.pill }}
+            <button onClick={() => setAccountChosen(true)} disabled={accountIds.length === 0}
+              style={{ background: C.ink, color: C.paper, opacity: accountIds.length > 0 ? 1 : 0.5, borderRadius: R.pill }}
               className="px-5 py-2.5 text-sm font-semibold disabled:cursor-not-allowed">Continuar</button>
           </div>
         </div>
