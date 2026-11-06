@@ -84,6 +84,17 @@ que ya existe en `dueLegend()`).
 
 ## Historial (aplicadas)
 
+### [x] 31. Deadline general obligatorio en pendientes colaborativos
+_Aplicada 2026-11-06._
+
+Al crear un pendiente colaborativo ya no se puede dejar vacío el
+deadline general (el campo lleva `*` y el botón "Crear pendiente" queda
+deshabilitado con el aviso). Tampoco se puede borrar desde el detalle
+del pendiente (solo cambiarlo a otra fecha). Convertir un individual a
+colaborativo ya lo pedía. Se corrigió además el pendiente "Correcciones
+W46", que no tenía deadline general: ahora tiene el de sus subtareas
+(2026-11-06).
+
 ### [x] 29. En el modal de FAQ (?), poder enviar tus propias dudas + sección de admin
 _Aplicada 2026-11-04._
 

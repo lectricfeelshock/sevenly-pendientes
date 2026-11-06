@@ -1738,6 +1738,7 @@ function NewTaskForm({ onClose, onCreate, onCreatePopup, profiles, profile, isAd
   const minGeneralDeadline = maxSubtaskDeadline && maxSubtaskDeadline > baseDateStr ? maxSubtaskDeadline : baseDateStr;
   const deadlineError = !usesDeadlineRules ? "" :
     scheduling && !scheduledDate ? "Elige el día programado." :
+    taskType === "colaborativo" && !deadline ? "El deadline general es obligatorio en un pendiente colaborativo." :
     scheduling && repeatMode !== "none" && !deadline ? "Elige el deadline general." :
     deadline && deadline < baseDateStr ? `El deadline general no puede ser antes de ${scheduling ? "el día programado" : "hoy"}.` :
     subtaskDeadlines.some((d) => d < baseDateStr) ? `El deadline de una subtarea no puede ser antes de ${scheduling ? "el día programado" : "hoy"}.` :
@@ -1876,7 +1877,7 @@ function NewTaskForm({ onClose, onCreate, onCreatePopup, profiles, profile, isAd
 
   const generalDeadlineUrgencyField = (
     <div className="grid grid-cols-2 gap-3">
-      <div><label className="text-[11.5px] font-bold tracking-[0.09em]" style={{ color: C.inkSoft }}>Deadline{scheduling ? " general" : ""}</label>
+      <div><label className="text-[11.5px] font-bold tracking-[0.09em]" style={{ color: C.inkSoft }}>Deadline{scheduling ? " general" : ""}{taskType === "colaborativo" ? " *" : ""}</label>
         <input type="date" value={deadline} min={minGeneralDeadline} onChange={(e) => setDeadline(e.target.value)} style={{ background: C.paper, borderRadius: R.md }} className="w-full px-3.5 py-2.5 text-sm mt-1.5 outline-none" /></div>
       <div><label className="text-[11.5px] font-bold tracking-[0.09em]" style={{ color: C.inkSoft }}>Urgencia</label>
         <select value={urgency} onChange={(e) => setUrgency(e.target.value)} style={{ background: C.paper, borderRadius: R.md }} className="w-full px-3.5 py-2.5 text-sm mt-1.5 outline-none">
@@ -2902,6 +2903,7 @@ function TaskDetail({ task, onClose, onUpdate, onDelete, onDeleteRecurring, recu
   };
   const changeDeadline = (d) => {
     if (!canEditDeadline || d === (task.deadline || "")) return;
+    if (isColaborativo && !d) return; // el deadline general es obligatorio en colaborativos
     if (showSubtasks && d) {
       if (d < todayISO()) return;
       if (latestSubtaskDeadline && d < latestSubtaskDeadline) return;
