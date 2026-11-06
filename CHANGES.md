@@ -84,6 +84,56 @@ que ya existe en `dueLegend()`).
 
 ## Historial (aplicadas)
 
+### [x] 35. Eventos (Junta, Sesión de Fotos, Cobertura...)
+_Aplicada 2026-11-06._
+
+Un tipo de pendiente aparte, con su propio ciclo de vida, para juntas,
+sesiones de fotos, cobertura, etc. El botón "Nuevo pendiente" ahora
+dice solo **"Nuevo"** y al darle clic deja elegir entre "Pendiente" o
+**"Evento"**.
+
+a. **Al crear**: cuenta(s), título, categoría (predeterminadas "Junta",
+   "Sesión de Fotos", "Cobertura", + "Otra" para escribir una), Equipo
+   de trabajo (sin solicita/asignar — solo gente de la cuenta elegida)
+   y descripción (con saltos de línea y links clicables, igual que en
+   pendientes). No tiene urgencia ni subtareas.
+b. **Fecha y Hora** en vez de deadline — día + hora de inicio y fin.
+   No se puede tocar directo: igual que mover un deadline, pide dejar
+   un comentario con el motivo antes de aplicarse, y se les avisa a
+   todos los del equipo. "Posponer" en la tarjeta es un atajo directo
+   a este mismo mecanismo.
+c. **Estado automático**: No iniciada → En progreso (al llegar la
+   fecha) → Finalizada. Nadie lo puede cambiar a mano; en el desglose
+   dice "Se mueve automáticamente acercándose la fecha". El
+   color/urgencia de la tarjeta también sube solo entre más cerca esté.
+d. Pasando la hora, en la tarjeta se habilitan los botones
+   **"Finalizar"** y **"Posponer"**.
+e. **"Confirmar de enterado"** (en el desglose): le avisa a los demás
+   del equipo "(Nombre) ha confirmado su asistencia a (Evento)".
+f. **Resumen**: mientras está en progreso, "Escribir resumen" deja
+   guardar un borrador, descargarlo o ambos. Al finalizar (desde la
+   tarjeta o el desglose) se pregunta si quieres escribir un resumen —
+   "Omitir" o "Descargar y finalizar" (el PDF usa el mismo estilo
+   "Papel suave" del resto de los PDFs de la app). Si alguien más lo
+   finaliza, le llega una notificación a los demás para poder escribir
+   su propio resumen después (retoma el borrador si ya había uno).
+g. **Notificaciones**: al crearlo ("Te invitaron a..."), recordatorios
+   automáticos 4 días antes, 1 día antes y el mismo día, y un aviso
+   único si se pasa la hora sin finalizarse ("¿Se concretó...?").
+h. **Se autoelimina**: una hora después de finalizarse, o si se pasa
+   1+ día de su fecha sin finalizarse — vía el cron nuevo
+   `app/api/events-lifecycle`. Como ese cron corre una vez al día (como
+   el resto de los crons de la app), el borrado "a la hora" puede
+   tardar hasta la siguiente pasada del cron, no es instantáneo.
+i. Vive en una tabla aparte (`events`, no `tasks`) — no cuenta como
+   pendiente vencido, strike, finalizado ni entregado en ningún lado.
+j. Aparece solo en la pestaña "Asignados", a todo el equipo de
+   trabajo, en su propia sección arriba de la lista de pendientes.
+
+**Pendiente para después** (no en esta primera versión): que un
+evento se pueda repetir (como los pendientes de frecuencia) — por
+ahora solo existen eventos puntuales, sin repetición automática.
+
 ### [x] 34. El admin no aparece "en línea"
 _Aplicada 2026-11-06._
 
