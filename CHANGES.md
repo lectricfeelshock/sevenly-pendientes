@@ -84,6 +84,17 @@ que ya existe en `dueLegend()`).
 
 ## Historial (aplicadas)
 
+### [x] 32. Al crear un pendiente, el equipo sale según la cuenta elegida
+_Aplicada 2026-11-06._
+
+Después de elegir la cuenta al inicio del formulario, "Solicita",
+"Asignar a" (Individual) y "Equipo de trabajo" (Colaborativo) solo muestran a las
+personas que pertenecen a esa cuenta, más tú mismo. Si no hay cuentas
+configuradas, se sigue mostrando a todo el equipo. Aparte, se corrigió
+el pendiente "Materiales reto aniversario seven": tenía asignado al
+perfil equivocado (otra Nicol/Nicolle) y ahora está Nicolle, tanto en el
+equipo como en su subtarea "copys".
+
 ### [x] 31. Deadline general obligatorio en pendientes colaborativos
 _Aplicada 2026-11-06._
 

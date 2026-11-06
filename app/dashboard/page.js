@@ -1706,8 +1706,14 @@ function NewTaskForm({ onClose, onCreate, onCreatePopup, profiles, profile, isAd
   });
 
   // CHANGES.md #19: "Asignar a" ahora también te incluye a ti mismo.
-  const individualAssignable = profiles;
-  const assignedToProfile = individualAssignable.find((p) => p.id === assignedToId);
+  // CHANGES.md #32: con la cuenta elegida al inicio, "Solicita", "Asignar a"
+  // (individual) y "Equipo de trabajo" (colaborativo) solo ofrecen a quienes pertenecen a
+  // esa cuenta (más tú mismo). Sin cuenta (no hay cuentas), sale todo el equipo.
+  const accountMembers = accountId
+    ? profiles.filter((p) => p.id === profile.id || (p.account_ids || []).includes(accountId))
+    : profiles;
+  const individualAssignable = accountMembers;
+  const assignedToProfile = profiles.find((p) => p.id === assignedToId);
   const [showAssignPicker, setShowAssignPicker] = useState(false);
 
   const toggleTeamMember = (id) => {
@@ -1817,7 +1823,7 @@ function NewTaskForm({ onClose, onCreate, onCreatePopup, profiles, profile, isAd
           </button>
           {showRequesterSelect && (
             <div style={{ background: C.panel, borderRadius: R.lg, boxShadow: SH.card }} className="absolute left-0 right-0 top-full mt-1.5 z-20 p-1.5 max-h-56 overflow-y-auto">
-              {profiles.map((p) => (
+              {accountMembers.map((p) => (
                 <button key={p.id} type="button"
                   onClick={() => { setRequesterId(p.id); setCoRequesterIds((prev) => prev.filter((x) => x !== p.id)); setShowRequesterSelect(false); }}
                   style={{ background: requesterId === p.id ? C.subtle : "transparent" }}
@@ -1836,7 +1842,7 @@ function NewTaskForm({ onClose, onCreate, onCreatePopup, profiles, profile, isAd
       {showRequesterPicker && (
         <div style={{ background: C.panel, borderRadius: R.md, boxShadow: SH.soft }} className="p-3 mt-1.5 flex flex-col gap-1.5">
           <div className="flex flex-wrap gap-1.5">
-            {profiles.filter((p) => p.id !== (taskType === "individual" ? requesterId : profile.id)).map((p) => (
+            {accountMembers.filter((p) => p.id !== (taskType === "individual" ? requesterId : profile.id)).map((p) => (
               <button key={p.id} type="button" onClick={() => toggleCoRequester(p.id)}
                 style={{ background: coRequesterIds.includes(p.id) ? C.ink : C.panel, boxShadow: coRequesterIds.includes(p.id) ? "none" : SH.soft, color: coRequesterIds.includes(p.id) ? C.paper : C.inkMedium, fontWeight: coRequesterIds.includes(p.id) ? 600 : 500 }}
                 className="h-[30px] px-3 rounded-full text-xs">{p.name}</button>
@@ -2090,7 +2096,7 @@ function NewTaskForm({ onClose, onCreate, onCreatePopup, profiles, profile, isAd
                         className="w-full h-12 flex items-center justify-center gap-1.5 text-sm font-medium disabled:opacity-40">
                         <Plus size={15} /> Agregar subtarea
                       </button>
-                      {subtaskRows.length === 0 && <p className="text-[11px] mt-1.5" style={{ color: C.inkSoft }}>Sin subtarea con deadline propio, hereda el deadline general de arriba. Se asignarán a {assignedToId ? (individualAssignable.find((p) => p.id === assignedToId)?.name || "la persona asignada") : "la persona que asignes"}.</p>}
+                      {subtaskRows.length === 0 && <p className="text-[11px] mt-1.5" style={{ color: C.inkSoft }}>Sin subtarea con deadline propio, hereda el deadline general de arriba. Se asignarán a {assignedToId ? (profiles.find((p) => p.id === assignedToId)?.name || "la persona asignada") : "la persona que asignes"}.</p>}
                     </div>
                   </>
                 )}
@@ -2104,7 +2110,7 @@ function NewTaskForm({ onClose, onCreate, onCreatePopup, profiles, profile, isAd
                     <div>
                       <label className="text-[11.5px] font-bold tracking-[0.09em]" style={{ color: C.inkSoft }}>Equipo de trabajo</label>
                       <div className="flex flex-wrap gap-1.5 mt-1.5">
-                        {profiles.map((p) => (
+                        {accountMembers.map((p) => (
                           <button key={p.id} type="button" onClick={() => toggleTeamMember(p.id)}
                             style={{ background: teamMemberIds.includes(p.id) ? C.ink : C.panel, boxShadow: teamMemberIds.includes(p.id) ? "none" : SH.soft, color: teamMemberIds.includes(p.id) ? C.paper : C.inkMedium, fontWeight: teamMemberIds.includes(p.id) ? 600 : 500 }}
                             className="h-[30px] px-3 rounded-full text-xs">{p.name}</button>
