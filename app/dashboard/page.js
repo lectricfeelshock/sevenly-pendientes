@@ -1706,8 +1706,8 @@ function NewTaskForm({ onClose, onCreate, onCreatePopup, profiles, profile, isAd
   });
 
   // CHANGES.md #19: "Asignar a" ahora también te incluye a ti mismo.
-  // CHANGES.md #32: con la cuenta elegida al inicio, "Asignar a" (individual)
-  // y "Equipo de trabajo" (colaborativo) solo ofrecen a quienes pertenecen a
+  // CHANGES.md #32: con la cuenta elegida al inicio, "Solicita", "Asignar a"
+  // (individual) y "Equipo de trabajo" (colaborativo) solo ofrecen a quienes pertenecen a
   // esa cuenta (más tú mismo). Sin cuenta (no hay cuentas), sale todo el equipo.
   const accountMembers = accountId
     ? profiles.filter((p) => p.id === profile.id || (p.account_ids || []).includes(accountId))
@@ -1823,7 +1823,7 @@ function NewTaskForm({ onClose, onCreate, onCreatePopup, profiles, profile, isAd
           </button>
           {showRequesterSelect && (
             <div style={{ background: C.panel, borderRadius: R.lg, boxShadow: SH.card }} className="absolute left-0 right-0 top-full mt-1.5 z-20 p-1.5 max-h-56 overflow-y-auto">
-              {profiles.map((p) => (
+              {accountMembers.map((p) => (
                 <button key={p.id} type="button"
                   onClick={() => { setRequesterId(p.id); setCoRequesterIds((prev) => prev.filter((x) => x !== p.id)); setShowRequesterSelect(false); }}
                   style={{ background: requesterId === p.id ? C.subtle : "transparent" }}
@@ -1842,7 +1842,7 @@ function NewTaskForm({ onClose, onCreate, onCreatePopup, profiles, profile, isAd
       {showRequesterPicker && (
         <div style={{ background: C.panel, borderRadius: R.md, boxShadow: SH.soft }} className="p-3 mt-1.5 flex flex-col gap-1.5">
           <div className="flex flex-wrap gap-1.5">
-            {profiles.filter((p) => p.id !== (taskType === "individual" ? requesterId : profile.id)).map((p) => (
+            {accountMembers.filter((p) => p.id !== (taskType === "individual" ? requesterId : profile.id)).map((p) => (
               <button key={p.id} type="button" onClick={() => toggleCoRequester(p.id)}
                 style={{ background: coRequesterIds.includes(p.id) ? C.ink : C.panel, boxShadow: coRequesterIds.includes(p.id) ? "none" : SH.soft, color: coRequesterIds.includes(p.id) ? C.paper : C.inkMedium, fontWeight: coRequesterIds.includes(p.id) ? 600 : 500 }}
                 className="h-[30px] px-3 rounded-full text-xs">{p.name}</button>
