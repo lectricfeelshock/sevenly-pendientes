@@ -489,6 +489,10 @@ export default function Dashboard() {
   const [showNewPicker, setShowNewPicker] = useState(false);
   const [showNewEvent, setShowNewEvent] = useState(false);
   const [selectedEvent, setSelectedEvent] = useState(null);
+  // Si vienes de la notificación "Se finalizó... ¿Quieres escribir un
+  // resumen?", abre directo la ventanita de resumen (con el borrador que
+  // ya hubiera, porque vive en event.summary) en vez del desglose.
+  const [autoOpenSummaryEventId, setAutoOpenSummaryEventId] = useState(null);
   const [eventsCollapsed, setEventsCollapsed] = useState(false);
   // CHANGES.md #6: "Asignar cambios" abre el formulario de crear pendiente
   // con el título fijo del pendiente al que se le piden cambios, y sube de
@@ -865,8 +869,8 @@ export default function Dashboard() {
   // CHANGES.md #35: Eventos — mismo patrón que addHistory/notify, pero
   // apuntando a event_id en vez de task_id.
   const addEventHistory = async (eventId, text) => { await supabase.from("event_history").insert({ event_id: eventId, text }); };
-  const notifyEvent = async (userId, eventId, message, title) => {
-    await supabase.from("notifications").insert({ user_id: userId, event_id: eventId, message, ...(title ? { title } : {}) });
+  const notifyEvent = async (userId, eventId, message, title, target) => {
+    await supabase.from("notifications").insert({ user_id: userId, event_id: eventId, message, ...(title ? { title } : {}), ...(target ? { target } : {}) });
     fetch("/api/send-push", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ userId, title: title || "Terregal", body: message, url: "/dashboard" }) }).catch(() => {});
   };
 
@@ -1124,7 +1128,7 @@ export default function Dashboard() {
     await supabase.from("events").update({ finalized_at: new Date().toISOString(), summary: summaryText || event.summary || null }).eq("id", event.id);
     await addEventHistory(event.id, `${profile.name} finalizó el evento`);
     const others = (event.team_member_ids || []).filter((id) => id !== profile.id);
-    for (const id of others) await notifyEvent(id, event.id, `Se finalizó "${event.title}" ¿Quieres escribir un resumen del evento?`);
+    for (const id of others) await notifyEvent(id, event.id, `Se finalizó "${event.title}" ¿Quieres escribir un resumen del evento?`, undefined, "summary");
     setSelectedEvent(null);
     loadAll();
   };
@@ -1685,17 +1689,18 @@ export default function Dashboard() {
       )}
       {forgottenTaskId && <ForgottenSubtasksModal task={tasks.find((t) => t.id === forgottenTaskId)} subtasks={subtasks.filter((s) => s.task_id === forgottenTaskId)} profile={profile} onDeliver={deliverSubtaskAsRequester} onDeliverTask={deliverTaskAsRequester} onClose={() => setForgottenTaskId(null)} />}
       <FaqBubble profile={profile} onDismiss={(iso) => setProfile((p) => ({ ...p, faq_bubble_dismissed_at: iso }))} />
-      {showNotifs && <NotificationsPanel onClose={() => setShowNotifs(false)} notifications={notifications} onOpenTask={(taskId) => { const t = tasks.find((x) => x.id === taskId); if (t) setSelected(t); setShowNotifs(false); }} onOpenEvent={(eventId) => { const ev = events.find((x) => x.id === eventId); if (ev) setSelectedEvent(ev); setShowNotifs(false); }} onOpenFilter={(target) => { if (target.startsWith(FORGOTTEN_TARGET)) setForgottenTaskId(target.slice(FORGOTTEN_TARGET.length)); else if (target === "requests:Entregado") { setPrimaryTab("requests"); setActiveFilter({ type: "Estado", value: "Entregado" }); } setShowNotifs(false); }} pushSupported={pushSupported} pushEnabled={pushEnabled} onEnablePush={enablePush} />}
+      {showNotifs && <NotificationsPanel onClose={() => setShowNotifs(false)} notifications={notifications} onOpenTask={(taskId) => { const t = tasks.find((x) => x.id === taskId); if (t) setSelected(t); setShowNotifs(false); }} onOpenEvent={(eventId, target) => { const ev = events.find((x) => x.id === eventId); if (ev) { setSelectedEvent(ev); setAutoOpenSummaryEventId(target === "summary" ? eventId : null); } setShowNotifs(false); }} onOpenFilter={(target) => { if (target.startsWith(FORGOTTEN_TARGET)) setForgottenTaskId(target.slice(FORGOTTEN_TARGET.length)); else if (target === "requests:Entregado") { setPrimaryTab("requests"); setActiveFilter({ type: "Estado", value: "Entregado" }); } setShowNotifs(false); }} pushSupported={pushSupported} pushEnabled={pushEnabled} onEnablePush={enablePush} />}
       {showSearch && <SearchModal onClose={() => setShowSearch(false)} tasks={myTasks} profiles={profiles} resources={resources} onOpenTask={(t) => { setSelected(t); setShowSearch(false); }} onOpenResource={(r) => { setShowSearch(false); router.push(`/biblioteca?open=${r.id}`); }} />}
       {showNewEvent && <NewEventForm onClose={() => setShowNewEvent(false)} onCreate={createEvent} profiles={assignableProfiles} profile={profile} accounts={myAccounts.length > 0 ? myAccounts : accounts} />}
       {selectedEvent && (
         <EventDetail
           event={events.find((x) => x.id === selectedEvent.id) || selectedEvent}
-          onClose={() => setSelectedEvent(null)}
+          onClose={() => { setSelectedEvent(null); setAutoOpenSummaryEventId(null); }}
           onUpdate={updateEvent} onDelete={deleteEvent}
           onConfirm={confirmEventAttendance} onPostpone={postponeEvent}
           onFinalize={finalizeEvent} onSaveDraft={saveEventSummaryDraft}
           profiles={profiles} profile={profile}
+          autoOpenSummary={autoOpenSummaryEventId === selectedEvent.id}
         />
       )}
     </div>
@@ -2649,14 +2654,17 @@ function EventRow({ event, profiles, onOpen, onPostpone, onFinalize }) {
 // subtareas/recordatorios; en su lugar: Equipo, Fecha y Hora (editable con
 // el mismo sistema de "deja un comentario con el motivo" que ya usan los
 // pendientes), Estado automático, y "Confirmar de enterado".
-function EventDetail({ event, onClose, onUpdate, onDelete, onConfirm, onPostpone, onFinalize, onSaveDraft, profiles, profile }) {
+function EventDetail({ event, onClose, onUpdate, onDelete, onConfirm, onPostpone, onFinalize, onSaveDraft, profiles, profile, autoOpenSummary }) {
   const [comments, setComments] = useState([]);
   const [history, setHistory] = useState([]);
   const [comment, setComment] = useState("");
   const [showHistory, setShowHistory] = useState(false);
   const [pendingDateTime, setPendingDateTime] = useState(null);
   const [dateComment, setDateComment] = useState("");
-  const [showSummary, setShowSummary] = useState(false);
+  // autoOpenSummary: viene de la notificación de "se finalizó ¿quieres
+  // escribir un resumen?" — abre la ventanita aunque el evento ya esté
+  // finalizado (si no, no habría forma de llegar ahí desde esa notificación).
+  const [showSummary, setShowSummary] = useState(!!autoOpenSummary);
   const [showFinalizeSummary, setShowFinalizeSummary] = useState(false);
 
   const loadExtras = useCallback(async () => {

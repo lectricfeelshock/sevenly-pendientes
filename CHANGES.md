@@ -156,6 +156,12 @@ mientras el evento está en progreso (dentro de su horario) — pasando
 la hora desaparece, porque "Finalizar" abre esa misma ventana, y ahí
 mismo también aparece "Posponer" junto a "Finalizar".
 
+_Ajustado 2026-11-07 (3):_ la notificación "Se finalizó... ¿Quieres
+escribir un resumen del evento?" ahora sí lleva directo a la ventanita
+de resumen al darle clic (antes solo abría el desglose, y como el
+evento ya estaba finalizado no había por dónde llegar ahí). Si ya
+tenías un borrador guardado, aparece precargado.
+
 ### [x] 34. El admin no aparece "en línea"
 _Aplicada 2026-11-06._
 
