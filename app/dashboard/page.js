@@ -8,7 +8,7 @@ import {
   PauseCircle, PlayCircle, Send, LogOut, History, Mail, Users,
   BookOpen, Download, Lock, CheckCheck, BellRing, HelpCircle,
   Image as ImageIcon, Megaphone, Eye, Pencil, Paperclip, Link2, Clock,
-  CalendarClock,
+  CalendarClock, ClipboardEdit,
 } from "lucide-react";
 import { C, R, SH, FONT_SERIF } from "@/lib/theme";
 import BottomNav from "@/components/BottomNav";
@@ -1401,7 +1401,7 @@ export default function Dashboard() {
             <>
               <div className="fixed inset-0 z-30" onClick={() => setShowNewPicker(false)} />
               <div style={{ background: C.panel, borderRadius: R.lg, boxShadow: SH.card }} className="absolute right-0 top-full mt-1.5 z-40 min-w-[170px] py-1.5">
-                <button onClick={() => { setShowNewPicker(false); setShowNew(true); }} className="w-full text-left px-3.5 py-2.5 text-sm" style={{ color: C.ink }}>Pendiente</button>
+                <button onClick={() => { setShowNewPicker(false); setShowNew(true); }} className="w-full text-left px-3.5 py-2.5 text-sm flex items-center gap-2" style={{ color: C.ink }}><ClipboardEdit size={15} style={{ color: C.inkSoft }} /> Pendiente</button>
                 <button onClick={() => { setShowNewPicker(false); setShowNewEvent(true); }} className="w-full text-left px-3.5 py-2.5 text-sm flex items-center gap-2" style={{ color: C.ink }}><CalendarClock size={15} style={{ color: C.inkSoft }} /> Evento</button>
               </div>
             </>
@@ -1411,7 +1411,7 @@ export default function Dashboard() {
       <div className="px-5 pt-4">
         <div className="relative inline-block">
           <button onClick={() => myAccounts.length > 0 && setShowAccountFilter((v) => !v)} className="flex items-center gap-1.5">
-            <h1 style={{ color: C.ink, fontFamily: FONT_SERIF, fontSize: 32, fontWeight: 500, letterSpacing: "-0.01em" }} className="leading-[1.08]">Pendientes</h1>
+            <h1 style={{ color: C.ink, fontFamily: FONT_SERIF, fontSize: 32, fontWeight: 500, letterSpacing: "-0.01em" }} className="leading-[1.08]">{accountFilterId ? accounts.find((a) => a.id === accountFilterId)?.name || "Todas las cuentas" : "Todas las cuentas"}</h1>
             {myAccounts.length > 0 && <ChevronDown size={18} style={{ color: C.inkSoft, transform: showAccountFilter ? "rotate(180deg)" : "none", marginTop: 4 }} />}
           </button>
           {showAccountFilter && (
@@ -1428,7 +1428,6 @@ export default function Dashboard() {
           )}
         </div>
         <div className="flex items-center gap-2 mt-1.5 text-[13.5px]" style={{ color: C.inkSoft }}>
-          {accountFilterId && <span style={{ color: C.inkMedium, fontWeight: 600 }}>{accounts.find((a) => a.id === accountFilterId)?.name} ·</span>}
           <span>{activeInTab.length} activo{activeInTab.length === 1 ? "" : "s"}</span>
           {dueTodayCount > 0 && (
             <>
