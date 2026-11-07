@@ -1,4 +1,5 @@
 import { createClient } from "@supabase/supabase-js";
+import { pickChillMessage } from "@/lib/chill-messages";
 
 // En qué día del mes cae la N-ésima ocurrencia de un día de la semana
 // dentro de un mes dado (ej. "el primer jueves"). Si ese mes no llega a
@@ -108,6 +109,7 @@ export async function GET(req) {
       assigned_to_name: assignee ? assignee.name : "",
       team_member_ids: isColaborativo ? (tpl.team_member_ids || []) : [],
       deadline: deadlineISO, urgency: tpl.urgency || "Media",
+      chill_message: pickChillMessage(deadlineISO),
       request_date: nextDateISO,
       recurring_template_id: tpl.id,
       account_id: tpl.account_id || null, account_ids: tpl.account_ids?.length ? tpl.account_ids : (tpl.account_id ? [tpl.account_id] : []),

@@ -22,6 +22,7 @@ import { usePresence } from "@/lib/presence";
 import OnlineBanner from "@/components/OnlineBanner";
 import DownloadTasksModal from "@/components/DownloadTasksModal";
 import { downloadEventSummaryPdf } from "@/lib/logPdf";
+import { pickChillMessage, CHILL_DEFAULT } from "@/lib/chill-messages";
 
 // Estados que puede elegir la persona ASIGNADA
 const ASSIGNEE_STATUSES = ["No iniciado", "En progreso", "Detenido", "Entregado"];
@@ -384,7 +385,7 @@ function extractCommentLinks(comments) {
 }
 function urgencyRank(u) { return (URGENCIES.find((x) => x.label === u) || URGENCIES[0]).rank; }
 
-function dueLegend(deadline, status) {
+function dueLegend(deadline, status, chillMessage) {
   if (!deadline || DONE_STATUSES.includes(status)) return null;
   const d = daysUntil(deadline);
   if (d === null) return null;
@@ -396,7 +397,7 @@ function dueLegend(deadline, status) {
   if (d === 1) return { text: "Es mañana", color: C.urgent };
   if (d === 2) return { text: "Faltan 2 días", color: C.amber };
   if (d === 3) return { text: "Faltan 3 días", color: C.amber };
-  return { text: "Todo chill, aún falta", color: C.inkSoft };
+  return { text: chillMessage || CHILL_DEFAULT, color: C.inkSoft };
 }
 
 function normalizeText(s) {
@@ -444,8 +445,8 @@ function UrgencyFlag({ urgency }) {
   const u = URGENCIES.find((x) => x.label === urgency) || URGENCIES[0];
   return <span className="inline-flex items-center gap-1 text-[11px] font-semibold" style={{ color: u.color }}><Flag size={12} fill={u.color} strokeWidth={0} />{u.label}</span>;
 }
-function DeadlineBadge({ deadline, status, hideToday, dark }) {
-  const legend = dueLegend(deadline, status);
+function DeadlineBadge({ deadline, status, hideToday, dark, chillMessage }) {
+  const legend = dueLegend(deadline, status, chillMessage);
   const showLegend = legend && !(hideToday && legend.text === "¡Se entrega hoy!");
   return (
     <div className="text-right flex flex-col items-end gap-1">
@@ -913,6 +914,7 @@ export default function Dashboard() {
           assigned_to_name: assignee ? assignee.name : "",
           team_member_ids: form.taskType === "colaborativo" ? (form.teamMemberIds || []) : [],
           deadline: form.deadline, urgency: form.urgency || "Media",
+          chill_message: pickChillMessage(form.deadline),
           request_date: form.scheduledDate,
           recurring_template_id: tpl.id,
           created_by: profile.id,
@@ -949,6 +951,7 @@ export default function Dashboard() {
       requested_by: requester ? requester.name : profile.name, requested_by_id: form.requestedById || profile.id,
       co_requester_ids: coRequesters.map((p) => p.id), co_requester_names: coRequesters.map((p) => p.name),
       deadline: form.deadline || null, urgency: form.urgency || "Media",
+      chill_message: pickChillMessage(form.deadline),
       assigned_to_id: form.assignedToId || null, assigned_to_name: assignee ? assignee.name : "",
       team_member_ids: form.teamMemberIds || [],
       // "Programar pendiente" sin repetición: el pendiente nace con su Día
@@ -1039,6 +1042,9 @@ export default function Dashboard() {
   };
 
   const updateTask = async (task, patch, historyNote) => {
+    // Si se mueve el deadline, se vuelve a escoger la frase "Todo chill" (o se
+    // quita si ya no faltan 4+ días).
+    if ("deadline" in patch) patch = { ...patch, chill_message: pickChillMessage(patch.deadline, task.chill_message) };
     await supabase.from("tasks").update(patch).eq("id", task.id);
     if (historyNote) {
       await addHistory(task.id, historyNote);
@@ -1753,7 +1759,7 @@ function TaskRow({ task, onOpen, unreadComments = 0 }) {
         </div>
       </div>
       <div className="flex flex-col items-end gap-1 flex-shrink-0">
-        <DeadlineBadge deadline={task.deadline} status={task.status} hideToday={sameDay} dark={overdue} />
+        <DeadlineBadge deadline={task.deadline} status={task.status} hideToday={sameDay} dark={overdue} chillMessage={task.chill_message} />
         {sameDay && <div className="text-[10px] font-bold text-right" style={{ color: C.urgent }}>De hoy para hoy 💀</div>}
       </div>
     </button>
@@ -3762,7 +3768,7 @@ function TaskDetail({ task, onClose, onUpdate, onDelete, onDeleteRecurring, recu
             )}
           </h2>
           {(() => {
-            const legend = dueLegend(task.deadline, task.status);
+            const legend = dueLegend(task.deadline, task.status, task.chill_message);
             const urg = URGENCIES.find((u) => u.label === task.urgency) || URGENCIES[0];
             const legendPill = legend && (
               legend.color === C.amber ? { background: C.amberSoft, color: C.amberInk } :
