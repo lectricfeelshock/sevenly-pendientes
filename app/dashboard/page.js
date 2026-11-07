@@ -2333,9 +2333,12 @@ function eventEndDateTime(e) {
   if (!e.end_time) return null;
   return new Date(`${e.event_date}T${e.end_time.slice(0, 8)}`);
 }
+// "El evento" es masculino — mismas 3 palabras que usan los pendientes
+// (No iniciado/En progreso/Finalizado), para poder reusar el filtro de
+// Estado sobre los eventos sin necesitar un mapeo aparte.
 function eventStatus(e) {
-  if (e.finalized_at) return "Finalizada";
-  return new Date() < eventDateTime(e) ? "No iniciada" : "En progreso";
+  if (e.finalized_at) return "Finalizado";
+  return new Date() < eventDateTime(e) ? "No iniciado" : "En progreso";
 }
 // Pasó la hora (de fin, o de inicio si no tiene fin): en la tarjeta y el
 // desglose se habilitan los botones de Finalizar / Posponer.
@@ -2359,9 +2362,6 @@ function eventUrgencyColor(e) {
   if (e.finalized_at) return C.gray;
   return (URGENCIES.find((u) => u.label === eventUrgencyLabel(e)) || {}).color || C.signal;
 }
-// Mismas palabras que usan los pendientes para Estado, para poder reusar el
-// filtro de Estado (No iniciado/En progreso/Finalizado) sobre los eventos.
-const EVENT_TO_TASK_STATUS = { "No iniciada": "No iniciado", "En progreso": "En progreso", "Finalizada": "Finalizado" };
 // Ordena (nunca filtra/oculta) los eventos según el filtro activo del
 // dashboard — igual noción que usan los pendientes, pero sin dividirlos en
 // secciones: los que mejor calzan con el filtro quedan arriba, el resto
@@ -2369,14 +2369,14 @@ const EVENT_TO_TASK_STATUS = { "No iniciada": "No iniciado", "En progreso": "En 
 function sortMyEvents(list, filter) {
   const matchBucket = (e) => {
     if (filter.type === "Categoria" && filter.value) return e.category === filter.value ? 0 : 1;
-    if (filter.type === "Estado" && filter.value) return EVENT_TO_TASK_STATUS[eventStatus(e)] === filter.value ? 0 : 1;
+    if (filter.type === "Estado" && filter.value) return eventStatus(e) === filter.value ? 0 : 1;
     if (filter.type === "Urgencia" && filter.value) return eventUrgencyLabel(e) === filter.value ? 0 : 1;
     return 0;
   };
   const rank = (e) => {
     if (filter.type === "Estado" && filter.order) {
       const order = filter.order === "asc" ? [...STATUS_GROUP_ORDER].reverse() : STATUS_GROUP_ORDER;
-      return order.indexOf(EVENT_TO_TASK_STATUS[eventStatus(e)]);
+      return order.indexOf(eventStatus(e));
     }
     if (filter.type === "Urgencia" && filter.order) {
       const order = filter.order === "asc" ? [...EVENT_URGENCY_ORDER].reverse() : EVENT_URGENCY_ORDER;
@@ -2753,9 +2753,14 @@ function EventDetail({ event, onClose, onUpdate, onDelete, onConfirm, onPostpone
           {confirmedNames.length > 0 && <div className="text-[11.5px] -mt-2" style={{ color: C.inkSoft }}>Confirmaron: {confirmedNames.join(", ")}</div>}
 
           {due && !isFinalized && (
-            <button onClick={() => setShowFinalizeSummary(true)} style={{ background: C.ink, color: C.paper, borderRadius: R.pill }} className="h-11 text-sm font-semibold">Finalizar evento</button>
+            <div className="flex gap-2">
+              <button onClick={() => setShowFinalizeSummary(true)} style={{ background: C.ink, color: C.paper, borderRadius: R.pill }} className="flex-1 h-11 text-sm font-semibold">Finalizar</button>
+              <button onClick={openDateEdit} style={{ background: C.subtle, color: C.inkMedium, borderRadius: R.pill }} className="flex-1 h-11 text-sm font-semibold">Posponer</button>
+            </div>
           )}
-          {!isFinalized && (
+          {/* "Escribir resumen" solo mientras está en progreso (dentro del
+              horario) — pasando la hora, Finalizar ya abre esa misma ventana. */}
+          {!isFinalized && status === "En progreso" && !due && (
             <button onClick={() => setShowSummary(true)} style={{ background: C.subtle, color: C.inkMedium, borderRadius: R.pill }} className="h-11 text-sm font-semibold">Escribir resumen</button>
           )}
 

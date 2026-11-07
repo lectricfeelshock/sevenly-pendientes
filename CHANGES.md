@@ -148,6 +148,14 @@ pero nunca los ocultan ni los agrupan en secciones, todos se quedan
 visibles, nomás en otro orden. Además, la sección de Eventos ya tiene
 una flechita para colapsarla/expandirla.
 
+_Ajustado 2026-11-07 (2):_ se corrigió que el estado dijera "No
+iniciada"/"Finalizada" — "el evento" es masculino, así que ahora dice
+"No iniciado"/"Finalizado", igual que ya estaba en los filtros de
+Estado. Además, "Escribir resumen" (en el desglose) ya solo aparece
+mientras el evento está en progreso (dentro de su horario) — pasando
+la hora desaparece, porque "Finalizar" abre esa misma ventana, y ahí
+mismo también aparece "Posponer" junto a "Finalizar".
+
 ### [x] 34. El admin no aparece "en línea"
 _Aplicada 2026-11-06._
 
