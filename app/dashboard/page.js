@@ -488,6 +488,7 @@ export default function Dashboard() {
   const [showNewPicker, setShowNewPicker] = useState(false);
   const [showNewEvent, setShowNewEvent] = useState(false);
   const [selectedEvent, setSelectedEvent] = useState(null);
+  const [eventsCollapsed, setEventsCollapsed] = useState(false);
   // CHANGES.md #6: "Asignar cambios" abre el formulario de crear pendiente
   // con el título fijo del pendiente al que se le piden cambios, y sube de
   // ronda cada vez que se repite el ciclo sobre un pendiente que ya venía
@@ -1307,9 +1308,12 @@ export default function Dashboard() {
   const myCategoryOptions = Array.from(new Set(myTasks.map((t) => t.category).filter(Boolean))).sort();
   // CHANGES.md #35: Eventos — solo en "Asignados", a todos los del equipo
   // de trabajo (no hay solicitante), respetando el filtro de cuenta.
-  const myEvents = events
-    .filter((e) => (e.team_member_ids || []).includes(effectiveId))
-    .filter((e) => !accountFilterId || (e.account_ids || []).includes(accountFilterId));
+  const myEvents = sortMyEvents(
+    events
+      .filter((e) => (e.team_member_ids || []).includes(effectiveId))
+      .filter((e) => !accountFilterId || (e.account_ids || []).includes(accountFilterId)),
+    activeFilter
+  );
 
   const filtered = base.filter((t) => {
     if (activeFilter.type === "Programados") return isProgramado(t);
@@ -1592,16 +1596,19 @@ export default function Dashboard() {
       <div className="max-w-3xl mx-auto px-5 pb-10">
         {primaryTab === "mine" && myEvents.length > 0 && (
           <div className="mt-2 mb-2">
-            <div className="flex items-center gap-2 mb-3">
+            <button type="button" onClick={() => setEventsCollapsed((v) => !v)} className="flex items-center gap-2 mb-3">
               <CalendarClock size={14} style={{ color: C.signal }} />
               <span style={{ color: C.inkMedium, fontSize: 11.5, fontWeight: 700, letterSpacing: "0.11em" }} className="uppercase">Eventos</span>
               <span style={{ minWidth: 20, height: 20, padding: "0 6px", borderRadius: R.pill, background: C.subtle, color: C.inkMedium, fontSize: 11, fontWeight: 700 }} className="flex items-center justify-center">{myEvents.length}</span>
-            </div>
+              <ChevronDown size={14} style={{ color: C.inkSoft, transform: eventsCollapsed ? "rotate(-90deg)" : "none", transition: "transform 0.15s" }} />
+            </button>
+            {!eventsCollapsed && (
             <div className="flex flex-col gap-2.5">
               {myEvents.map((ev) => (
                 <EventRow key={ev.id} event={ev} profiles={profiles} onOpen={() => setSelectedEvent(ev)} onPostpone={postponeEvent} onFinalize={finalizeEvent} />
               ))}
             </div>
+            )}
           </div>
         )}
         {flatDeadlineList ? (
@@ -2337,14 +2344,54 @@ function eventIsDue(e) {
   const end = eventEndDateTime(e) || eventDateTime(e);
   return new Date() > end;
 }
-// Sin urgencia que se pueda tocar a mano — el color sube solo según qué tan
-// cerca está la fecha, mismos tonos que ya usa el resto de la app.
+// Sin urgencia que se pueda tocar a mano — sube sola según qué tan cerca
+// está la fecha, con las mismas 4 etiquetas que ya usan los pendientes
+// (para que el filtro de Urgencia los pueda ordenar, ver sortMyEvents).
+const EVENT_URGENCY_ORDER = ["Urgente", "Alta", "Media", "Baja"];
+function eventUrgencyLabel(e) {
+  const days = Math.ceil((eventDateTime(e) - new Date()) / 86400000);
+  if (days <= 1) return "Urgente";
+  if (days <= 3) return "Alta";
+  if (days <= 6) return "Media";
+  return "Baja";
+}
 function eventUrgencyColor(e) {
   if (e.finalized_at) return C.gray;
-  const days = Math.ceil((eventDateTime(e) - new Date()) / 86400000);
-  if (days <= 1) return C.urgent;
-  if (days <= 3) return C.amber;
-  return C.signal;
+  return (URGENCIES.find((u) => u.label === eventUrgencyLabel(e)) || {}).color || C.signal;
+}
+// Mismas palabras que usan los pendientes para Estado, para poder reusar el
+// filtro de Estado (No iniciado/En progreso/Finalizado) sobre los eventos.
+const EVENT_TO_TASK_STATUS = { "No iniciada": "No iniciado", "En progreso": "En progreso", "Finalizada": "Finalizado" };
+// Ordena (nunca filtra/oculta) los eventos según el filtro activo del
+// dashboard — igual noción que usan los pendientes, pero sin dividirlos en
+// secciones: los que mejor calzan con el filtro quedan arriba, el resto
+// sigue abajo, visible siempre.
+function sortMyEvents(list, filter) {
+  const matchBucket = (e) => {
+    if (filter.type === "Categoria" && filter.value) return e.category === filter.value ? 0 : 1;
+    if (filter.type === "Estado" && filter.value) return EVENT_TO_TASK_STATUS[eventStatus(e)] === filter.value ? 0 : 1;
+    if (filter.type === "Urgencia" && filter.value) return eventUrgencyLabel(e) === filter.value ? 0 : 1;
+    return 0;
+  };
+  const rank = (e) => {
+    if (filter.type === "Estado" && filter.order) {
+      const order = filter.order === "asc" ? [...STATUS_GROUP_ORDER].reverse() : STATUS_GROUP_ORDER;
+      return order.indexOf(EVENT_TO_TASK_STATUS[eventStatus(e)]);
+    }
+    if (filter.type === "Urgencia" && filter.order) {
+      const order = filter.order === "asc" ? [...EVENT_URGENCY_ORDER].reverse() : EVENT_URGENCY_ORDER;
+      return order.indexOf(eventUrgencyLabel(e));
+    }
+    if (filter.type === "Deadline" && filter.order) {
+      const t = eventDateTime(e).getTime();
+      return filter.order === "asc" ? t : -t;
+    }
+    return eventDateTime(e).getTime();
+  };
+  return [...list].sort((a, b) => {
+    const diff = matchBucket(a) - matchBucket(b);
+    return diff !== 0 ? diff : rank(a) - rank(b);
+  });
 }
 function fmtEventDate(d) {
   return d ? new Date(d + "T00:00:00").toLocaleDateString("es-MX", { day: "2-digit", month: "short" }) : "—";
