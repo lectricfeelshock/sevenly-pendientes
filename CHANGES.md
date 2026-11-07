@@ -141,6 +141,13 @@ j. Aparece solo en la pestaña "Asignados", a todo el equipo de
 evento se pueda repetir (como los pendientes de frecuencia) — por
 ahora solo existen eventos puntuales, sin repetición automática.
 
+_Ajustado 2026-11-07:_ los filtros de Estado/Urgencia/Categoría/
+Deadline del dashboard ahora también **reordenan** la sección de
+Eventos según cuál esté activo (los que mejor calzan quedan arriba) —
+pero nunca los ocultan ni los agrupan en secciones, todos se quedan
+visibles, nomás en otro orden. Además, la sección de Eventos ya tiene
+una flechita para colapsarla/expandirla.
+
 ### [x] 34. El admin no aparece "en línea"
 _Aplicada 2026-11-06._
 
