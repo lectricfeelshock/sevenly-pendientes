@@ -13,7 +13,7 @@ export default function BottomNav({ active, profile, onEquipo }) {
   const router = useRouter();
   const isAdmin = profile?.role === "admin";
   const items = [
-    { key: "pendientes", label: "Pendientes", icon: ClipboardList, href: "/dashboard" },
+    { key: "pendientes", label: "Dashboard", icon: ClipboardList, href: "/dashboard" },
     { key: "biblioteca", label: "Biblioteca", icon: BookOpen, href: "/biblioteca" },
     { key: "equipo", label: "Equipo", icon: Users, href: "/dashboard" },
     // CHANGES.md #29: solo el admin ve esta sección, con las dudas que

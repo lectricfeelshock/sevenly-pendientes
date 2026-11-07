@@ -67,13 +67,6 @@ lo detallo. Preguntas abiertas antes de construirlo:
 - ¿Es solo para hoy (se reinicia cada día) o también se puede armar el
   de días futuros, tipo semana?
 
-### 26. Título "Pendientes" debe reflejar la cuenta filtrada
-Cuando se usa el filtro de "cuentas" en Pendientes (la flechita junto al
-título) y se selecciona una cuenta específica (no "Todas las cuentas"),
-el encabezado `<h1>Pendientes</h1>` debe cambiar para incluir el nombre
-de la cuenta elegida, por ejemplo `Pendientes-Sevenly`. Si se vuelve a
-"Todas las cuentas", el título regresa a solo "Pendientes".
-
 ### 21. Vista de calendario para deadlines
 _Movida desde PROPUESTAS.md #3._
 
@@ -83,6 +76,20 @@ los días según qué tan cerca está la fecha (se puede reusar la lógica
 que ya existe en `dueLegend()`).
 
 ## Historial (aplicadas)
+
+### [x] 26. El título de arriba muestra la cuenta seleccionada + "Dashboard" en el menú + ícono al crear Pendiente
+_Aplicada 2026-11-07._
+
+a. En vez de decir siempre "Pendientes", el `<h1>` de arriba ahora
+   muestra la cuenta que tengas filtrada (la flechita junto al
+   título). Por default dice **"Todas las cuentas"**; al elegir una,
+   por ejemplo Sevenly, cambia a **"Sevenly"** — reemplaza el texto
+   por completo, no se le pega al final.
+b. En el menú (barra lateral de escritorio y barra de abajo en móvil),
+   ese primer ítem ya no dice "Pendientes" — dice **"Dashboard"**.
+c. En el selector de "Nuevo" (Pendiente/Evento), la opción "Pendiente"
+   ahora trae un ícono (tipo tabla de actividades con lápiz), igual
+   que ya tiene la opción "Evento".
 
 ### [x] 35. Eventos (Junta, Sesión de Fotos, Cobertura...)
 _Aplicada 2026-11-06._
@@ -133,6 +140,13 @@ j. Aparece solo en la pestaña "Asignados", a todo el equipo de
 **Pendiente para después** (no en esta primera versión): que un
 evento se pueda repetir (como los pendientes de frecuencia) — por
 ahora solo existen eventos puntuales, sin repetición automática.
+
+_Ajustado 2026-11-07:_ los filtros de Estado/Urgencia/Categoría/
+Deadline del dashboard ahora también **reordenan** la sección de
+Eventos según cuál esté activo (los que mejor calzan quedan arriba) —
+pero nunca los ocultan ni los agrupan en secciones, todos se quedan
+visibles, nomás en otro orden. Además, la sección de Eventos ya tiene
+una flechita para colapsarla/expandirla.
 
 ### [x] 34. El admin no aparece "en línea"
 _Aplicada 2026-11-06._
