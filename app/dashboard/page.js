@@ -3480,7 +3480,7 @@ function TaskDetail({ task, onClose, onUpdate, onDelete, onDeleteRecurring, recu
   const sameDay = task.request_date && task.deadline && task.request_date === task.deadline;
   const hasSubtasks = subtasks.length > 0;
   const allSubtasksDelivered = hasSubtasks && subtasks.every((s) => s.status === "Entregado");
-  const canFinalize = !viewerIsGerente && !isFinalized && (isAdmin || (isColaborativo ? isAnyRequester && allSubtasksDelivered : isRequester && (hasSubtasks ? allSubtasksDelivered : isDelivered)));
+  const canFinalize = !viewerIsGerente && !isFinalized && (isAdmin || (isColaborativo ? isAnyRequester && allSubtasksDelivered : isAnyRequester && (hasSubtasks ? allSubtasksDelivered : isDelivered)));
   // CHANGES.md #23: ya no solo el solicitante/admin — cualquiera con acceso
   // al pendiente puede cambiar el deadline (se le avisa al solicitante si
   // quien lo cambia no es él mismo, ver changeDeadline).
@@ -4008,7 +4008,7 @@ function TaskDetail({ task, onClose, onUpdate, onDelete, onDeleteRecurring, recu
               </div>
             )
           )}
-          {!isAdmin && !isFinalized && !allSubtasksDelivered && ((isColaborativo && isAnyRequester) || (effType === "individual" && hasSubtasks && isRequester)) && (
+          {!isAdmin && !isFinalized && !allSubtasksDelivered && ((isColaborativo && isAnyRequester) || (effType === "individual" && hasSubtasks && isAnyRequester)) && (
             <p className="text-[11px]" style={{ color: C.inkSoft }}>Se podrá finalizar cuando todas las subtareas queden en "Entregado".</p>
           )}
 
