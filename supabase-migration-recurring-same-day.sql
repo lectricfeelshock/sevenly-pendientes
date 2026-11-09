@@ -9,8 +9,9 @@
 -- deadline ese mismo lunes" (offset 0) ni un mensual con deadline a más
 -- de 6 días se podían guardar (el insert de la plantilla fallaba).
 --
--- Ahora el deadline se elige libremente en el calendario: solo se pide
--- que no sea antes del día en que aparece (offset 0 o más), sin tope.
+-- Ahora la base solo pide que el deadline no sea antes del día en que
+-- aparece (offset 0 o más). Los topes los pone la ventanita "Programar
+-- pendiente": semanal hasta 4 días hábiles, mensual hasta 27 días.
 alter table recurring_templates
   drop constraint if exists recurring_templates_deadline_offset_days_check;
 alter table recurring_templates

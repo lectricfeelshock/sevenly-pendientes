@@ -57,11 +57,6 @@ const TASK_TYPES = [
   { key: "personal", label: "Personal" },
   { key: "colaborativo", label: "Colaborativo" },
 ];
-const REPEAT_MODES = [
-  { value: "none", label: "No se repite" },
-  { value: "weekly", label: "Cada semana" },
-  { value: "monthly", label: "Cada mes" },
-];
 
 // Un pendiente Personal se muestra como Individual en cuanto se le asigna
 // a alguien más (con "Asignar responsable" o "Asignar a").
@@ -124,8 +119,50 @@ function recurrenceLabel(repeatMode, dISO) {
   if (repeatMode === "monthly") return `el ${MONTH_OCCURRENCE_NAMES[Math.min(monthOccurrenceOfISO(dISO), 5) - 1]} ${wd} de cada mes`;
   return `cada ${wd}`;
 }
-function offsetLabel(n) {
-  return n === 0 ? "El mismo día" : n === 1 ? "1 día después" : `${n} días después`;
+// ---------- Programar pendiente ----------
+// schedule = null (no se programa)
+//          | { mode: "weekly", weekday: 1-5, offset: 0-4 }   → offset en días HÁBILES (lun-vie)
+//          | { mode: "monthly", date: "YYYY-MM-DD", offset: 0-27 } → offset en días naturales
+// La plantilla se sigue guardando como antes (weekday / month_occurrence +
+// deadline_offset_days en días naturales): como el día de la semana es fijo,
+// N días hábiles siempre equivalen al mismo número de días naturales.
+const SCHEDULE_WEEKDAYS = [[1, "Lun"], [2, "Mar"], [3, "Mié"], [4, "Jue"], [5, "Vie"]];
+const WEEKLY_MAX_OFFSET = 4, MONTHLY_MAX_OFFSET = 27;
+function isoOfDate(d) {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
+function addDaysISO(dISO, n) {
+  const d = new Date(dISO + "T00:00:00"); d.setDate(d.getDate() + n); return isoOfDate(d);
+}
+function addBusinessDaysISO(dISO, n) {
+  const d = new Date(dISO + "T00:00:00");
+  for (let added = 0; added < n;) { d.setDate(d.getDate() + 1); if (d.getDay() !== 0 && d.getDay() !== 6) added += 1; }
+  return isoOfDate(d);
+}
+// El primer día (hoy incluido) que cae en ese día de la semana.
+function nextWeekdayOnOrAfterISO(fromISO, weekday) {
+  const d = new Date(fromISO + "T00:00:00");
+  while (d.getDay() !== weekday) d.setDate(d.getDate() + 1);
+  return isoOfDate(d);
+}
+function scheduleStartISO(sch) {
+  if (!sch) return "";
+  if (sch.mode === "weekly") return sch.weekday ? nextWeekdayOnOrAfterISO(todayISO(), sch.weekday) : "";
+  return sch.date || "";
+}
+function scheduleDeadlineISO(sch) {
+  const start = scheduleStartISO(sch);
+  if (!start) return "";
+  return sch.mode === "weekly" ? addBusinessDaysISO(start, sch.offset || 0) : addDaysISO(start, sch.offset || 0);
+}
+function scheduleOffsetOption(n) {
+  return n === 0 ? "Ese mismo día" : n === 1 ? "1 día después" : `${n} días después`;
+}
+function scheduleOffsetSummary(sch) {
+  const n = sch.offset || 0;
+  if (n === 0) return "el mismo día";
+  const unit = sch.mode === "weekly" ? (n === 1 ? "día hábil" : "días hábiles") : (n === 1 ? "día" : "días");
+  return `${n} ${unit} después`;
 }
 function popupStoragePath(url) {
   const marker = "/storage/v1/object/public/popups/";
@@ -1811,10 +1848,14 @@ function NewTaskForm({ onClose, onCreate, onCreatePopup, profiles, profile, isAd
   // Individual y Colaborativo: Programar pendiente (Día programado +
   // repetición opcional). El día de la semana / ocurrencia del mes no se
   // elige a mano — sale del Día programado.
-  const [scheduling, setScheduling] = useState(false);
-  const [scheduledDate, setScheduledDate] = useState("");
-  const [repeatMode, setRepeatMode] = useState("none"); // "none" | "weekly" | "monthly"
-  const [showRepeatMenu, setShowRepeatMenu] = useState(false);
+  // Se elige desde el relojito junto a "Crear pendiente" (ventanita
+  // "Programar pendiente"). Ver SCHEDULE_* arriba.
+  const [schedule, setSchedule] = useState(null);
+  const [scheduleDraft, setScheduleDraft] = useState(null); // lo que se edita en la ventanita antes de "Listo"
+  const scheduling = !!schedule;
+  const repeatMode = schedule?.mode || "none";
+  const scheduledDate = scheduleStartISO(schedule);
+  const openSchedule = () => setScheduleDraft(schedule ? { ...schedule } : { mode: "weekly", weekday: null, date: "", offset: 0 });
 
   // Colaborativo: equipo + subtareas
   const [teamMemberIds, setTeamMemberIds] = useState([]);
@@ -1890,19 +1931,15 @@ function NewTaskForm({ onClose, onCreate, onCreatePopup, profiles, profile, isAd
   const usesDeadlineRules = taskType === "individual" || taskType === "colaborativo";
   const todayStr = todayISO();
   const baseDateStr = scheduling && scheduledDate ? scheduledDate : todayStr;
-  // Si se repite, el deadline se elige en el calendario (la fecha de la 1ª
-  // vez) y se guarda como "X días después de que aparece" para recalcularse
-  // en cada ocurrencia. Sin límite de días.
-  const isRepeating = scheduling && repeatMode !== "none";
-  const effectiveDeadline = deadline;
-  const offsetDays = isRepeating && scheduledDate && deadline ? daysBetweenISO(scheduledDate, deadline) : null;
+  // Si está programado, el deadline sale de la ventanita "Programar
+  // pendiente" (X días después de que aparece) — esta es la fecha de la 1ª vez.
+  const effectiveDeadline = scheduling ? scheduleDeadlineISO(schedule) : deadline;
   const subtaskDeadlines = usesDeadlineRules ? subtaskRows.map((r) => r.deadline).filter(Boolean) : [];
   const maxSubtaskDeadline = subtaskDeadlines.length ? subtaskDeadlines.reduce((a, b) => (a > b ? a : b)) : null;
   const minGeneralDeadline = maxSubtaskDeadline && maxSubtaskDeadline > baseDateStr ? maxSubtaskDeadline : baseDateStr;
   const deadlineError = !usesDeadlineRules ? "" :
     scheduling && !scheduledDate ? "Elige el primer día en que va a aparecer." :
     taskType === "colaborativo" && !effectiveDeadline ? "El deadline general es obligatorio en un pendiente colaborativo." :
-    isRepeating && !effectiveDeadline ? "Elige el deadline de la primera vez." :
     effectiveDeadline && effectiveDeadline < baseDateStr ? `El deadline general no puede ser antes de ${scheduling ? "el día en que aparece" : "hoy"}.` :
     subtaskDeadlines.some((d) => d < baseDateStr) ? `El deadline de una subtarea no puede ser antes de ${scheduling ? "el día en que aparece" : "hoy"}.` :
     (effectiveDeadline && maxSubtaskDeadline && effectiveDeadline < maxSubtaskDeadline) ? "El deadline general no puede ser antes que el de alguna subtarea." :
@@ -2011,65 +2048,48 @@ function NewTaskForm({ onClose, onCreate, onCreatePopup, profiles, profile, isAd
     </div>
   );
 
-  const repeatField = usesDeadlineRules ? (
-    <div className="relative">
-      <label className="text-[11.5px] font-bold tracking-[0.09em]" style={{ color: C.inkSoft }}>¿Se repite?</label>
-      <button type="button" onClick={() => setShowRepeatMenu((v) => !v)}
-        style={{ background: C.paper, borderRadius: R.md }}
-        className="w-full h-[46px] px-3.5 mt-1.5 flex items-center justify-between text-sm outline-none">
-        <span>{REPEAT_MODES.find((m) => m.value === repeatMode)?.label}</span>
-        <ChevronDown size={15} style={{ color: C.gray, transform: showRepeatMenu ? "rotate(180deg)" : "none" }} />
-      </button>
-      {showRepeatMenu && (
-        <div style={{ background: C.panel, borderRadius: R.lg, boxShadow: SH.card }} className="absolute left-0 right-0 top-full mt-1.5 z-20 p-1.5">
-          {REPEAT_MODES.map((m) => (
-            <button key={m.value} type="button"
-              onClick={() => { setRepeatMode(m.value); setScheduling(m.value !== "none"); setShowRepeatMenu(false); }}
-              style={{ color: repeatMode === m.value ? C.signal : C.ink }}
-              className="w-full text-left px-3 py-2 text-sm rounded-md">{m.label}</button>
-          ))}
-        </div>
+  // "Así va a funcionar": resumen en palabras de cómo queda programado.
+  // Sale en la ventanita "Programar pendiente" y debajo del Deadline.
+  const renderScheduleSummary = (sch) => {
+    const start = scheduleStartISO(sch);
+    if (!sch || !start) return null;
+    return (
+      <div style={{ background: C.subtle, borderRadius: R.md }} className="px-3.5 py-3 text-[12.5px] leading-relaxed">
+        <div className="font-bold mb-1" style={{ color: C.ink }}>Así va a funcionar</div>
+        <ul className="flex flex-col gap-0.5" style={{ color: C.inkMedium }}>
+          <li>• Aparece <b>{recurrenceLabel(sch.mode, start)}</b>, empezando el {fmtLongDateISO(start)}.</li>
+          <li>• Deadline: <b>{scheduleOffsetSummary(sch)}</b> (la primera vez: {fmtLongDateISO(scheduleDeadlineISO(sch))}).</li>
+          <li>• El solicitante podrá verlo en <b>Mis solicitudes → Programados</b>.</li>
+          <li>• El asignado, en sus pendientes el día que estaba programado salir.</li>
+        </ul>
+      </div>
+    );
+  };
+
+  const urgencyField = (
+    <div><label className="text-[11.5px] font-bold tracking-[0.09em]" style={{ color: C.inkSoft }}>Urgencia</label>
+      <select value={urgency} onChange={(e) => setUrgency(e.target.value)} style={{ background: C.paper, borderRadius: R.md }} className="w-full px-3.5 py-2.5 text-sm mt-1.5 outline-none">
+        {URGENCIES.map((u) => <option key={u.label} value={u.label}>{u.label}</option>)}
+      </select></div>
+  );
+
+  const deadlineField = (
+    <div><label className="text-[11.5px] font-bold tracking-[0.09em]" style={{ color: C.inkSoft }}>Deadline{taskType === "colaborativo" ? " *" : ""}</label>
+      {scheduling ? (
+        <button type="button" onClick={openSchedule} title="Cambiar programación"
+          style={{ background: C.paper, borderRadius: R.md }}
+          className="w-full px-3.5 py-2.5 text-sm mt-1.5 flex items-center gap-2 text-left">
+          <CalendarClock size={15} style={{ color: C.signal, flexShrink: 0 }} />
+          <span style={{ color: C.ink }}>{effectiveDeadline ? fmtLongDateISO(effectiveDeadline) : "—"}</span>
+          <span className="ml-auto text-[11px]" style={{ color: C.inkSoft }}>la primera vez</span>
+        </button>
+      ) : (
+        <input type="date" value={deadline} min={minGeneralDeadline} onChange={(e) => setDeadline(e.target.value)} style={{ background: C.paper, borderRadius: R.md }} className="w-full px-3.5 py-2.5 text-sm mt-1.5 outline-none" />
       )}
-    </div>
-  ) : null;
-
-  const scheduledDateField = scheduling ? (
-    <div><label className="text-[11.5px] font-bold tracking-[0.09em]" style={{ color: C.inkSoft }}>¿Qué día aparece por primera vez?</label>
-      <input type="date" value={scheduledDate} min={todayStr} onChange={(e) => setScheduledDate(e.target.value)} style={{ background: C.paper, borderRadius: R.md }} className="w-full px-3.5 py-2.5 text-sm mt-1.5 outline-none" />
-      <p className="text-[11px] mt-1.5" style={{ color: C.inkSoft }}>
-        {scheduledDate
-          ? `De ese día sale la repetición: aparecerá ${recurrenceLabel(repeatMode, scheduledDate)}.`
-          : `Elige un ${repeatMode === "monthly" ? "día del mes (ej. el primer lunes)" : "día de la semana (ej. un lunes)"} y se repetirá ese mismo día.`}
-      </p></div>
-  ) : null;
-
-  // Resumen en palabras de lo que va a pasar — para no tener que adivinar
-  // cómo se combinan "se repite", el primer día y el deadline.
-  const recurrenceSummary = isRepeating && scheduledDate ? (
-    <div style={{ background: C.subtle, borderRadius: R.md }} className="px-3.5 py-3 text-[12.5px] leading-relaxed">
-      <div className="font-bold mb-1" style={{ color: C.ink }}>Así va a funcionar</div>
-      <ul className="flex flex-col gap-0.5" style={{ color: C.inkMedium }}>
-        <li>• Aparece <b>{recurrenceLabel(repeatMode, scheduledDate)}</b>, empezando el {fmtLongDateISO(scheduledDate)}.</li>
-        {offsetDays !== null && offsetDays >= 0 && (
-          <li>• Deadline: <b>{offsetLabel(offsetDays).toLowerCase()}</b> (la primera vez: {fmtLongDateISO(effectiveDeadline)}).</li>
-        )}
-        <li>• El solicitante podrá verlo en <b>Mis solicitudes → Programados</b>.</li>
-        <li>• El asignado, en sus pendientes el día que estaba programado salir.</li>
-      </ul>
-    </div>
-  ) : null;
-
-  const generalDeadlineUrgencyField = (
-    <div className="grid grid-cols-2 gap-3">
-      <div><label className="text-[11.5px] font-bold tracking-[0.09em]" style={{ color: C.inkSoft }}>Deadline{scheduling ? " general" : ""}{taskType === "colaborativo" ? " *" : ""}</label>
-        <input type="date" value={deadline} min={minGeneralDeadline} onChange={(e) => setDeadline(e.target.value)} style={{ background: C.paper, borderRadius: R.md }} className="w-full px-3.5 py-2.5 text-sm mt-1.5 outline-none" /></div>
-      <div><label className="text-[11.5px] font-bold tracking-[0.09em]" style={{ color: C.inkSoft }}>Urgencia</label>
-        <select value={urgency} onChange={(e) => setUrgency(e.target.value)} style={{ background: C.paper, borderRadius: R.md }} className="w-full px-3.5 py-2.5 text-sm mt-1.5 outline-none">
-          {URGENCIES.map((u) => <option key={u.label} value={u.label}>{u.label}</option>)}
-        </select></div>
-      {deadlineError && <p className="col-span-2 text-[11px]" style={{ color: C.urgent }}>{deadlineError}</p>}
+      {deadlineError && <p className="text-[11px] mt-1.5" style={{ color: C.urgent }}>{deadlineError}</p>}
     </div>
   );
+  const generalDeadlineUrgencyField = <>{urgencyField}{deadlineField}</>;
 
   if (mode === "pendiente" && !accountChosen) {
     return (
@@ -2217,6 +2237,60 @@ function NewTaskForm({ onClose, onCreate, onCreatePopup, profiles, profile, isAd
                       style={{ background: C.paper, borderRadius: R.md }} className="w-full px-3.5 py-2.5 text-sm mt-2 outline-none" />
                   )}
                 </div>
+
+                {taskType === "individual" && (
+                  <div>
+                    <div className="flex flex-col gap-2 mb-2">
+                      {subtaskRows.map((row, i) => (
+                        <div key={i} style={{ background: C.panel, borderRadius: R.md, boxShadow: SH.soft }} className="p-3 flex flex-col gap-1.5">
+                          <div className="flex gap-1.5">
+                            <input value={row.title} onChange={(e) => updateSubtaskRow(i, "title", e.target.value)} placeholder="Título de la subtarea" style={{ background: C.paper, borderRadius: R.md }} className="flex-1 px-3 py-2 text-xs outline-none" />
+                            <button type="button" onClick={() => removeSubtaskRow(i)}><X size={14} style={{ color: C.inkSoft }} /></button>
+                          </div>
+                          <textarea value={row.description} onChange={(e) => updateSubtaskRow(i, "description", e.target.value)} placeholder="Descripción (opcional)" rows={2} style={{ background: C.paper, borderRadius: R.md }} className="px-3 py-2 text-xs outline-none resize-y" />
+                          <input type="date" value={row.deadline} min={baseDateStr} max={effectiveDeadline || undefined} onChange={(e) => updateSubtaskRow(i, "deadline", e.target.value)} style={{ background: C.paper, borderRadius: R.md }} className="px-3 py-2 text-xs outline-none" />
+                        </div>
+                      ))}
+                    </div>
+                    <button type="button" onClick={addSubtaskRow} disabled={!assignedToId}
+                      style={{ borderRadius: R.md, boxShadow: `inset 0 0 0 1.5px ${C.hairline}`, color: C.inkSoft }}
+                      className="w-full h-12 flex items-center justify-center gap-1.5 text-sm font-medium disabled:opacity-40">
+                      <Plus size={15} /> Agregar subtarea
+                    </button>
+                  </div>
+                )}
+                {taskType === "colaborativo" && (
+                  <div>
+                    <div className="flex flex-col gap-2 mb-2">
+                      {subtaskRows.map((row, i) => (
+                        <div key={i} style={{ background: C.panel, borderRadius: R.md, boxShadow: SH.soft }} className="p-3 flex flex-col gap-1.5">
+                          <div className="flex gap-1.5">
+                            <input value={row.title} onChange={(e) => updateSubtaskRow(i, "title", e.target.value)} placeholder="Título de la subtarea" style={{ background: C.paper, borderRadius: R.md }} className="flex-1 px-3 py-2 text-xs outline-none" />
+                            <button type="button" onClick={() => removeSubtaskRow(i)}><X size={14} style={{ color: C.inkSoft }} /></button>
+                          </div>
+                          <textarea value={row.description} onChange={(e) => updateSubtaskRow(i, "description", e.target.value)} placeholder="Descripción (opcional)" rows={2} style={{ background: C.paper, borderRadius: R.md }} className="px-3 py-2 text-xs outline-none resize-y" />
+                          <div className="grid grid-cols-2 gap-1.5">
+                            <select value={row.assignedToId} onChange={(e) => updateSubtaskRow(i, "assignedToId", e.target.value)} style={{ background: C.paper, borderRadius: R.md }} className="px-3 py-2 text-xs outline-none">
+                              <option value="">Asignar a...</option>
+                              {profiles.filter((p) => teamMemberIds.includes(p.id)).map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
+                            </select>
+                            <input type="date" value={row.deadline} min={baseDateStr} max={effectiveDeadline || undefined} onChange={(e) => updateSubtaskRow(i, "deadline", e.target.value)} style={{ background: C.paper, borderRadius: R.md }} className="px-3 py-2 text-xs outline-none" />
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                    <button type="button" onClick={addSubtaskRow} disabled={teamMemberIds.length === 0}
+                      style={{ borderRadius: R.md, boxShadow: `inset 0 0 0 1.5px ${C.hairline}`, color: C.inkSoft }}
+                      className="w-full h-12 flex items-center justify-center gap-1.5 text-sm font-medium disabled:opacity-40">
+                      <Plus size={15} /> Agregar subtarea
+                    </button>
+                    {missingSubtaskCoverage && (
+                      <p className="text-[11px] mt-1.5" style={{ color: C.urgent }}>
+                        Falta asignar subtarea a: {teamMemberIds.filter((id) => !subtaskRows.some((r) => r.assignedToId === id && r.title.trim())).map((id) => profiles.find((p) => p.id === id)?.name).filter(Boolean).join(", ")}
+                      </p>
+                    )}
+                  </div>
+                )}
               </div>
 
               <div className="flex flex-col gap-4">
@@ -2252,31 +2326,9 @@ function NewTaskForm({ onClose, onCreate, onCreatePopup, profiles, profile, isAd
                     </div>
 
                     {solicitaField}
-                    {repeatField}
-                    {scheduledDateField}
-                    {generalDeadlineUrgencyField}
-                    {recurrenceSummary}
-
-                    <div>
-                      <div className="flex flex-col gap-2 mb-2">
-                        {subtaskRows.map((row, i) => (
-                          <div key={i} style={{ background: C.panel, borderRadius: R.md, boxShadow: SH.soft }} className="p-3 flex flex-col gap-1.5">
-                            <div className="flex gap-1.5">
-                              <input value={row.title} onChange={(e) => updateSubtaskRow(i, "title", e.target.value)} placeholder="Título de la subtarea" style={{ background: C.paper, borderRadius: R.md }} className="flex-1 px-3 py-2 text-xs outline-none" />
-                              <button type="button" onClick={() => removeSubtaskRow(i)}><X size={14} style={{ color: C.inkSoft }} /></button>
-                            </div>
-                            <textarea value={row.description} onChange={(e) => updateSubtaskRow(i, "description", e.target.value)} placeholder="Descripción (opcional)" rows={2} style={{ background: C.paper, borderRadius: R.md }} className="px-3 py-2 text-xs outline-none resize-y" />
-                            <input type="date" value={row.deadline} min={baseDateStr} max={effectiveDeadline || undefined} onChange={(e) => updateSubtaskRow(i, "deadline", e.target.value)} style={{ background: C.paper, borderRadius: R.md }} className="px-3 py-2 text-xs outline-none" />
-                          </div>
-                        ))}
-                      </div>
-                      <button type="button" onClick={addSubtaskRow} disabled={!assignedToId}
-                        style={{ borderRadius: R.md, boxShadow: `inset 0 0 0 1.5px ${C.hairline}`, color: C.inkSoft }}
-                        className="w-full h-12 flex items-center justify-center gap-1.5 text-sm font-medium disabled:opacity-40">
-                        <Plus size={15} /> Agregar subtarea
-                      </button>
-                      {subtaskRows.length === 0 && <p className="text-[11px] mt-1.5" style={{ color: C.inkSoft }}>Sin subtarea con deadline propio, hereda el deadline general de arriba. Se asignarán a {assignedToId ? (profiles.find((p) => p.id === assignedToId)?.name || "la persona asignada") : "la persona que asignes"}.</p>}
-                    </div>
+                    {urgencyField}
+                    {deadlineField}
+                    {scheduling && renderScheduleSummary(schedule)}
                   </>
                 )}
 
@@ -2284,8 +2336,6 @@ function NewTaskForm({ onClose, onCreate, onCreatePopup, profiles, profile, isAd
 
                 {taskType === "colaborativo" && (
                   <>
-                    {solicitaField}
-
                     <div>
                       <label className="text-[11.5px] font-bold tracking-[0.09em]" style={{ color: C.inkSoft }}>Equipo de trabajo</label>
                       <div className="flex flex-wrap gap-1.5 mt-1.5">
@@ -2298,42 +2348,10 @@ function NewTaskForm({ onClose, onCreate, onCreatePopup, profiles, profile, isAd
                       {teamMemberIds.length < 2 && <p className="text-[11px] mt-1.5" style={{ color: C.urgent }}>Selecciona al menos 2 personas del equipo.</p>}
                     </div>
 
-                    {repeatField}
-                    {scheduledDateField}
-                    {generalDeadlineUrgencyField}
-                    {recurrenceSummary}
-
-                    <div>
-                      <div className="flex flex-col gap-2 mb-2">
-                        {subtaskRows.map((row, i) => (
-                          <div key={i} style={{ background: C.panel, borderRadius: R.md, boxShadow: SH.soft }} className="p-3 flex flex-col gap-1.5">
-                            <div className="flex gap-1.5">
-                              <input value={row.title} onChange={(e) => updateSubtaskRow(i, "title", e.target.value)} placeholder="Título de la subtarea" style={{ background: C.paper, borderRadius: R.md }} className="flex-1 px-3 py-2 text-xs outline-none" />
-                              <button type="button" onClick={() => removeSubtaskRow(i)}><X size={14} style={{ color: C.inkSoft }} /></button>
-                            </div>
-                            <textarea value={row.description} onChange={(e) => updateSubtaskRow(i, "description", e.target.value)} placeholder="Descripción (opcional)" rows={2} style={{ background: C.paper, borderRadius: R.md }} className="px-3 py-2 text-xs outline-none resize-y" />
-                            <div className="grid grid-cols-2 gap-1.5">
-                              <select value={row.assignedToId} onChange={(e) => updateSubtaskRow(i, "assignedToId", e.target.value)} style={{ background: C.paper, borderRadius: R.md }} className="px-3 py-2 text-xs outline-none">
-                                <option value="">Asignar a...</option>
-                                {profiles.filter((p) => teamMemberIds.includes(p.id)).map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
-                              </select>
-                              <input type="date" value={row.deadline} min={baseDateStr} max={effectiveDeadline || undefined} onChange={(e) => updateSubtaskRow(i, "deadline", e.target.value)} style={{ background: C.paper, borderRadius: R.md }} className="px-3 py-2 text-xs outline-none" />
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                      <button type="button" onClick={addSubtaskRow} disabled={teamMemberIds.length === 0}
-                        style={{ borderRadius: R.md, boxShadow: `inset 0 0 0 1.5px ${C.hairline}`, color: C.inkSoft }}
-                        className="w-full h-12 flex items-center justify-center gap-1.5 text-sm font-medium disabled:opacity-40">
-                        <Plus size={15} /> Agregar subtarea
-                      </button>
-                      {subtaskRows.length === 0 && <p className="text-[11px] mt-1.5" style={{ color: C.inkSoft }}>Sin subtarea con deadline propio, hereda el deadline general de arriba.</p>}
-                      {missingSubtaskCoverage && (
-                        <p className="text-[11px] mt-1.5" style={{ color: C.urgent }}>
-                          Falta asignar subtarea a: {teamMemberIds.filter((id) => !subtaskRows.some((r) => r.assignedToId === id && r.title.trim())).map((id) => profiles.find((p) => p.id === id)?.name).filter(Boolean).join(", ")}
-                        </p>
-                      )}
-                    </div>
+                    {solicitaField}
+                    {urgencyField}
+                    {deadlineField}
+                    {scheduling && renderScheduleSummary(schedule)}
                   </>
                 )}
               </div>
@@ -2341,7 +2359,20 @@ function NewTaskForm({ onClose, onCreate, onCreatePopup, profiles, profile, isAd
           </div>
         )}
 
-        <div style={{ boxShadow: `inset 0 1px 0 ${C.hairline}` }} className="px-5 py-4 flex justify-end gap-2">
+        <div style={{ boxShadow: `inset 0 1px 0 ${C.hairline}` }} className="px-5 py-4 flex justify-end items-center gap-2">
+          {!(mode === "popup" && isAdmin) && usesDeadlineRules && (
+            <div className="relative group">
+              <button type="button" onClick={openSchedule} aria-label="Programar pendiente"
+                style={scheduling ? { background: C.ink, color: C.paper } : { background: C.subtle, color: C.inkMedium }}
+                className="w-10 h-10 rounded-full flex items-center justify-center">
+                <Clock size={17} />
+              </button>
+              <span style={{ background: C.ink, color: C.paper, borderRadius: R.md }}
+                className="pointer-events-none absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-2.5 py-1 text-[11px] font-semibold whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity">
+                {scheduling ? "Cambiar programación" : "Programar pendiente"}
+              </span>
+            </div>
+          )}
           <button onClick={onClose} style={{ color: C.inkMedium, background: C.subtle, borderRadius: R.pill }} className="px-5 py-2.5 text-sm font-semibold">Cancelar</button>
           {mode === "popup" && isAdmin ? (
             <button onClick={() => setShowPopupConfirm(true)} disabled={!popupTitle.trim() || popupSaving || !!popupImageError} style={{ background: C.ink, color: C.paper, opacity: popupSaving ? 0.6 : 1, borderRadius: R.pill }} className="px-5 py-2.5 text-sm font-semibold disabled:cursor-not-allowed">¿Listo?</button>
@@ -2350,6 +2381,66 @@ function NewTaskForm({ onClose, onCreate, onCreatePopup, profiles, profile, isAd
           )}
         </div>
       </div>
+      {scheduleDraft && (() => {
+        const d = scheduleDraft;
+        const maxOffset = d.mode === "weekly" ? WEEKLY_MAX_OFFSET : MONTHLY_MAX_OFFSET;
+        const ready = d.mode === "weekly" ? !!d.weekday : !!d.date && d.date >= todayStr;
+        const setD = (patch) => setScheduleDraft((prev) => ({ ...prev, ...patch }));
+        const lbl = "text-[11.5px] font-bold tracking-[0.09em]";
+        return (
+          <div className="fixed inset-0 z-[70] flex items-center justify-center p-4" style={{ background: "rgba(27,30,36,0.6)" }} onClick={() => setScheduleDraft(null)}>
+            <div style={{ background: C.panel, borderRadius: R.xl, boxShadow: SH.card }} className="w-full max-w-sm p-5 flex flex-col gap-4 max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
+              <div className="flex items-center justify-between">
+                <h3 style={{ color: C.ink, fontFamily: FONT_SERIF, fontSize: 20, fontWeight: 500 }}>Programar pendiente</h3>
+                <button onClick={() => setScheduleDraft(null)} style={{ width: 30, height: 30, borderRadius: R.pill, background: C.subtle, color: C.inkMedium }} className="flex items-center justify-center"><X size={15} /></button>
+              </div>
+
+              <div style={{ background: C.subtle, borderRadius: R.pill }} className="flex gap-1 p-1">
+                {[["weekly", "Programar semanalmente"], ["monthly", "Programar mensualmente"]].map(([key, label]) => (
+                  <button key={key} type="button" onClick={() => setD({ mode: key, offset: Math.min(d.offset || 0, key === "weekly" ? WEEKLY_MAX_OFFSET : MONTHLY_MAX_OFFSET) })}
+                    style={d.mode === key ? { background: C.panel, boxShadow: "0 1px 3px rgba(27,30,36,0.10)", color: C.ink, fontWeight: 700 } : { color: C.inkSoft, fontWeight: 600 }}
+                    className="flex-1 h-9 rounded-full text-[12px]">{label}</button>
+                ))}
+              </div>
+
+              {d.mode === "weekly" ? (
+                <div><label className={lbl} style={{ color: C.inkSoft }}>¿Qué día sale?</label>
+                  <div className="flex gap-1.5 mt-1.5">
+                    {SCHEDULE_WEEKDAYS.map(([wd, name]) => (
+                      <button key={wd} type="button" onClick={() => setD({ weekday: wd })}
+                        style={d.weekday === wd ? { background: C.ink, color: C.paper, fontWeight: 600 } : { background: C.panel, color: C.inkMedium, boxShadow: SH.soft, fontWeight: 500 }}
+                        className="flex-1 h-9 rounded-full text-[13px]">{name}</button>
+                    ))}
+                  </div></div>
+              ) : (
+                <div><label className={lbl} style={{ color: C.inkSoft }}>¿Qué día sale la primera vez?</label>
+                  <input type="date" value={d.date || ""} min={todayStr} onChange={(e) => setD({ date: e.target.value })} style={{ background: C.paper, borderRadius: R.md }} className="w-full px-3.5 py-2.5 text-sm mt-1.5 outline-none" />
+                  {d.date && <p className="text-[11px] mt-1.5" style={{ color: C.inkSoft }}>Se repetirá {recurrenceLabel("monthly", d.date)}.</p>}
+                </div>
+              )}
+
+              <div><label className={lbl} style={{ color: C.inkSoft }}>Deadline</label>
+                <select value={d.offset || 0} onChange={(e) => setD({ offset: Number(e.target.value) })} style={{ background: C.paper, borderRadius: R.md }} className="w-full px-3.5 py-2.5 text-sm mt-1.5 outline-none">
+                  {Array.from({ length: maxOffset + 1 }, (_, n) => <option key={n} value={n}>{scheduleOffsetOption(n)}</option>)}
+                </select>
+                {d.mode === "weekly" && <p className="text-[11px] mt-1.5" style={{ color: C.inkSoft }}>Solo cuenta días hábiles (lun a vie).</p>}
+              </div>
+
+              {ready && renderScheduleSummary(d)}
+
+              <div className="flex items-center gap-2">
+                {scheduling && (
+                  <button type="button" onClick={() => { setSchedule(null); setScheduleDraft(null); }} style={{ color: C.urgent }} className="text-xs font-semibold mr-auto">Quitar programación</button>
+                )}
+                <button type="button" onClick={() => setScheduleDraft(null)} style={{ color: C.inkMedium, background: C.subtle, borderRadius: R.pill }} className="ml-auto px-4 py-2 text-sm font-semibold">Cancelar</button>
+                <button type="button" disabled={!ready} onClick={() => { setSchedule(d); setScheduleDraft(null); }}
+                  style={{ background: C.ink, color: C.paper, opacity: ready ? 1 : 0.5, borderRadius: R.pill }}
+                  className="px-4 py-2 text-sm font-semibold disabled:cursor-not-allowed">Listo</button>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
       {showSubtaskRule && (
         <div className="fixed inset-0 z-[70] flex items-center justify-center p-4" style={{ background: "rgba(27,30,36,0.6)" }} onClick={() => setShowSubtaskRule(false)}>
           <div style={{ background: C.paper, borderRadius: R.xl, boxShadow: SH.card }} className="max-w-xs p-5" onClick={(e) => e.stopPropagation()}>
