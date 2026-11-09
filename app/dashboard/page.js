@@ -113,11 +113,6 @@ function daysBetweenISO(aISO, bISO) {
 function monthOccurrenceOfISO(dISO) {
   return Math.ceil(new Date(dISO + "T00:00:00").getDate() / 7);
 }
-function addDaysISO(dISO, n) {
-  const d = new Date(dISO + "T00:00:00");
-  d.setDate(d.getDate() + n);
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
-}
 const WEEKDAY_NAMES = ["domingo", "lunes", "martes", "miércoles", "jueves", "viernes", "sábado"];
 const MONTH_OCCURRENCE_NAMES = ["primer", "segundo", "tercer", "cuarto", "último"];
 function fmtLongDateISO(dISO) {
@@ -1820,7 +1815,6 @@ function NewTaskForm({ onClose, onCreate, onCreatePopup, profiles, profile, isAd
   const [scheduledDate, setScheduledDate] = useState("");
   const [repeatMode, setRepeatMode] = useState("none"); // "none" | "weekly" | "monthly"
   const [showRepeatMenu, setShowRepeatMenu] = useState(false);
-  const [deadlineOffset, setDeadlineOffset] = useState(0); // solo si se repite: días después de que aparece
 
   // Colaborativo: equipo + subtareas
   const [teamMemberIds, setTeamMemberIds] = useState([]);
@@ -1896,22 +1890,19 @@ function NewTaskForm({ onClose, onCreate, onCreatePopup, profiles, profile, isAd
   const usesDeadlineRules = taskType === "individual" || taskType === "colaborativo";
   const todayStr = todayISO();
   const baseDateStr = scheduling && scheduledDate ? scheduledDate : todayStr;
-  // Si se repite, el deadline no se elige como fecha suelta sino como
-  // "X días después de que aparece" (así es como se guarda en la plantilla
-  // y se recalcula cada semana/mes). La fecha real de la 1ª vez sale de ahí.
-  // Hasta justo antes de la siguiente ocurrencia: semanal 0-6 días, mensual
-  // 0-27 (dos "N-ésimo lunes" seguidos están a 28 días como mínimo). Mismo
-  // rango que el check de recurring_templates.deadline_offset_days.
+  // Si se repite, el deadline se elige en el calendario (la fecha de la 1ª
+  // vez) y se guarda como "X días después de que aparece" para recalcularse
+  // en cada ocurrencia. Sin límite de días.
   const isRepeating = scheduling && repeatMode !== "none";
-  const maxDeadlineOffset = repeatMode === "monthly" ? 27 : 6;
-  const offsetDays = Math.min(deadlineOffset, maxDeadlineOffset); // si cambias de mensual a semanal
-  const effectiveDeadline = isRepeating ? (scheduledDate ? addDaysISO(scheduledDate, offsetDays) : "") : deadline;
+  const effectiveDeadline = deadline;
+  const offsetDays = isRepeating && scheduledDate && deadline ? daysBetweenISO(scheduledDate, deadline) : null;
   const subtaskDeadlines = usesDeadlineRules ? subtaskRows.map((r) => r.deadline).filter(Boolean) : [];
   const maxSubtaskDeadline = subtaskDeadlines.length ? subtaskDeadlines.reduce((a, b) => (a > b ? a : b)) : null;
   const minGeneralDeadline = maxSubtaskDeadline && maxSubtaskDeadline > baseDateStr ? maxSubtaskDeadline : baseDateStr;
   const deadlineError = !usesDeadlineRules ? "" :
     scheduling && !scheduledDate ? "Elige el primer día en que va a aparecer." :
     taskType === "colaborativo" && !effectiveDeadline ? "El deadline general es obligatorio en un pendiente colaborativo." :
+    isRepeating && !effectiveDeadline ? "Elige el deadline de la primera vez." :
     effectiveDeadline && effectiveDeadline < baseDateStr ? `El deadline general no puede ser antes de ${scheduling ? "el día en que aparece" : "hoy"}.` :
     subtaskDeadlines.some((d) => d < baseDateStr) ? `El deadline de una subtarea no puede ser antes de ${scheduling ? "el día en que aparece" : "hoy"}.` :
     (effectiveDeadline && maxSubtaskDeadline && effectiveDeadline < maxSubtaskDeadline) ? "El deadline general no puede ser antes que el de alguna subtarea." :
@@ -2059,23 +2050,19 @@ function NewTaskForm({ onClose, onCreate, onCreatePopup, profiles, profile, isAd
       <div className="font-bold mb-1" style={{ color: C.ink }}>Así va a funcionar</div>
       <ul className="flex flex-col gap-0.5" style={{ color: C.inkMedium }}>
         <li>• Aparece <b>{recurrenceLabel(repeatMode, scheduledDate)}</b>, empezando el {fmtLongDateISO(scheduledDate)}.</li>
-        <li>• Deadline: <b>{offsetLabel(offsetDays).toLowerCase()}</b>{effectiveDeadline ? ` (la primera vez: ${fmtLongDateISO(effectiveDeadline)})` : ""}.</li>
-        <li>• Hasta ese día lo ves en <b>Mis solicitudes → Programados</b>; a quien se asigna le aparece el día que toca.</li>
+        {offsetDays !== null && offsetDays >= 0 && (
+          <li>• Deadline: <b>{offsetLabel(offsetDays).toLowerCase()}</b> (la primera vez: {fmtLongDateISO(effectiveDeadline)}).</li>
+        )}
+        <li>• El solicitante podrá verlo en <b>Mis solicitudes → Programados</b>.</li>
+        <li>• El asignado, en sus pendientes el día que estaba programado salir.</li>
       </ul>
     </div>
   ) : null;
 
   const generalDeadlineUrgencyField = (
     <div className="grid grid-cols-2 gap-3">
-      {isRepeating ? (
-        <div><label className="text-[11.5px] font-bold tracking-[0.09em]" style={{ color: C.inkSoft }}>Deadline{taskType === "colaborativo" ? " general" : ""}</label>
-          <select value={offsetDays} onChange={(e) => setDeadlineOffset(Number(e.target.value))} style={{ background: C.paper, borderRadius: R.md }} className="w-full px-3.5 py-2.5 text-sm mt-1.5 outline-none">
-            {Array.from({ length: maxDeadlineOffset + 1 }, (_, n) => <option key={n} value={n}>{offsetLabel(n)}</option>)}
-          </select></div>
-      ) : (
-        <div><label className="text-[11.5px] font-bold tracking-[0.09em]" style={{ color: C.inkSoft }}>Deadline{scheduling ? " general" : ""}{taskType === "colaborativo" ? " *" : ""}</label>
-          <input type="date" value={deadline} min={minGeneralDeadline} onChange={(e) => setDeadline(e.target.value)} style={{ background: C.paper, borderRadius: R.md }} className="w-full px-3.5 py-2.5 text-sm mt-1.5 outline-none" /></div>
-      )}
+      <div><label className="text-[11.5px] font-bold tracking-[0.09em]" style={{ color: C.inkSoft }}>Deadline{scheduling ? " general" : ""}{taskType === "colaborativo" ? " *" : ""}</label>
+        <input type="date" value={deadline} min={minGeneralDeadline} onChange={(e) => setDeadline(e.target.value)} style={{ background: C.paper, borderRadius: R.md }} className="w-full px-3.5 py-2.5 text-sm mt-1.5 outline-none" /></div>
       <div><label className="text-[11.5px] font-bold tracking-[0.09em]" style={{ color: C.inkSoft }}>Urgencia</label>
         <select value={urgency} onChange={(e) => setUrgency(e.target.value)} style={{ background: C.paper, borderRadius: R.md }} className="w-full px-3.5 py-2.5 text-sm mt-1.5 outline-none">
           {URGENCIES.map((u) => <option key={u.label} value={u.label}>{u.label}</option>)}
