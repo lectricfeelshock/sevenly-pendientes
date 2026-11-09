@@ -722,3 +722,19 @@ sin migración por otra sesión) para que además de "tiene fecha" o "es
 de bienvenida", se sigan permitiendo los borradores creados a mano sin
 fecha todavía (los de la pestaña "Nuevos" — solicitud #3), que esa
 restricción rompía.
+
+### [x] 17. Variación en el mensaje "Todo chill, aún falta"
+_Aplicada 2026-11-07._
+
+Cuando a un pendiente le faltan 4 días o más, el mensaje ya no es siempre
+"Todo chill, aún falta": cada pendiente queda "marcado" con una de 10
+frases (la lista vive en `lib/chill-messages.js`) y esa frase es la que se
+muestra, siempre la misma para ese pendiente. La frase se escoge al crear
+el pendiente (también los programados y los recurrentes) y se vuelve a
+escoger cada vez que alguien le mueve el deadline — distinta a la que
+tenía. Si el deadline queda a menos de 4 días, se quita la marca (ahí
+salen "Faltan 3 días", "Es mañana", etc.).
+
+Requiere correr `supabase-migration-chill-message.sql` (agrega
+`tasks.chill_message` y marca los pendientes que ya existían). Mientras no
+se corra, los pendientes sin marca siguen mostrando "Todo chill, aún falta".
