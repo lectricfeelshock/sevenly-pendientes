@@ -150,18 +150,28 @@ function scheduleStartISO(sch) {
   if (sch.mode === "weekly") return sch.weekday ? nextWeekdayOnOrAfterISO(todayISO(), sch.weekday) : "";
   return sch.date || "";
 }
-function scheduleDeadlineISO(sch) {
+// N días después del día en que sale: hábiles si es semanal, naturales si es mensual.
+function scheduleOffsetISO(sch, n) {
   const start = scheduleStartISO(sch);
   if (!start) return "";
-  return sch.mode === "weekly" ? addBusinessDaysISO(start, sch.offset || 0) : addDaysISO(start, sch.offset || 0);
+  return sch.mode === "weekly" ? addBusinessDaysISO(start, n || 0) : addDaysISO(start, n || 0);
+}
+function scheduleDeadlineISO(sch) { return scheduleOffsetISO(sch, sch?.offset || 0); }
+// Lo inverso: de una fecha, cuántos días (hábiles o naturales) hay desde el día en que sale.
+function scheduleOffsetOfISO(sch, dISO) {
+  const start = scheduleStartISO(sch);
+  if (!start || !dISO || dISO < start) return 0;
+  if (sch.mode !== "weekly") return daysBetweenISO(start, dISO);
+  let n = 0; const d = new Date(start + "T00:00:00");
+  while (isoOfDate(d) < dISO) { d.setDate(d.getDate() + 1); if (d.getDay() !== 0 && d.getDay() !== 6) n += 1; }
+  return n;
 }
 function scheduleOffsetOption(n) {
   return n === 0 ? "Ese mismo día" : n === 1 ? "1 día después" : `${n} días después`;
 }
-function scheduleOffsetSummary(sch) {
-  const n = sch.offset || 0;
-  if (n === 0) return "el mismo día";
-  const unit = sch.mode === "weekly" ? (n === 1 ? "día hábil" : "días hábiles") : (n === 1 ? "día" : "días");
+function scheduleOffsetSummary(mode, n) {
+  if (!n) return "el mismo día";
+  const unit = mode === "weekly" ? (n === 1 ? "día hábil" : "días hábiles") : (n === 1 ? "día" : "días");
   return `${n} ${unit} después`;
 }
 function popupStoragePath(url) {
@@ -1855,7 +1865,14 @@ function NewTaskForm({ onClose, onCreate, onCreatePopup, profiles, profile, isAd
   const scheduling = !!schedule;
   const repeatMode = schedule?.mode || "none";
   const scheduledDate = scheduleStartISO(schedule);
-  const openSchedule = () => setScheduleDraft(schedule ? { ...schedule } : { mode: "weekly", weekday: null, date: "", offset: 0 });
+  // Al abrir la ventanita, cada subtarea con título trae su deadline como
+  // "días después" (si ya estaba programado) o, si no, el mismo del general.
+  const openSchedule = () => {
+    const base = schedule ? { ...schedule } : { mode: "weekly", weekday: null, date: "", offset: 0 };
+    const subOffsets = {};
+    subtaskRows.forEach((r, i) => { subOffsets[i] = schedule && r.deadline ? scheduleOffsetOfISO(schedule, r.deadline) : base.offset; });
+    setScheduleDraft({ ...base, subOffsets });
+  };
 
   // Colaborativo: equipo + subtareas
   const [teamMemberIds, setTeamMemberIds] = useState([]);
@@ -2050,7 +2067,9 @@ function NewTaskForm({ onClose, onCreate, onCreatePopup, profiles, profile, isAd
 
   // "Así va a funcionar": resumen en palabras de cómo queda programado.
   // Sale en la ventanita "Programar pendiente" y debajo del Deadline.
-  const renderScheduleSummary = (sch) => {
+  const subtaskWho = (row) => (taskType === "colaborativo" ? profiles.find((p) => p.id === row.assignedToId)?.name : assignedToProfile?.name) || "";
+  // subs = [{ title, who, n }] — n = días después del día en que sale.
+  const renderScheduleSummary = (sch, subs) => {
     const start = scheduleStartISO(sch);
     if (!sch || !start) return null;
     return (
@@ -2058,7 +2077,10 @@ function NewTaskForm({ onClose, onCreate, onCreatePopup, profiles, profile, isAd
         <div className="font-bold mb-1" style={{ color: C.ink }}>Así va a funcionar</div>
         <ul className="flex flex-col gap-0.5" style={{ color: C.inkMedium }}>
           <li>• Aparece <b>{recurrenceLabel(sch.mode, start)}</b>, empezando el {fmtLongDateISO(start)}.</li>
-          <li>• Deadline: <b>{scheduleOffsetSummary(sch)}</b> (la primera vez: {fmtLongDateISO(scheduleDeadlineISO(sch))}).</li>
+          <li>• Deadline: <b>{scheduleOffsetSummary(sch.mode, sch.offset)}</b> (la primera vez: {fmtLongDateISO(scheduleDeadlineISO(sch))}).</li>
+          {(subs || []).map((sub, k) => (
+            <li key={k}>• Subtarea “{sub.title}”{sub.who ? ` (${sub.who})` : ""}: <b>{scheduleOffsetSummary(sch.mode, sub.n)}</b> (la primera vez: {fmtLongDateISO(scheduleOffsetISO(sch, sub.n))}).</li>
+          ))}
           <li>• El solicitante podrá verlo en <b>Mis solicitudes → Programados</b>.</li>
           <li>• El asignado, en sus pendientes el día que estaba programado salir.</li>
         </ul>
@@ -2090,6 +2112,22 @@ function NewTaskForm({ onClose, onCreate, onCreatePopup, profiles, profile, isAd
     </div>
   );
   const generalDeadlineUrgencyField = <>{urgencyField}{deadlineField}</>;
+
+  // Subtareas del formulario ya programado, para el resumen de abajo.
+  const scheduledSubs = scheduling
+    ? subtaskRows.filter((r) => r.title.trim()).map((r) => ({ title: r.title.trim(), who: subtaskWho(r), n: r.deadline ? scheduleOffsetOfISO(schedule, r.deadline) : schedule.offset }))
+    : [];
+
+  // Si está programado, el deadline de cada subtarea se elige en la
+  // ventanita "Programar" — aquí solo se muestra y al darle clic se abre.
+  const subtaskDeadlineInput = (row, i) => scheduling ? (
+    <button type="button" onClick={openSchedule} title="Cambiar en Programar pendiente" style={{ background: C.paper, borderRadius: R.md, color: C.inkMedium }} className="px-3 py-2 text-xs text-left flex items-center gap-1.5">
+      <CalendarClock size={12} style={{ color: C.signal, flexShrink: 0 }} />
+      {row.deadline ? fmtLongDateISO(row.deadline) : "Igual que el deadline"}
+    </button>
+  ) : (
+    <input type="date" value={row.deadline} min={baseDateStr} max={effectiveDeadline || undefined} onChange={(e) => updateSubtaskRow(i, "deadline", e.target.value)} style={{ background: C.paper, borderRadius: R.md }} className="px-3 py-2 text-xs outline-none" />
+  );
 
   if (mode === "pendiente" && !accountChosen) {
     return (
@@ -2248,7 +2286,7 @@ function NewTaskForm({ onClose, onCreate, onCreatePopup, profiles, profile, isAd
                             <button type="button" onClick={() => removeSubtaskRow(i)}><X size={14} style={{ color: C.inkSoft }} /></button>
                           </div>
                           <textarea value={row.description} onChange={(e) => updateSubtaskRow(i, "description", e.target.value)} placeholder="Descripción (opcional)" rows={2} style={{ background: C.paper, borderRadius: R.md }} className="px-3 py-2 text-xs outline-none resize-y" />
-                          <input type="date" value={row.deadline} min={baseDateStr} max={effectiveDeadline || undefined} onChange={(e) => updateSubtaskRow(i, "deadline", e.target.value)} style={{ background: C.paper, borderRadius: R.md }} className="px-3 py-2 text-xs outline-none" />
+                          {subtaskDeadlineInput(row, i)}
                         </div>
                       ))}
                     </div>
@@ -2274,7 +2312,7 @@ function NewTaskForm({ onClose, onCreate, onCreatePopup, profiles, profile, isAd
                               <option value="">Asignar a...</option>
                               {profiles.filter((p) => teamMemberIds.includes(p.id)).map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
                             </select>
-                            <input type="date" value={row.deadline} min={baseDateStr} max={effectiveDeadline || undefined} onChange={(e) => updateSubtaskRow(i, "deadline", e.target.value)} style={{ background: C.paper, borderRadius: R.md }} className="px-3 py-2 text-xs outline-none" />
+                            {subtaskDeadlineInput(row, i)}
                           </div>
                         </div>
                       ))}
@@ -2328,7 +2366,7 @@ function NewTaskForm({ onClose, onCreate, onCreatePopup, profiles, profile, isAd
                     {solicitaField}
                     {urgencyField}
                     {deadlineField}
-                    {scheduling && renderScheduleSummary(schedule)}
+                    {scheduling && renderScheduleSummary(schedule, scheduledSubs)}
                   </>
                 )}
 
@@ -2351,7 +2389,7 @@ function NewTaskForm({ onClose, onCreate, onCreatePopup, profiles, profile, isAd
                     {solicitaField}
                     {urgencyField}
                     {deadlineField}
-                    {scheduling && renderScheduleSummary(schedule)}
+                    {scheduling && renderScheduleSummary(schedule, scheduledSubs)}
                   </>
                 )}
               </div>
@@ -2360,6 +2398,12 @@ function NewTaskForm({ onClose, onCreate, onCreatePopup, profiles, profile, isAd
         )}
 
         <div style={{ boxShadow: `inset 0 1px 0 ${C.hairline}` }} className="px-5 py-4 flex justify-end items-center gap-2">
+          <button onClick={onClose} style={{ color: C.inkMedium, background: C.subtle, borderRadius: R.pill }} className="px-5 py-2.5 text-sm font-semibold">Cancelar</button>
+          {mode === "popup" && isAdmin ? (
+            <button onClick={() => setShowPopupConfirm(true)} disabled={!popupTitle.trim() || popupSaving || !!popupImageError} style={{ background: C.ink, color: C.paper, opacity: popupSaving ? 0.6 : 1, borderRadius: R.pill }} className="px-5 py-2.5 text-sm font-semibold disabled:cursor-not-allowed">¿Listo?</button>
+          ) : (
+            <button onClick={handleCreateClick} disabled={usesDeadlineRules && !!deadlineError} style={{ background: C.ink, color: C.paper, opacity: usesDeadlineRules && deadlineError ? 0.5 : 1, borderRadius: R.pill }} className="px-5 py-2.5 text-sm font-semibold disabled:cursor-not-allowed">Crear</button>
+          )}
           {!(mode === "popup" && isAdmin) && usesDeadlineRules && (
             <div className="relative group">
               <button type="button" onClick={openSchedule} aria-label="Programar pendiente"
@@ -2368,16 +2412,10 @@ function NewTaskForm({ onClose, onCreate, onCreatePopup, profiles, profile, isAd
                 <Clock size={17} />
               </button>
               <span style={{ background: C.ink, color: C.paper, borderRadius: R.md }}
-                className="pointer-events-none absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-2.5 py-1 text-[11px] font-semibold whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity">
+                className="pointer-events-none absolute bottom-full right-0 mb-2 px-2.5 py-1 text-[11px] font-semibold whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity">
                 {scheduling ? "Cambiar programación" : "Programar pendiente"}
               </span>
             </div>
-          )}
-          <button onClick={onClose} style={{ color: C.inkMedium, background: C.subtle, borderRadius: R.pill }} className="px-5 py-2.5 text-sm font-semibold">Cancelar</button>
-          {mode === "popup" && isAdmin ? (
-            <button onClick={() => setShowPopupConfirm(true)} disabled={!popupTitle.trim() || popupSaving || !!popupImageError} style={{ background: C.ink, color: C.paper, opacity: popupSaving ? 0.6 : 1, borderRadius: R.pill }} className="px-5 py-2.5 text-sm font-semibold disabled:cursor-not-allowed">¿Listo?</button>
-          ) : (
-            <button onClick={handleCreateClick} disabled={usesDeadlineRules && !!deadlineError} style={{ background: C.ink, color: C.paper, opacity: usesDeadlineRules && deadlineError ? 0.5 : 1, borderRadius: R.pill }} className="px-5 py-2.5 text-sm font-semibold disabled:cursor-not-allowed">Crear pendiente</button>
           )}
         </div>
       </div>
@@ -2387,6 +2425,21 @@ function NewTaskForm({ onClose, onCreate, onCreatePopup, profiles, profile, isAd
         const ready = d.mode === "weekly" ? !!d.weekday : !!d.date && d.date >= todayStr;
         const setD = (patch) => setScheduleDraft((prev) => ({ ...prev, ...patch }));
         const lbl = "text-[11.5px] font-bold tracking-[0.09em]";
+        const start = scheduleStartISO(d);
+        // Una subtarea nunca puede vencer después del deadline general.
+        const subOff = (idx) => Math.min(d.subOffsets?.[idx] ?? d.offset, d.offset || 0);
+        const draftSubs = subtaskRows.map((r, idx) => ({ r, idx })).filter(({ r }) => r.title.trim());
+        const setSubOff = (idx, n) => setScheduleDraft((prev) => ({ ...prev, subOffsets: { ...(prev.subOffsets || {}), [idx]: n } }));
+        // Semanal: menú de días hábiles. Mensual: calendario del día en que sale hasta `max` días naturales después.
+        const offsetPicker = (value, onChange, max) => d.mode === "weekly" ? (
+          <select value={value} onChange={(e) => onChange(Number(e.target.value))} style={{ background: C.paper, borderRadius: R.md }} className="w-full px-3.5 py-2.5 text-sm mt-1.5 outline-none">
+            {Array.from({ length: max + 1 }, (_, n) => <option key={n} value={n}>{scheduleOffsetOption(n)}</option>)}
+          </select>
+        ) : (
+          <input type="date" disabled={!start} value={start ? addDaysISO(start, value) : ""} min={start || undefined} max={start ? addDaysISO(start, max) : undefined}
+            onChange={(e) => { if (!e.target.value || !start) return; onChange(Math.max(0, Math.min(max, daysBetweenISO(start, e.target.value)))); }}
+            style={{ background: C.paper, borderRadius: R.md }} className="w-full px-3.5 py-2.5 text-sm mt-1.5 outline-none disabled:opacity-50" />
+        );
         return (
           <div className="fixed inset-0 z-[70] flex items-center justify-center p-4" style={{ background: "rgba(27,30,36,0.6)" }} onClick={() => setScheduleDraft(null)}>
             <div style={{ background: C.panel, borderRadius: R.xl, boxShadow: SH.card }} className="w-full max-w-sm p-5 flex flex-col gap-4 max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
@@ -2420,20 +2473,38 @@ function NewTaskForm({ onClose, onCreate, onCreatePopup, profiles, profile, isAd
               )}
 
               <div><label className={lbl} style={{ color: C.inkSoft }}>Deadline</label>
-                <select value={d.offset || 0} onChange={(e) => setD({ offset: Number(e.target.value) })} style={{ background: C.paper, borderRadius: R.md }} className="w-full px-3.5 py-2.5 text-sm mt-1.5 outline-none">
-                  {Array.from({ length: maxOffset + 1 }, (_, n) => <option key={n} value={n}>{scheduleOffsetOption(n)}</option>)}
-                </select>
-                {d.mode === "weekly" && <p className="text-[11px] mt-1.5" style={{ color: C.inkSoft }}>Solo cuenta días hábiles (lun a vie).</p>}
+                {offsetPicker(d.offset || 0, (n) => setD({ offset: n }), maxOffset)}
+                <p className="text-[11px] mt-1.5" style={{ color: C.inkSoft }}>
+                  {d.mode === "weekly" ? "Solo cuenta días hábiles (lun a vie)." : start ? "Desde el mismo día hasta 27 días después." : "Primero elige el día en que sale."}
+                </p>
               </div>
 
-              {ready && renderScheduleSummary(d)}
+              {draftSubs.length > 0 && (
+                <div className="flex flex-col gap-3">
+                  <label className={lbl} style={{ color: C.inkSoft }}>Deadline de las subtareas</label>
+                  {draftSubs.map(({ r, idx }) => (
+                    <div key={idx}>
+                      <div className="text-[12.5px] font-semibold" style={{ color: C.ink }}>{r.title.trim()}{subtaskWho(r) ? <span style={{ color: C.inkSoft, fontWeight: 500 }}> · {subtaskWho(r)}</span> : null}</div>
+                      {offsetPicker(subOff(idx), (n) => setSubOff(idx, n), d.offset || 0)}
+                    </div>
+                  ))}
+                  <p className="text-[11px] -mt-1" style={{ color: C.inkSoft }}>No pueden vencer después del deadline general.</p>
+                </div>
+              )}
+
+              {ready && renderScheduleSummary(d, draftSubs.map(({ r, idx }) => ({ title: r.title.trim(), who: subtaskWho(r), n: subOff(idx) })))}
 
               <div className="flex items-center gap-2">
                 {scheduling && (
-                  <button type="button" onClick={() => { setSchedule(null); setScheduleDraft(null); }} style={{ color: C.urgent }} className="text-xs font-semibold mr-auto">Quitar programación</button>
+                  <button type="button" onClick={() => { setSchedule(null); setScheduleDraft(null); setSubtaskRows((rows) => rows.map((r) => ({ ...r, deadline: "" }))); }} style={{ color: C.urgent }} className="text-xs font-semibold mr-auto">Quitar programación</button>
                 )}
                 <button type="button" onClick={() => setScheduleDraft(null)} style={{ color: C.inkMedium, background: C.subtle, borderRadius: R.pill }} className="ml-auto px-4 py-2 text-sm font-semibold">Cancelar</button>
-                <button type="button" disabled={!ready} onClick={() => { setSchedule(d); setScheduleDraft(null); }}
+                <button type="button" disabled={!ready} onClick={() => {
+                    const { subOffsets, ...sch } = d;
+                    setSchedule(sch);
+                    setSubtaskRows((rows) => rows.map((r, idx) => r.title.trim() ? { ...r, deadline: scheduleOffsetISO(sch, subOff(idx)) } : r));
+                    setScheduleDraft(null);
+                  }}
                   style={{ background: C.ink, color: C.paper, opacity: ready ? 1 : 0.5, borderRadius: R.pill }}
                   className="px-4 py-2 text-sm font-semibold disabled:cursor-not-allowed">Listo</button>
               </div>
