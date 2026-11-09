@@ -1899,8 +1899,13 @@ function NewTaskForm({ onClose, onCreate, onCreatePopup, profiles, profile, isAd
   // Si se repite, el deadline no se elige como fecha suelta sino como
   // "X días después de que aparece" (así es como se guarda en la plantilla
   // y se recalcula cada semana/mes). La fecha real de la 1ª vez sale de ahí.
+  // Hasta justo antes de la siguiente ocurrencia: semanal 0-6 días, mensual
+  // 0-27 (dos "N-ésimo lunes" seguidos están a 28 días como mínimo). Mismo
+  // rango que el check de recurring_templates.deadline_offset_days.
   const isRepeating = scheduling && repeatMode !== "none";
-  const effectiveDeadline = isRepeating ? (scheduledDate ? addDaysISO(scheduledDate, deadlineOffset) : "") : deadline;
+  const maxDeadlineOffset = repeatMode === "monthly" ? 27 : 6;
+  const offsetDays = Math.min(deadlineOffset, maxDeadlineOffset); // si cambias de mensual a semanal
+  const effectiveDeadline = isRepeating ? (scheduledDate ? addDaysISO(scheduledDate, offsetDays) : "") : deadline;
   const subtaskDeadlines = usesDeadlineRules ? subtaskRows.map((r) => r.deadline).filter(Boolean) : [];
   const maxSubtaskDeadline = subtaskDeadlines.length ? subtaskDeadlines.reduce((a, b) => (a > b ? a : b)) : null;
   const minGeneralDeadline = maxSubtaskDeadline && maxSubtaskDeadline > baseDateStr ? maxSubtaskDeadline : baseDateStr;
@@ -2054,7 +2059,7 @@ function NewTaskForm({ onClose, onCreate, onCreatePopup, profiles, profile, isAd
       <div className="font-bold mb-1" style={{ color: C.ink }}>Así va a funcionar</div>
       <ul className="flex flex-col gap-0.5" style={{ color: C.inkMedium }}>
         <li>• Aparece <b>{recurrenceLabel(repeatMode, scheduledDate)}</b>, empezando el {fmtLongDateISO(scheduledDate)}.</li>
-        <li>• Deadline: <b>{offsetLabel(deadlineOffset).toLowerCase()}</b>{effectiveDeadline ? ` (la primera vez: ${fmtLongDateISO(effectiveDeadline)})` : ""}.</li>
+        <li>• Deadline: <b>{offsetLabel(offsetDays).toLowerCase()}</b>{effectiveDeadline ? ` (la primera vez: ${fmtLongDateISO(effectiveDeadline)})` : ""}.</li>
         <li>• Hasta ese día lo ves en <b>Mis solicitudes → Programados</b>; a quien se asigna le aparece el día que toca.</li>
       </ul>
     </div>
@@ -2064,8 +2069,8 @@ function NewTaskForm({ onClose, onCreate, onCreatePopup, profiles, profile, isAd
     <div className="grid grid-cols-2 gap-3">
       {isRepeating ? (
         <div><label className="text-[11.5px] font-bold tracking-[0.09em]" style={{ color: C.inkSoft }}>Deadline{taskType === "colaborativo" ? " general" : ""}</label>
-          <select value={deadlineOffset} onChange={(e) => setDeadlineOffset(Number(e.target.value))} style={{ background: C.paper, borderRadius: R.md }} className="w-full px-3.5 py-2.5 text-sm mt-1.5 outline-none">
-            {[0, 1, 2, 3, 4, 5, 6].map((n) => <option key={n} value={n}>{offsetLabel(n)}</option>)}
+          <select value={offsetDays} onChange={(e) => setDeadlineOffset(Number(e.target.value))} style={{ background: C.paper, borderRadius: R.md }} className="w-full px-3.5 py-2.5 text-sm mt-1.5 outline-none">
+            {Array.from({ length: maxDeadlineOffset + 1 }, (_, n) => <option key={n} value={n}>{offsetLabel(n)}</option>)}
           </select></div>
       ) : (
         <div><label className="text-[11.5px] font-bold tracking-[0.09em]" style={{ color: C.inkSoft }}>Deadline{scheduling ? " general" : ""}{taskType === "colaborativo" ? " *" : ""}</label>
